@@ -1,0 +1,29 @@
+# Local runtime data and secrets
+/data/*
+!/data/.htaccess
+!/data/.gitkeep
+
+# Local environment files
+.env
+.env.*
+*.local
+
+# Dependencies and generated files
+node_modules/
+vendor/
+coverage/
+dist/
+build/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

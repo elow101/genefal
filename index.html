@@ -1,0 +1,348 @@
+<!doctype html>
+<html class="theme-dark auth-pending" lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Faluche Nationale</title>
+    <style>
+      html.auth-pending body {
+        visibility: hidden;
+      }
+    </style>
+    <script>
+      (() => {
+        if (window.location.protocol === "file:") {
+          document.documentElement.classList.remove("auth-pending");
+          return;
+        }
+
+        fetch("./api/auth.php", { cache: "no-store", credentials: "same-origin" })
+          .then((response) => {
+            if (!response.ok) throw new Error("auth-required");
+            return response.json();
+          })
+          .then((payload) => {
+            if (payload.authenticated) {
+              document.documentElement.classList.remove("auth-pending");
+              return;
+            }
+            window.location.replace("./index.php");
+          })
+          .catch(() => {
+            window.location.replace("./index.php");
+          });
+      })();
+    </script>
+    <link rel="stylesheet" href="./styles.css?v=ceremony-national-26" />
+  </head>
+  <body class="theme-dark">
+    <main class="app-shell">
+      <section class="toolbar" aria-label="Gestion de la genealogie">
+        <div class="brand">
+          <img class="brand-mark" id="brandMark" src="./assets/fetterama.png" alt="" />
+          <div class="brand-copy">
+            <details class="genealogy-menu">
+              <summary>
+                <span class="genealogy-trigger">
+                  <span class="genealogy-trigger-text">
+                    <span class="genealogy-trigger-label">Familles</span>
+                    <h1 id="genealogyTitle">Faluche Nationale</h1>
+                  </span>
+                  <span class="genealogy-trigger-chevron" aria-hidden="true">&#9662;</span>
+                </span>
+              </summary>
+              <div class="genealogy-popover">
+                <div class="genealogy-list" id="genealogyList"></div>
+                <div class="genealogy-actions">
+                  <button class="text-button" id="addGenealogyButton" type="button">Ajouter</button>
+                  <button class="text-button" id="renameGenealogyButton" type="button">Renommer</button>
+                  <button class="text-button" id="changeGenealogyPhotoButton" type="button">Photo</button>
+                  <button class="text-button danger-text" id="deleteGenealogyButton" type="button">Supprimer</button>
+                </div>
+              </div>
+            </details>
+            <p>Rechercher, relier et visualiser une famille de faluche.</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <span class="server-status is-offline" id="serverStatus" role="status">Hors ligne</span>
+          <button class="action-button" id="exportButton" type="button">Exporter</button>
+          <button class="action-button" id="doleanceButton" type="button">Dol&eacute;ances</button>
+          <button class="action-button" id="adminButton" type="button">Admin</button>
+          <input class="hidden-file-input" id="importInput" type="file" accept="application/json,.json" />
+          <input class="hidden-file-input" id="adminImportAllInput" type="file" accept="application/json,.json" />
+          <input class="hidden-file-input" id="genealogyPhotoInput" type="file" accept="image/*" />
+        </div>
+      </section>
+
+      <section class="options-bar" aria-label="Options d'affichage">
+        <details class="search-menu">
+          <summary>Recherche</summary>
+          <div class="search-popover">
+            <label>
+              Chercher un faluchard
+              <input id="searchInput" type="search" placeholder="Nom, surnom, paillarde..." autocomplete="off" />
+            </label>
+          </div>
+        </details>
+        <label>
+          Ascendants visibles
+          <input id="ancestorDepthInput" type="number" min="0" max="20" value="20" />
+        </label>
+        <label>
+          Descendants visibles
+          <input id="descendantDepthInput" type="number" min="0" max="20" value="20" />
+        </label>
+        <div class="editor-jump-control">
+          <input id="showEditorInput" type="checkbox" checked hidden />
+          <button class="action-button" id="showEditorButton" type="button">Fiche d'ajout</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <section class="graph-area" aria-label="Visualisation genealogique">
+          <div class="graph-header">
+            <div>
+              <h2 id="focusTitle">Aucun faluchard selectionne</h2>
+              <p id="focusSubtitle">Ajoute une personne pour commencer.</p>
+            </div>
+            <div class="view-toggle" role="tablist" aria-label="Mode d'affichage">
+              <button id="treeModeButton" class="is-active" type="button">Arbre</button>
+              <button id="networkModeButton" type="button">Reseau</button>
+              <button id="overviewModeButton" type="button">Vue d'ensemble</button>
+              <button id="newcomersModeButton" type="button">Nouveaux venus</button>
+              <button id="statsModeButton" type="button">Statistiques</button>
+              <button id="upcomingModeButton" type="button">Event &agrave; venir</button>
+            </div>
+          </div>
+          <div class="graph-stage-wrap">
+            <div class="zoom-controls graph-stage-zoom" aria-label="Zoom de l'arbre">
+              <button class="icon-button" id="zoomOutButton" type="button" title="Zoom arriere">-</button>
+              <button class="icon-button" id="zoomResetButton" type="button" title="Recentrer">100%</button>
+              <button class="icon-button" id="zoomInButton" type="button" title="Zoom avant">+</button>
+            </div>
+            <button class="graph-exit-button" id="graphExitButton" type="button" aria-label="Revenir en haut de la page" title="Revenir en haut">
+              <span aria-hidden="true">&#8593;</span>
+            </button>
+            <div class="graph-stage" id="graphStage"></div>
+          </div>
+        </section>
+
+        <aside class="panel editor" aria-label="Fiche faluchard">
+          <form id="personForm" class="person-form">
+            <div class="form-head">
+              <h2 id="formTitle">Nouvelle fiche</h2>
+              <button class="text-button" id="newButton" type="button">Nouveau</button>
+            </div>
+            <div class="form-step-tabs" aria-label="Etapes de la fiche">
+              <button class="text-button" type="button" data-form-step-target="quick">Identite</button>
+              <button class="text-button" type="button" data-form-step-target="baptismInfoSection">Bapteme</button>
+              <button class="text-button" type="button" data-form-step-target="specialRelationsSection">Parrainage</button>
+              <button class="text-button" type="button" data-form-step-target="rolesStatusSection">Roles</button>
+            </div>
+            <div class="form-errors" id="formErrors" role="alert" hidden></div>
+
+            <div class="quick-fields" aria-label="Informations essentielles">
+              <label>
+                Nom
+                <input id="nameInput" required autocomplete="off" />
+              </label>
+              <label>
+                Surnom
+                <input id="nicknameInput" autocomplete="off" />
+              </label>
+              <label>
+                Filiere
+                <select id="filiereInput">
+                  <option value="">Non renseignee</option>
+                </select>
+              </label>
+
+              <div class="field-block">
+                <label>
+                  Parrain(s)
+                  <input id="sponsorSearchInput" list="sponsorOptions" autocomplete="off" placeholder="Rechercher un parrain" />
+                </label>
+                <datalist id="sponsorOptions"></datalist>
+                <div class="selected-chip-list" id="selectedSponsorsList"></div>
+              </div>
+            </div>
+
+            <button class="primary mobile-sticky-submit" id="mobileSavePersonButton" type="submit">Cr&eacute;er le faluchard</button>
+
+            <details class="form-section" id="advancedInfoSection">
+              <summary>Informations avanc&eacute;es</summary>
+              <div class="form-section-body">
+                <label id="genealogyTargetField">
+                  Arbre de destination
+                  <select id="genealogyTargetInput"></select>
+                  <span class="field-hint">Choisis le niveau national, regional ou familial ou la fiche doit apparaitre.</span>
+                </label>
+
+                <label>
+                  Ancien ou second surnom
+                  <input id="nickname2Input" autocomplete="off" />
+                </label>
+                <label>
+                  Autre surnom
+                  <input id="nickname3Input" autocomplete="off" />
+                </label>
+                <label>
+                  Paillarde
+                  <input id="songInput" autocomplete="off" />
+                </label>
+              </div>
+            </details>
+
+            <details class="form-section" id="baptismInfoSection">
+              <summary>Infos de bapt&ecirc;me</summary>
+              <div class="form-section-body">
+                <input id="ceremonyTypeInput" type="hidden" value="bapteme" />
+
+                <label>
+                  Date de bapt&ecirc;me
+                  <input id="baptismInput" type="date" />
+                </label>
+
+                <label>
+                  Ville de bapt&ecirc;me
+                  <input id="baptismCityInput" autocomplete="off" />
+                </label>
+
+                <label>
+                  Si aucune date n'est precisee
+                  <select id="baptismStatusInput">
+                    <option value="unknown">Date inconnue</option>
+                    <option value="unbaptized">Pas encore baptise</option>
+                  </select>
+                </label>
+
+                <div class="field-block">
+                  <span class="form-label">Adoptions et confirmations</span>
+                  <div class="field-group">
+                    <label>
+                      Type
+                      <select id="extraCeremonyTypeInput">
+                        <option value="adoption">Adoption</option>
+                        <option value="confirmation">Confirmation</option>
+                      </select>
+                    </label>
+                    <label>
+                      Ville
+                      <input id="extraCeremonyCityInput" autocomplete="off" />
+                    </label>
+                    <label>
+                      Surnom
+                      <input id="extraCeremonyNicknameInput" autocomplete="off" />
+                    </label>
+                  </div>
+                  <label>
+                    Parrain(s)
+                    <select class="multi-select compact-select" id="extraCeremonySponsorsInput" multiple size="4"></select>
+                  </label>
+                  <button class="text-button" id="addExtraCeremonyButton" type="button">Ajouter cette ceremonie</button>
+                  <div class="selected-chip-list ceremony-event-list" id="extraCeremoniesList"></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="form-section" id="specialRelationsSection">
+              <summary>Relations sp&eacute;ciales</summary>
+              <div class="form-section-body">
+                <div class="field-block">
+                  <span class="form-label">Parrains de coeur</span>
+                  <div class="picker-row">
+                    <select id="heartSponsorPicker"></select>
+                    <button class="text-button" id="addHeartSponsorButton" type="button">Ajouter</button>
+                  </div>
+                  <div class="selected-chip-list" id="selectedHeartSponsorsList"></div>
+                  <span class="field-hint">Un parrain de coeur est automatiquement ajoute aux parrains.</span>
+                </div>
+
+                <div class="field-group">
+                  <label>
+                    Bapteme en croisee
+                    <select id="crossGroupSizeInput">
+                      <option value="">Aucun</option>
+                      <option value="2">2 personnes</option>
+                      <option value="3">3 personnes</option>
+                      <option value="4">4 personnes</option>
+                      <option value="5">5 personnes</option>
+                      <option value="6">6 personnes</option>
+                      <option value="7">7 personnes</option>
+                      <option value="8">8 personnes</option>
+                      <option value="9">9 personnes</option>
+                      <option value="10">10 personnes</option>
+                    </select>
+                  </label>
+                  <div class="field-block">
+                    <span class="form-label">Avec</span>
+                    <div class="picker-row">
+                      <select id="crossGroupPicker"></select>
+                      <button class="text-button" id="addCrossMemberButton" type="button">Ajouter</button>
+                    </div>
+                    <div class="selected-chip-list" id="selectedCrossMembersList"></div>
+                    <button class="text-button subtle-button" id="clearCrossGroupButton" type="button">Retirer la croisee</button>
+                    <span class="field-hint">Ajoute puis retire les personnes avec les pastilles visibles.</span>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="form-section" id="rolesStatusSection">
+              <summary>R&ocirc;les et statuts</summary>
+              <div class="form-section-body">
+                <label>
+                  Pastilles de roles
+                  <select class="multi-select compact-select" id="rolesInput" multiple size="4"></select>
+                  <span class="field-hint">Les pastilles se creent par region en mode admin.</span>
+                </label>
+              </div>
+            </details>
+
+            <div class="form-actions">
+              <button class="primary" id="savePersonButton" type="submit">Cr&eacute;er le faluchard</button>
+              <button class="text-button danger-text" id="deleteButton" type="button">Supprimer</button>
+            </div>
+          </form>
+
+          <section class="relationship-tools" aria-label="Gestion des fillots">
+            <h2>Ajouter des fillots</h2>
+            <label>
+              Rattacher un faluchard existant comme fillot
+              <select id="fillotInput"></select>
+            </label>
+            <div class="form-actions">
+              <button class="primary" id="attachFillotButton" type="button">Rattacher</button>
+              <button class="text-button" id="newFillotButton" type="button">Nouveau fillot</button>
+            </div>
+            <div class="field-block">
+              <span class="form-label">Fillots classiques rattaches</span>
+              <div class="selected-chip-list" id="currentFillotsList"></div>
+            </div>
+          </section>
+
+          <section class="admin-panel" id="adminPanel" aria-label="Mode administrateur" hidden>
+            <h2>Mode administrateur</h2>
+            <div class="admin-actions">
+              <button class="text-button" id="adminImportActiveButton" type="button">Importer arbre ouvert</button>
+              <button class="text-button" id="adminImportAllButton" type="button">Importer tout</button>
+              <button class="text-button" id="adminExportActiveButton" type="button">Exporter arbre ouvert</button>
+              <button class="text-button" id="adminExportAllButton" type="button">Exporter tout</button>
+            </div>
+            <div class="admin-people-tools" id="adminPeopleTools"></div>
+          </section>
+
+          <div class="details" id="detailsPanel"></div>
+        </aside>
+      </section>
+      <section class="doleance-overlay" id="doleancePanel" aria-label="Doleances" hidden></section>
+      <section class="app-modal-root" id="appModalRoot" aria-live="polite"></section>
+      <section class="toast-stack" id="toastStack" aria-live="polite"></section>
+    </main>
+
+    <script type="module" src="./src/main.js?v=front-structure-1"></script>
+  </body>
+</html>
