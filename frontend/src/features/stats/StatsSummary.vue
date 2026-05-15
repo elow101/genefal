@@ -42,18 +42,20 @@ const upcomingCount = computed(() => props.data.upcomingBaptisms?.length || 0)
 }
 
 dl {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
 }
 
 div {
-  border: 1px solid #ddd;
-  padding: 12px;
-  min-width: 120px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 16px;
 }
 
 dt {
-  color: #666;
+  color: var(--muted);
   font-size: 14px;
 }
 

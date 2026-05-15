@@ -2,13 +2,13 @@
   <section class="upcoming">
     <h2>Événements à venir</h2>
 
-    <p v-if="events.length === 0">Aucun événement à venir pour le moment.</p>
+    <p v-if="events.length === 0" class="empty">Aucun événement à venir pour le moment.</p>
 
     <ul v-else>
       <li v-for="event in events" :key="event.id">
         <strong>{{ eventLabel(event) }}</strong>
-        <span>{{ event.dateTime || 'Date à définir' }}</span>
-        <PeopleList :people="people" />
+        <span>{{ formatDateTime(event.dateTime) }}</span>
+        <small v-if="event.place">{{ event.place }}</small>
       </li>
     </ul>
   </section>
@@ -23,11 +23,22 @@ defineProps({
 })
 
 function eventLabel(event) {
-  if (event.eventType === 'cooptage') {
-    return 'Cooptage à venir'
-  }
+  if (event.eventType === 'cooptage') return 'Cooptage à venir'
+  if (event.eventType === 'adoption') return 'Adoption à venir'
+  if (event.eventType === 'confirmation') return 'Confirmation à venir'
 
   return 'Baptême à venir'
+}
+
+function formatDateTime(value) {
+  if (!value) return 'Date à définir'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
 }
 </script>
 
@@ -46,6 +57,11 @@ li {
 
 span {
   margin-left: 8px;
-  color: #666;
+  color: var(--muted);
+}
+
+small {
+  display: block;
+  color: var(--muted);
 }
 </style>

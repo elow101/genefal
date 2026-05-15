@@ -2,7 +2,7 @@
   <section class="people-list">
     <h2>Personnes</h2>
 
-    <p v-if="people.length === 0">Aucune personne pour le moment.</p>
+    <p v-if="people.length === 0" class="empty">Aucune personne pour le moment.</p>
 
     <ul v-else>
       <li v-for="person in people" :key="person.id">
@@ -36,6 +36,6 @@ li {
 }
 
 span {
-  color: #666;
+  color: var(--muted);
 }
 </style>

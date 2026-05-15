@@ -4,6 +4,10 @@
     "check:js": "node --check app.js",
     "test:js": "node tests/data-normalisation.test.mjs && node tests/features.test.mjs",
     "test:php": "php tests/genealogy-server.test.php",
-    "test": "npm run check:js && npm run test:js && npm run test:php"
+    "test": "npm run check:js && npm run test:js && npm run test:php",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "frontend:test": "npm --prefix frontend run test:unit -- --run"
   }
 }

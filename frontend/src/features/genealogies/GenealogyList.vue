@@ -2,7 +2,7 @@
   <section class="genealogy-list">
     <h2>Généalogies</h2>
 
-    <p v-if="genealogies.length === 0">Aucune généalogie pour le moment.</p>
+    <p v-if="genealogies.length === 0" class="empty">Aucune généalogie pour le moment.</p>
 
     <ul v-else>
       <li v-for="genealogy in genealogies" :key="genealogy.id">
@@ -51,23 +51,25 @@ li {
 button {
   width: 100%;
   text-align: left;
-  border: 1px solid #ddd;
-  background: white;
-  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 14px 16px;
   cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-button:hover {
-  background: #f7f7f7;
-}
-
+button:hover,
 button.selected {
-  border-color: #111;
-  background: #f0f0f0;
+  border-color: var(--accent);
+  background: var(--panel-strong);
 }
 
 span {
   margin-left: 8px;
-  color: #666;
+  color: var(--muted);
 }
 </style>

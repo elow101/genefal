@@ -2,7 +2,7 @@
 
 Application web legere pour consulter, editer et visualiser des genealogies de faluche.
 
-Le projet n'a pas de framework cote front. Il repose surtout sur:
+Le front historique reste servi sans build, et une migration Vue 3/Vite est amorcee dans `frontend/`. Le projet repose surtout sur:
 
 - `index.php` pour l'entree protegee par mot de passe.
 - `index.html` pour la structure HTML de l'application.
@@ -11,6 +11,7 @@ Le projet n'a pas de framework cote front. Il repose surtout sur:
 - `styles.css` pour toute l'interface.
 - `api/*.php` pour la persistance, les sessions, l'administration et les doleances.
 - `modules/*.js` pour les helpers extraits progressivement de `app.js`.
+- `frontend/` pour le nouveau front Vue 3/Vite en cours de migration.
 
 ## Demarrage rapide
 
@@ -45,7 +46,7 @@ Puis ouvrir:
 http://127.0.0.1:8765/
 ```
 
-Il n'y a pas d'etape de build. Les fichiers servis sont directement ceux du depot.
+L'application historique n'a pas d'etape de build. Pour travailler sur le nouveau front Vue, utiliser les commandes `frontend:*` ci-dessous.
 
 ## Commandes de controle
 
@@ -61,6 +62,8 @@ Si `npm` est disponible:
 
 ```powershell
 npm test
+npm run frontend:build
+npm run frontend:dev
 ```
 
 Ce que les tests couvrent aujourd'hui:
@@ -87,7 +90,8 @@ Ce que les tests couvrent aujourd'hui:
 | `api/diagnostic.php` | Diagnostic admin general sur le dossier `data`. |
 | `api/helpers.php` | Reponses JSON, lecture JSON limitee, ecriture atomique, nettoyage texte/ID. |
 | `api/config.php` | Chemins des fichiers de donnees. |
-| `src/` | Nouvelle structure cible pour decouper progressivement le front. |
+| `src/` | Structure modulaire du front historique, chargee par `index.html`. |
+| `frontend/` | Application Vue 3/Vite isolee pour la migration progressive du front. |
 | `modules/data.js` | Helpers purs de normalisation et generation d'ID. |
 | `modules/graph.js` | Geometrie des liens du graphe. |
 | `modules/labels.js` | Libelles UI centralises. |
