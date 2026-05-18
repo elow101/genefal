@@ -34,6 +34,13 @@ function event_by_id(array $payload, string $id): array
     return [];
 }
 
+$legacyMigrated = migrate_genealogy_payload([
+    ['id' => 'legacy-a', 'name' => 'Legacy A'],
+]);
+assert_same(CURRENT_GENEALOGY_SCHEMA_VERSION, $legacyMigrated['schemaVersion'], 'legacy payload is migrated to current schema');
+assert_same('faluche-nationale', $legacyMigrated['activeGenealogyId'], 'legacy payload gets a national active genealogy');
+assert_same('legacy-a', $legacyMigrated['genealogies'][0]['people'][0]['id'], 'legacy people are preserved during migration');
+
 $public = public_genealogies([
     [
         'id' => 'region-a',
@@ -127,6 +134,7 @@ $incoming = [
 
 $merged = merge_regional_admin_genealogy_payload($incoming, $current, 'region-a');
 
+assert_same(CURRENT_GENEALOGY_SCHEMA_VERSION, $merged['schemaVersion'], 'regional merge emits current schema version');
 assert_same('Region A modifiee', genealogy_by_id($merged, 'region-a')['name'], 'regional admin can update own region');
 assert_same('Famille A modifiee', genealogy_by_id($merged, 'family-a')['name'], 'regional admin can update family under own region');
 assert_same('Region B', genealogy_by_id($merged, 'region-b')['name'], 'regional admin cannot update another region');

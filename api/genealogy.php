@@ -15,6 +15,7 @@ const MAX_GENEALOGIES = 300;
 const MAX_PEOPLE_PER_GENEALOGY = 5000;
 const MAX_UPCOMING_EVENTS = 1000;
 const MAX_IMAGE_DATA_BYTES = 2097152;
+const CURRENT_GENEALOGY_SCHEMA_VERSION = 1;
 
 if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     site_security_headers();
@@ -22,7 +23,7 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (!is_file(GENEALOGY_DATA_FILE)) {
-            api_respond(['roleResetVersion' => null, 'activeGenealogyId' => '', 'genealogies' => [], 'upcomingBaptisms' => [], 'people' => []]);
+            api_respond(empty_genealogy_payload());
         }
 
         $raw = read_genealogy_file();
@@ -30,28 +31,11 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         if (!is_array($data) && trim($raw) !== '') {
             api_respond(['error' => 'Donnees temporairement indisponibles.'], 503);
         }
-        if (is_array($data) && isset($data['genealogies']) && is_array($data['genealogies'])) {
-            $publicGenealogies = public_genealogies($data['genealogies']);
-            $publicUpcomingBaptisms = public_upcoming_baptisms(is_array($data['upcomingBaptisms'] ?? null) ? $data['upcomingBaptisms'] : []);
-            $activeGenealogyId = api_safe_id($data['activeGenealogyId'] ?? '', 100);
-            if ($publicGenealogies !== $data['genealogies'] || $publicUpcomingBaptisms !== ($data['upcomingBaptisms'] ?? []) || $activeGenealogyId !== ($data['activeGenealogyId'] ?? '')) {
-                write_genealogy_payload([
-                    'roleResetVersion' => role_reset_version_from($data),
-                    'activeGenealogyId' => $activeGenealogyId,
-                    'genealogies' => $publicGenealogies,
-                    'upcomingBaptisms' => $publicUpcomingBaptisms,
-                ]);
-            }
-            api_respond([
-                'roleResetVersion' => role_reset_version_from($data),
-                'activeGenealogyId' => $activeGenealogyId,
-                'genealogies' => $publicGenealogies,
-                'upcomingBaptisms' => $publicUpcomingBaptisms,
-                'people' => [],
-            ]);
+        $payload = migrate_genealogy_payload(is_array($data) ? $data : []);
+        if ($payload !== $data) {
+            write_genealogy_payload($payload);
         }
-
-        api_respond(['roleResetVersion' => null, 'activeGenealogyId' => '', 'genealogies' => [], 'upcomingBaptisms' => [], 'people' => is_array($data) ? strip_person_photos($data) : []]);
+        api_respond($payload + ['people' => []]);
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -152,6 +136,70 @@ function role_reset_version_from($data): ?int
     return null;
 }
 
+function schema_version_from($data): int
+{
+    if (!is_array($data)) {
+        return 0;
+    }
+    $value = $data['schemaVersion'] ?? 0;
+    return is_int($value) ? $value : (is_string($value) && ctype_digit($value) ? (int) $value : 0);
+}
+
+function empty_genealogy_payload(): array
+{
+    return [
+        'schemaVersion' => CURRENT_GENEALOGY_SCHEMA_VERSION,
+        'roleResetVersion' => null,
+        'activeGenealogyId' => '',
+        'genealogies' => [],
+        'upcomingBaptisms' => [],
+    ];
+}
+
+function migrate_genealogy_payload($data): array
+{
+    if (!is_array($data)) {
+        return empty_genealogy_payload();
+    }
+
+    $genealogies = isset($data['genealogies']) && is_array($data['genealogies'])
+        ? public_genealogies($data['genealogies'])
+        : legacy_people_to_genealogies(is_array($data) ? $data : []);
+    $activeGenealogyId = api_safe_id($data['activeGenealogyId'] ?? '', 100);
+    if ($activeGenealogyId === '' && count($genealogies) > 0) {
+        $activeGenealogyId = (string) ($genealogies[0]['id'] ?? '');
+    }
+
+    return [
+        'schemaVersion' => CURRENT_GENEALOGY_SCHEMA_VERSION,
+        'roleResetVersion' => role_reset_version_from($data),
+        'activeGenealogyId' => $activeGenealogyId,
+        'genealogies' => $genealogies,
+        'upcomingBaptisms' => public_upcoming_baptisms(is_array($data['upcomingBaptisms'] ?? null) ? $data['upcomingBaptisms'] : []),
+    ];
+}
+
+function legacy_people_to_genealogies(array $people): array
+{
+    if (isset($people['genealogies'])) {
+        return [];
+    }
+    $normalisedPeople = strip_person_photos($people);
+    if (count($normalisedPeople) === 0) {
+        return [];
+    }
+    return [[
+        'id' => 'faluche-nationale',
+        'name' => 'Faluche Nationale',
+        'type' => 'national',
+        'parentId' => '',
+        'photoData' => '',
+        'people' => $normalisedPeople,
+        'customRoles' => [],
+        'cooptageRoleId' => '',
+    ]];
+}
+
 function public_genealogies(array $genealogies): array
 {
     $normalised = [];
@@ -236,7 +284,7 @@ function normalise_person_for_storage($person): array
         'baptismStatus' => $baptismStatus,
         'ceremonyEvents' => normalise_ceremony_events($person['ceremonyEvents'] ?? []),
         'song' => api_safe_text($person['song'] ?? '', 500),
-        'filiere' => api_safe_id($person['filiere'] ?? '', 100),
+        'filiere' => normalise_filiere_id($person['filiere'] ?? ''),
         'createdAt' => normalise_created_at($person['createdAt'] ?? ($person['addedAt'] ?? '')),
         'sponsorIds' => id_array($person['sponsorIds'] ?? []),
         'heartSponsorIds' => id_array($person['heartSponsorIds'] ?? []),
@@ -360,6 +408,55 @@ function normalise_cross_group_size($value): int
     }
     $size = is_int($value) ? $value : (int) $value;
     return $size >= 2 && $size <= 10 ? $size : 0;
+}
+
+function normalise_filiere_id($value): string
+{
+    $id = api_safe_id($value ?? '', 100);
+    $aliases = [
+        'dentaire' => 'chirurgie-dentaire',
+        'carab' => 'medecine',
+        'pharma' => 'pharmacie-preparateur-pharmacie',
+        'aes' => 'administration-economique-sociale',
+        'arts-spectacle-cinema-audiovisuel' => 'architecture-arts',
+        'arts-visuels' => 'architecture-arts',
+        'bts' => 'but-dut-bts-bachelor',
+        'cpge-hypokhagne-khagne' => 'classes-preparatoires',
+        'cpge-scientifique' => 'classes-preparatoires',
+    ];
+    $allowed = [
+        'chirurgie-dentaire',
+        'etudes-courtes-sante',
+        'medecine',
+        'osteopathie',
+        'paramedical',
+        'pharmacie-preparateur-pharmacie',
+        'prepas-sante',
+        'sage-femme',
+        'veterinaire',
+        'du',
+        'administration-economique-sociale',
+        'architecture-arts',
+        'classes-preparatoires',
+        'communication',
+        'droit',
+        'ecoles-commerce-gestion-communication-journalisme',
+        'ecoles-ingenieurs',
+        'ecoles-nationales',
+        'meef-1er-degre',
+        'meef-2nd-degre',
+        'filieres-sportives',
+        'but-dut-bts-bachelor',
+        'iufp',
+        'lettres-langues-sciences-humaines-sociales',
+        'musique-musicologie',
+        'oenologie',
+        'sciences',
+        'sciences-economiques-gestion-iae',
+        'sciences-politiques',
+    ];
+    $id = $aliases[$id] ?? $id;
+    return in_array($id, $allowed, true) ? $id : '';
 }
 
 function normalise_image_data($value): string
@@ -588,6 +685,7 @@ function genealogy_payload_for_write(array $body, ?array $adminSession): array
 {
     $current = current_genealogy_payload();
     $incoming = [
+        'schemaVersion' => CURRENT_GENEALOGY_SCHEMA_VERSION,
         'roleResetVersion' => role_reset_version_from($body),
         'activeGenealogyId' => api_safe_id($body['activeGenealogyId'] ?? '', 100),
         'genealogies' => public_genealogies($body['genealogies']),
@@ -654,6 +752,7 @@ function merge_regional_admin_genealogy_payload(array $incoming, array $current,
     }
 
     return [
+        'schemaVersion' => CURRENT_GENEALOGY_SCHEMA_VERSION,
         'roleResetVersion' => role_reset_version_from($current) ?? role_reset_version_from($incoming),
         'activeGenealogyId' => $activeGenealogyId,
         'genealogies' => $mergedGenealogies,
@@ -713,12 +812,12 @@ function people_payload_for_write(array $people, ?array $adminSession)
 function current_genealogy_payload()
 {
     if (!is_file(GENEALOGY_DATA_FILE)) {
-        return ['activeGenealogyId' => '', 'genealogies' => [], 'upcomingBaptisms' => [], 'people' => []];
+        return empty_genealogy_payload();
     }
 
     $raw = read_genealogy_file();
     $data = json_decode($raw ?: '[]', true);
-    return is_array($data) ? $data : ['activeGenealogyId' => '', 'genealogies' => [], 'upcomingBaptisms' => [], 'people' => []];
+    return migrate_genealogy_payload(is_array($data) ? $data : []);
 }
 
 function genealogy_record_audit_event($before, $after, array $body, ?array $adminSession): void
@@ -919,6 +1018,7 @@ function merge_public_genealogy_additions(array $incoming, ?array $current = nul
 function merge_public_people_for_session(string $genealogyId, array $currentPeople, array $incomingPeople): array
 {
     $existingIndexes = [];
+    $incomingIds = [];
     foreach ($currentPeople as $index => $person) {
         if (is_array($person) && is_string($person['id'] ?? null) && $person['id'] !== '') {
             $existingIndexes[$person['id']] = $index;
@@ -933,6 +1033,7 @@ function merge_public_people_for_session(string $genealogyId, array $currentPeop
         if ($id === '') {
             continue;
         }
+        $incomingIds[$id] = true;
         if (!array_key_exists($id, $existingIndexes)) {
             $currentPeople[] = $person;
             $existingIndexes[$id] = count($currentPeople) - 1;
@@ -949,7 +1050,38 @@ function merge_public_people_for_session(string $genealogyId, array $currentPeop
         );
     }
 
-    return $currentPeople;
+    $deletedEditableIds = [];
+    foreach ($existingIndexes as $personId => $_index) {
+        if (!isset($incomingIds[$personId]) && public_person_is_editable($genealogyId, $personId)) {
+            $deletedEditableIds[$personId] = true;
+        }
+    }
+
+    if ($deletedEditableIds === []) {
+        return $currentPeople;
+    }
+
+    return array_values(array_map(
+        static function (array $person) use ($deletedEditableIds): array {
+            $person['sponsorIds'] = array_values(array_filter(
+                is_array($person['sponsorIds'] ?? null) ? $person['sponsorIds'] : [],
+                static fn($id): bool => is_string($id) && !isset($deletedEditableIds[$id])
+            ));
+            $person['heartSponsorIds'] = array_values(array_filter(
+                is_array($person['heartSponsorIds'] ?? null) ? $person['heartSponsorIds'] : [],
+                static fn($id): bool => is_string($id) && !isset($deletedEditableIds[$id])
+            ));
+            return $person;
+        },
+        array_filter(
+            $currentPeople,
+            static function ($person) use ($deletedEditableIds): bool {
+                return !is_array($person)
+                    || !is_string($person['id'] ?? null)
+                    || !isset($deletedEditableIds[$person['id']]);
+            }
+        )
+    ));
 }
 
 function public_person_with_allowed_updates(array $currentPerson, array $incomingPerson): array
@@ -983,16 +1115,24 @@ function public_person_with_allowed_updates(array $currentPerson, array $incomin
     $currentSponsorIds = id_array($currentPerson['sponsorIds'] ?? []);
     $currentHeartSponsorIds = id_array($currentPerson['heartSponsorIds'] ?? []);
     $incomingSponsorIds = id_array($incomingPerson['sponsorIds'] ?? $currentSponsorIds);
-    $nextSponsorIds = id_array(array_merge($incomingSponsorIds, $currentHeartSponsorIds));
+    $incomingHeartSponsorIds = id_array($incomingPerson['heartSponsorIds'] ?? []);
+    if ($incomingHeartSponsorIds === []) {
+        $incomingHeartSponsorIds = $currentHeartSponsorIds;
+    }
+    $nextSponsorIds = id_array(array_merge($incomingSponsorIds, $incomingHeartSponsorIds));
+    $nextHeartSponsorIds = array_values(array_filter(
+        $incomingHeartSponsorIds,
+        static fn($id): bool => is_string($id) && in_array($id, $nextSponsorIds, true)
+    ));
 
-    if (!$added && $nextSponsorIds === $currentSponsorIds) {
+    if (!$added && $nextSponsorIds === $currentSponsorIds && $nextHeartSponsorIds === $currentHeartSponsorIds) {
         return $currentPerson;
     }
 
     return [
         ...$currentPerson,
         'sponsorIds' => $nextSponsorIds,
-        'heartSponsorIds' => $currentHeartSponsorIds,
+        'heartSponsorIds' => $nextHeartSponsorIds,
         'ceremonyEvents' => array_merge($currentEvents, $added),
     ];
 }

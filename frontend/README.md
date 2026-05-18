@@ -1,50 +1,68 @@
-# frontend
+# Frontend Vue/Vite
 
-This template should help get you started developing with Vue 3 in Vite.
+Le dossier `frontend/` est le framework front moderne de Faluche Nationale. Il consomme l’API PHP existante via le proxy Vite et sépare volontairement les responsabilités :
 
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
+```text
+src/
+  api/          appels HTTP vers le backend PHP
+  composables/  orchestration réactive Vue
+  domain/       règles métier pures et transformations de données
+  features/     blocs fonctionnels visibles dans l’interface
+  assets/       styles globaux
 ```
 
-### Compile and Hot-Reload for Development
+## Lancer en local
 
-```sh
-npm run dev
+Depuis la racine du projet, ouvrir deux terminaux :
+
+```powershell
+npm.cmd run backend:dev
 ```
 
-### Compile and Minify for Production
+puis :
 
-```sh
-npm run build
+```powershell
+npm.cmd run frontend:dev
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+Ouvrir ensuite :
 
-```sh
-npm run test:unit
+```text
+http://127.0.0.1:5173/
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+Important : utiliser `127.0.0.1`, pas `localhost`, pour rester cohérent avec les cookies de session du backend PHP sur `127.0.0.1:8765`.
 
-```sh
-npm run lint
+Si le site demande le mot de passe, se connecter d’abord sur :
+
+```text
+http://127.0.0.1:8765/
 ```
+
+Puis revenir sur :
+
+```text
+http://127.0.0.1:5173/
+```
+
+## Où placer le code
+
+- Nouvelle requête réseau : `src/api/`
+- Nouvelle règle métier ou transformation : `src/domain/`
+- État partagé, chargement, sauvegarde ou orchestration : `src/composables/`
+- Nouvelle section visible de l’application : `src/features/<nom-du-bloc>/`
+- Style partagé : `src/assets/main.css`
+
+Cette séparation garde les composants Vue minces : ils affichent, les composables coordonnent, le domaine décide.
+
+## Commandes utiles
+
+```powershell
+npm.cmd run frontend:build
+npm.cmd run frontend:test
+npm.cmd run frontend:lint
+```
+
+## Dépannage
+
+L’erreur `ECONNREFUSED 127.0.0.1:8765` signifie que Vite fonctionne, mais que le serveur PHP n’est pas lancé. Le proxy `/api/*` de Vite redirige vers `http://127.0.0.1:8765`.
