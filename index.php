@@ -132,4 +132,10 @@ if (!$isAuthenticatedForThisPage) {
 }
 
 header('Content-Type: text/html; charset=utf-8');
-readfile(__DIR__ . '/index.html');
+$vueIndex = __DIR__ . '/frontend/dist/index.html';
+if (!is_file($vueIndex)) {
+    http_response_code(503);
+    echo '<!doctype html><html lang="fr"><meta charset="utf-8"><title>Build requis</title><body><h1>Frontend indisponible</h1><p>Le build Vue est absent. Lance <code>npm run frontend:build</code> avant de publier.</p></body></html>';
+    exit;
+}
+readfile($vueIndex);

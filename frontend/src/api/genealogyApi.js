@@ -1,14 +1,33 @@
-export async function fetchGenealogyState() {
-  const response = await fetch('/api/genealogy.php', {
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-    },
-  })
+import { migrateGenealogyState } from '../domain/schema.js'
+import { jsonHeaders, requestJson } from './http.js'
 
-  if (!response.ok) {
-    throw new Error('Impossible de charger les données')
+const backendLoginUrl = 'http://127.0.0.1:8765/'
+
+export class ApiError extends Error {
+  constructor(message, { status = 0, loginUrl = backendLoginUrl } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.loginUrl = loginUrl
   }
+}
 
-  return response.json()
+export async function fetchAuthState() {
+  return requestJson('/api/auth.php').catch(() => ({ authenticated: false }))
+}
+
+export async function fetchGenealogyState() {
+  try {
+    return migrateGenealogyState(await requestJson('/api/genealogy.php'))
+  } catch (error) {
+    throw new ApiError(error.message, { status: error.status || 0 })
+  }
+}
+
+export function saveGenealogyState(payload, csrfToken) {
+  return requestJson('/api/genealogy.php', {
+    method: 'POST',
+    headers: jsonHeaders(csrfToken),
+    body: JSON.stringify(migrateGenealogyState(payload)),
+  })
 }

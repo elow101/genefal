@@ -10,10 +10,8 @@
 
 # Dependencies and generated files
 node_modules/
-.env
 vendor/
 *.log
-vendor/
 coverage/
 dist/
 build/

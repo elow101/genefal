@@ -1,45 +1,85 @@
-import { computed, onMounted, ref } from 'vue'
-import { fetchGenealogyState } from '../api/genealogyApi.js'
+import { onMounted, ref } from 'vue'
+import { fetchAuthState, fetchGenealogyState, saveGenealogyState } from '../api/genealogyApi.js'
+import {
+  appendGenealogy,
+  createGenealogy,
+  removeGenealogy,
+  updateGenealogy,
+} from '../domain/genealogy.js'
+import { useGenealogySelection } from './useGenealogySelection.js'
+import { usePeopleMutations } from './usePeopleMutations.js'
+import { useUpcomingEvents } from './useUpcomingEvents.js'
 
 export function useGenealogyData() {
   const loading = ref(true)
   const error = ref('')
+  const loginUrl = ref('http://127.0.0.1:8765/')
+  const csrfToken = ref('')
+  const saving = ref(false)
   const data = ref(null)
-  const selectedGenealogyId = ref('')
-
-  const genealogies = computed(() => data.value?.genealogies || [])
-
-  const selectedGenealogy = computed(() => {
-    return (
-      genealogies.value.find((genealogy) => genealogy.id === selectedGenealogyId.value) ||
-      genealogies.value[0] ||
-      null
-    )
+  const selection = useGenealogySelection(data)
+  const peopleMutations = usePeopleMutations({
+    data,
+    selectedGenealogy: selection.selectedGenealogy,
+    selectedPersonId: selection.selectedPersonId,
+  })
+  const upcoming = useUpcomingEvents({
+    data,
+    selectedGenealogy: selection.selectedGenealogy,
   })
 
-  const upcomingEvents = computed(() => data.value?.upcomingBaptisms || [])
+  function addGenealogy({ name, type, parentId }) {
+    const genealogy = createGenealogy(name, type, parentId)
+    data.value = appendGenealogy(data.value, genealogy)
+    selection.selectGenealogy(genealogy.id)
+  }
 
-  const people = computed(() => {
-    if (selectedGenealogy.value) {
-      return (selectedGenealogy.value.people || []).map((person) => ({
-        ...person,
-        genealogyName: selectedGenealogy.value.name,
-      }))
+  function deleteGenealogy(genealogyId) {
+    data.value = removeGenealogy(data.value, genealogyId)
+    selection.initialiseSelection()
+  }
+
+  function patchGenealogy(genealogyId, patch) {
+    data.value = updateGenealogy(data.value, genealogyId, patch)
+  }
+
+  async function save() {
+    if (!data.value) return false
+
+    saving.value = true
+    error.value = ''
+
+    try {
+      const result = await saveGenealogyState(data.value, csrfToken.value)
+
+      if (result.state) {
+        data.value = result.state
+      }
+      return true
+    } catch (err) {
+      error.value = err.message
+      return false
+    } finally {
+      saving.value = false
     }
-
-    return data.value?.people || []
-  })
-
-  function selectGenealogy(id) {
-    selectedGenealogyId.value = id
   }
 
   onMounted(async () => {
     try {
+      const auth = await fetchAuthState()
+
+      if (!auth.authenticated) {
+        throw new Error(
+          'Session absente. Ouvre http://127.0.0.1:8765/ pour te connecter, puis recharge http://127.0.0.1:5173/.',
+        )
+      }
+      csrfToken.value = auth.csrfToken || ''
+
       data.value = await fetchGenealogyState()
-      selectedGenealogyId.value = data.value.activeGenealogyId || data.value.genealogies?.[0]?.id || ''
+      selection.initialiseSelection()
     } catch (err) {
       error.value = err.message
+      if (err.loginUrl) loginUrl.value = err.loginUrl
     } finally {
       loading.value = false
     }
@@ -47,13 +87,17 @@ export function useGenealogyData() {
 
   return {
     loading,
+    saving,
     error,
+    loginUrl,
+    csrfToken,
     data,
-    genealogies,
-    selectedGenealogyId,
-    selectedGenealogy,
-    upcomingEvents,
-    people,
-    selectGenealogy,
+    ...selection,
+    ...peopleMutations,
+    upcoming,
+    addGenealogy,
+    deleteGenealogy,
+    patchGenealogy,
+    save,
   }
 }

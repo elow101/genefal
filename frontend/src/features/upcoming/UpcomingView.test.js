@@ -7,10 +7,13 @@ describe('UpcomingView', () => {
     const wrapper = mount(UpcomingView, {
       props: {
         events: [],
+        people: [],
+        selectedEventIds: [],
+        region: { id: 'region-1', name: 'Alsace' },
       },
     })
 
-    expect(wrapper.text()).toContain(`Aucun ${'\u00e9'}v${'\u00e9'}nement ${'\u00e0'} venir`)
+    expect(wrapper.text()).toContain('Aucune annonce pour Alsace')
   })
 
   it('renders a formatted upcoming event', () => {
@@ -22,12 +25,18 @@ describe('UpcomingView', () => {
             eventType: 'cooptage',
             dateTime: '2026-06-01T20:30',
             place: 'Paris',
+            fillotIds: ['person-1'],
+            requests: [],
           },
         ],
+        people: [{ id: 'person-1', name: 'Camille' }],
+        selectedEventIds: [],
+        region: { id: 'region-1', name: 'Alsace' },
       },
     })
 
-    expect(wrapper.text()).toContain(`Cooptage ${'\u00e0'} venir`)
+    expect(wrapper.text()).toContain('Cooptage')
+    expect(wrapper.text()).toContain('Camille')
     expect(wrapper.text()).toContain('Paris')
   })
 })
