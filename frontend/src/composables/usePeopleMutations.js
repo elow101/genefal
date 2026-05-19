@@ -1,15 +1,14 @@
 import {
   appendPersonToGenealogy,
   createEmptyPerson,
-  removePersonFromGenealogy,
+  removePersonEverywhere,
   replaceGenealogy,
-  updatePersonInGenealogy,
+  updatePersonEverywhere,
 } from '../domain/genealogy.js'
 
 export function usePeopleMutations({ data, selectedGenealogy, selectedPersonId }) {
   function updatePerson(updatedPerson) {
-    const nextGenealogy = updatePersonInGenealogy(selectedGenealogy.value, updatedPerson)
-    data.value = replaceGenealogy(data.value, nextGenealogy)
+    data.value = updatePersonEverywhere(data.value, updatedPerson)
   }
 
   function createPerson() {
@@ -22,8 +21,7 @@ export function usePeopleMutations({ data, selectedGenealogy, selectedPersonId }
   }
 
   function deletePerson(personId) {
-    const nextGenealogy = removePersonFromGenealogy(selectedGenealogy.value, personId)
-    data.value = replaceGenealogy(data.value, nextGenealogy)
+    data.value = removePersonEverywhere(data.value, personId)
 
     if (selectedPersonId.value === personId) {
       selectedPersonId.value = ''

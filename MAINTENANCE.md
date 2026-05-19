@@ -1,128 +1,162 @@
-# Notes de maintenance
+# Maintenance ? Faluche Nationale / GeneFaluche
 
-Le projet est centré sur un frontend Vue 3 / Vite unique et une API PHP.  
-Le cap de maintenance est double : préserver les garanties serveur et conserver l’expérience utilisateur historique du site.
+Ce projet est organis? autour d?un frontend Vue 3 / Vite et d?une API PHP compatible h?bergement mutualis?.
 
-## Carte rapide
+Objectif de maintenance : garder une exp?rience proche de l?ancien site tout en conservant un code d?coup?, testable et d?ployable simplement.
 
-- `index.php` gère l’entrée protégée et sert `frontend/dist/index.html`.
-- `frontend/src/api/` contient les appels HTTP.
-- `frontend/src/domain/` contient les règles métier pures.
-- `frontend/src/composables/` orchestre l’état réactif et les flux.
-- `frontend/src/features/` contient les blocs visibles de l’interface.
-- `frontend/src/assets/main.css` porte le langage visuel commun.
-- `site-auth.php` centralise sessions, mots de passe, CSRF, rate limits et audit.
-- `api/genealogy.php`, `api/admin.php`, `api/doleances.php`, `api/auth.php` portent le backend.
+## Structure ? respecter
 
-## Flux de données
+```text
+frontend/src/api/          HTTP et endpoints
+frontend/src/composables/  ?tat Vue, orchestration, sauvegardes
+frontend/src/domain/       r?gles m?tier pures, migrations, graphes, stats
+frontend/src/features/     composants UI par domaine
+frontend/src/assets/       styles globaux
+api/                       endpoints PHP
+site-auth.php              auth, sessions, CSRF, limites, audit
+```
 
-1. Le visiteur arrive sur `index.php` et s’authentifie.
-2. Le frontend Vue charge `api/auth.php`, puis `api/genealogy.php`.
-3. Les mutations locales passent par les composables.
-4. Les sauvegardes structurelles sont déclenchées ponctuellement ; les fiches restent validées par leur bouton `Enregistrer`.
-5. Les actions admin et les doléances passent par leurs endpoints dédiés.
+Ne pas remettre de logique applicative dans l?ancien `app.js`. Le frontend officiel est Vue.
 
-## Contrats fonctionnels à préserver
+## Contrats fonctionnels ? pr?server
 
-### Navigation et fiche
+### Navigation
 
-- Les onglets principaux restent sur une seule ligne.
-- La fiche faluchard reste ouverte dans toutes les vues sauf `Statistiques` et `Event à venir`.
-- À l’ouverture d’une fiche, seule la section `Identité` est ouverte.
-- Les boutons `Identité`, `Baptême`, `Parrainage`, `Rôles` ouvrent leur section cible et referment les autres.
-- Les parrains / marraines, parrains / marraines de cœur et fillots se gèrent dans la section `Parrainage`, fermée par défaut et ouverte via son bouton.
-- Les zones de paillarde ne doivent pas être redimensionnables.
-- Hors mode admin, une fiche déjà existante ne peut être modifiée que si elle a été créée dans la même session publique.
+- Onglets principaux : Arbre, R?seau, Vue d?ensemble, Nouveaux venus, Statistiques, Event ? venir.
+- Sur desktop, les onglets restent des boutons horizontaux.
+- Sur mobile, les onglets passent par un menu d?roulant uniquement.
+- La fiche lat?rale est visible sauf dans Statistiques et Event ? venir.
+- Les contr?les de zoom restent fix?s au viewport dans Arbre et R?seau.
+- Le bouton retour haut reste fix? en bas ? droite du viewport.
+- L?onglet R?seau se centre sur la fiche s?lectionn?e.
 
-### Recherche et sauvegarde
+### Arbre, r?seau et mobile
 
-- Le bouton `Recherche` donne immédiatement le focus au champ.
-- Cliquer hors de la recherche la referme.
-- Ne pas réintroduire de bouton de sauvegarde global dans l’interface principale.
-- Toute sauvegarde automatique doit éviter d’interrompre un utilisateur en train de saisir.
+- Les parrains / marraines directs doivent ?tre lisibles au m?me niveau.
+- Les fl?ches restent fines et diff?rencient les types de lien.
+- Les couleurs de fili?re restent visibles sur les cartes.
+- Les cartes r?seau affichent seulement nom + surnom ; les d?tails apparaissent au survol.
+- La fiche de survol r?seau doit reprendre l?esprit des fiches de l?onglet Arbre.
+- Les r?les dans le survol r?seau sont affich?s sous forme de pastilles color?es.
+- Les l?gendes doivent couvrir tous les liens : parrainage, c?ur, adoption, adoption de c?ur, confirmation, confirmation de c?ur, bapt?me crois?.
+- Le format mobile doit rester lisible : header compact, options en carte, menu d?arbre contenu dans la largeur ?cran, bouton `Fiche d?ajout`, retour haut accessible.
+- Sur desktop, la molette verticale au-dessus du graphe doit faire d?filer la page ; le d?placement horizontal du graphe doit rester possible avec trackpad horizontal ou `Shift + molette`.
 
-### Généalogies
+### Fiches
 
-- Une région a toujours l’arbre national pour parent.
-- Une famille a toujours une région pour parent.
-- L’arbre national ne peut pas être choisi comme parent direct d’une famille.
-- Les branches doivent conserver leur photo modifiable par l’admin autorisé.
-- Le menu des généalogies conserve la hiérarchie visuelle national → région → famille.
+- ? l?ouverture d?une fiche, seule Identit? est ouverte.
+- Bapt?me, Famille, R?les et statuts restent ferm?s par d?faut.
+- Les boutons de section ouvrent leur section cible et referment les autres.
+- La section Famille contient parrains / marraines, parrains / marraines de c?ur et fillots.
+- La section Bapt?me contient les adoptions et confirmations.
+- Les admins peuvent supprimer une adoption ou confirmation.
+- Les zones de paillarde ne doivent pas ?tre redimensionnables.
+- Hors admin, une fiche ancienne n?est pas modifiable directement ; afficher un retour demandant une dol?ance.
 
-### Rôles et filières
+### Donn?es et migrations
 
-- Les rôles visibles dans les fiches restent des pastilles sélectionnables.
-- Les rôles régionaux sont ajoutés depuis l’administration.
-- `TVA` reste le rôle de cooptage par défaut ; une région peut sélectionner un autre rôle local.
-- Les filières autorisées et leurs couleurs sont définies dans `frontend/src/domain/filiere.js`.
-- Toute modification de la palette doit être répercutée dans `api/genealogy.php`, fonction `normalise_filiere_id()`.
+- `schemaVersion` est la base du contrat de persistance.
+- Toute ?volution de sch?ma doit ?tre migr?e dans :
+  - `frontend/src/domain/schema.js` ;
+  - `api/genealogy.php`.
+- Les anciennes donn?es doivent continuer ? ?tre reprises sans repartir de z?ro.
+- Le national agr?ge les r?gions / familles sans dupliquer visuellement ou statistiquement les m?mes personnes.
+- La priorit? de source reste : famille > r?gion > national.
+- Les anciennes fili?res doivent ?tre normalis?es vers la palette actuelle ; toutes les sous-cat?gories `sciences-*` doivent devenir `sciences`.
 
-### Événements à venir
+### Fili?res et r?les
 
-- Un cooptage sélectionne les personnes tenant le rôle de cooptage régional via une recherche multi-sélection.
-- Les faluchards concernés par un cooptage sont cherchés parmi les personnes ne portant pas ce rôle.
-- Les annonces restent lisibles sous forme de cartes, avec l’action de sélection alignée à droite.
+- La palette stricte des fili?res est dans `frontend/src/domain/filiere.js`.
+- Les alias d?anciennes fili?res doivent continuer ? produire une couleur visible.
+- Toute modification de fili?re doit ?tre r?percut?e dans `api/genealogy.php`.
+- Les r?les r?gionaux sont administrables par r?gion.
+- `TVA` reste la valeur de cooptage par d?faut.
+- Dans Statistiques, les r?les sont cliquables et affichent les faluchards concern?s.
 
-### Administration et doléances
+### Administration
 
-- Les doléances publiques ne doivent pas être proposées dans l’interface admin.
-- Les doléances lues / résolues sont marquées par un bouton dédié.
-- Les doléances résolues sont purgées au départ d’une session admin générale.
-- Un admin régional ne gère que sa région et ses familles.
-- L’admin général conserve la vue complète.
+- Admin g?n?ral : acc?s complet.
+- Admin r?gional : actions limit?es ? sa r?gion et aux familles rattach?es.
+- D?placement de fiche : autoris? dans le p?rim?tre admin uniquement.
+- La fen?tre admin doit rester au-dessus des menus et panneaux de gestion.
+- Ne jamais d?pendre uniquement du masquage UI : les droits doivent ?tre pr?serv?s c?t? PHP.
 
-## Schéma versionné
+### Dol?ances
 
-- `schemaVersion` est le contrat de persistance principal.
-- La version courante est `1`.
-- Les anciennes sauvegardes plates sont converties vers une généalogie nationale lors du chargement.
-- Toute évolution future du format doit ajouter une migration explicite :
-  - côté frontend dans `frontend/src/domain/schema.js` ;
-  - côté backend dans `api/genealogy.php`.
+- Pas de formulaire de dol?ance en session admin.
+- Limiter le nombre de dol?ances par session publique.
+- Les dol?ances r?solues sont marqu?es par bouton.
+- La purge des dol?ances r?solues se fait ? la sortie de session admin g?n?rale.
 
-## Règles d’architecture
+### ?v?nements
 
-- Une règle métier réutilisable va dans `domain/`.
-- Une orchestration d’état ou de réseau va dans `composables/`.
-- Un composant visible va dans `features/`.
-- Les composants restent fins : ils affichent plus qu’ils ne décident.
-- Toute nouvelle évolution fonctionnelle se fait dans `frontend/`.
-- Quand une règle existe côté frontend et côté backend, les deux côtés doivent évoluer ensemble.
+- Bapt?me, adoption, confirmation et cooptage doivent rester distingu?s.
+- Pour cooptage, les responsables sont filtr?s par r?le r?gional configur?.
+- Les faluchards concern?s par un cooptage excluent les personnes ayant ce r?le.
+- Les demandes de venue doivent rester lisibles et s?lectionnables ? droite de la carte.
 
-## Points de vigilance
+### Export
 
-- Ne jamais exposer les fichiers de `data/`.
-- Garder les mots de passe côté serveur.
-- Ne pas réintroduire de hash de secours dans le code.
-- Préserver le filtrage des droits admin côté serveur.
-- Vérifier les impacts mobiles sur les vues denses : graphe, statistiques, formulaires, événements.
-- Après toute modification visuelle, contrôler l’expérience en arbre, réseau, vue d’ensemble, statistiques et événements à venir.
-- Après toute modification d’authentification, vérifier les parcours visiteur, admin régional et admin général.
+- L?export utilisateur est un PDF simplifi? centr? sur une personne.
+- Les profondeurs d?ascendance et de descendance sont configurables.
+- Ne pas r?introduire d?export brut complet accessible ? n?importe quel visiteur.
 
-## Contrôle avant publication
+## S?curit?
+
+- Ne jamais exposer `data/auth.json`.
+- Ne jamais versionner de vrais mots de passe, hashes priv?s ou donn?es sensibles.
+- Garder `data/.htaccess` en place.
+- Garder les v?rifications de droits c?t? PHP m?me si l?interface masque d?j? l?action.
+- Garder CSRF et rate limits sur les actions sensibles.
+- V?rifier les sessions visiteur, admin r?gional et admin g?n?ral apr?s toute modification d?authentification.
+
+## Checklist avant publication
+
+Commandes :
 
 ```powershell
 npm test
-npm run frontend:build
 npm run frontend:lint
+npm run frontend:build
 php tests/genealogy-server.test.php
 ```
 
-Puis vérifier manuellement :
+Optionnel mais recommand? :
 
-1. connexion visiteur ;
-2. recherche ;
-3. création d’une fiche puis modification dans la même session ;
-4. refus de modification d’une fiche existante hors admin ;
-5. connexion / déconnexion admin ;
-6. création d’une région, d’une famille et modification d’une photo ;
-7. création d’un rôle régional et usage en cooptage ;
-8. création d’un événement et demande de venue ;
-9. résolution puis purge d’une doléance ;
-10. persistance après rechargement.
+```powershell
+Get-ChildItem -Recurse -Filter *.php | ForEach-Object { php -l $_.FullName }
+```
 
-## Dette technique restante
+V?rifications manuelles :
 
-- Continuer à étendre les tests d’intégration frontend.
-- Faire une passe visuelle réelle après les grosses évolutions d’interface.
-- Garder la logique de droits lisible côté serveur, même si l’interface masque déjà certaines actions.
+1. Connexion visiteur.
+2. Arbre lisible ? 100%.
+3. R?seau centr? sur la fiche s?lectionn?e.
+4. Couleurs de fili?res visibles dans Arbre et R?seau.
+5. Survol r?seau lisible avec pastilles de r?les.
+6. Cr?ation d?une fiche publique.
+7. Modification de la fiche cr??e dans la m?me session.
+8. Refus propre de modification d?une fiche ancienne hors admin.
+9. D?placement d?une fiche en admin g?n?ral.
+10. D?placement limit? au bon p?rim?tre en admin r?gional.
+11. Ajout et suppression admin d?une adoption / confirmation.
+12. Envoi d?une dol?ance et limite de session.
+13. Connexion / d?connexion admin g?n?ral.
+14. Connexion / d?connexion admin r?gional.
+15. Cr?ation r?gion / famille.
+16. Modification photo de branche autoris?e.
+17. Cr?ation d?un r?le r?gional et usage en cooptage.
+18. Statistiques d?dupliqu?es et pastilles de r?les cliquables.
+19. Cr?ation d?un ?v?nement.
+20. Export PDF centr? sur une personne.
+21. Rechargement page : donn?es persist?es.
+22. Mobile : header, options, menu d?arbre, menu d?onglets, zoom et retour haut.
+23. Acc?s direct ? `data/auth.json` interdit.
+24. Lien RGPD visible en bas de page.
+
+## Dette technique suivie
+
+- ?tendre progressivement les tests d?int?gration frontend.
+- Ajouter une v?rification visuelle automatis?e si l?environnement navigateur local devient stable.
+- Garder `graph.js` lisible : ne pas m?langer layout, relations et rendu Vue.
+- Documenter toute nouvelle migration de donn?es au moment o? elle est ajout?e.

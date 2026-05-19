@@ -25,7 +25,7 @@ afterEach(() => {
 })
 
 describe('PersonForm', () => {
-  it('keeps sponsorship collapsed until the Parrainage tab opens it', async () => {
+  it('keeps family collapsed until the Famille tab opens it', async () => {
     const wrapper = mount(PersonForm, {
       props: {
         person,
@@ -33,11 +33,11 @@ describe('PersonForm', () => {
         roleOptions: [],
       },
     })
-    const sponsorshipSection = wrapper.findAll('details').find((details) => details.text().includes('Parrainage'))
+    const sponsorshipSection = wrapper.findAll('details').find((details) => details.text().includes('Famille'))
 
     expect(sponsorshipSection.element.open).toBe(false)
 
-    await wrapper.findAll('.form-step-tabs button').find((button) => button.text() === 'Parrainage').trigger('click')
+    await wrapper.findAll('.form-step-tabs button').find((button) => button.text() === 'Famille').trigger('click')
 
     expect(sponsorshipSection.element.open).toBe(true)
     expect(wrapper.text()).toContain('Fillots')

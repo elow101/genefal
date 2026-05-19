@@ -65,6 +65,8 @@ p {
 
 .toolbar {
   min-height: 78px;
+  position: relative;
+  z-index: 50;
   border-radius: 8px;
   padding: 14px 16px;
   display: flex;
@@ -178,6 +180,7 @@ p {
 }
 
 .genealogy-popover {
+  z-index: 70;
   width: min(380px, calc(100vw - 36px));
   left: 0;
   top: calc(100% + 10px);
@@ -288,7 +291,7 @@ p {
   gap: 12px;
   flex-wrap: wrap;
   position: relative;
-  z-index: 8;
+  z-index: 25;
 }
 
 .options-bar label {
@@ -310,6 +313,21 @@ textarea {
 
 .options-bar input {
   height: 38px;
+}
+
+.add-sheet-button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0 14px;
+}
+
+.add-sheet-button:hover {
+  border-color: var(--accent);
 }
 
 .search-menu {
@@ -338,6 +356,7 @@ textarea {
   width: min(340px, calc(100vw - 36px));
   left: 0;
   top: calc(100% + 8px);
+  z-index: 60;
   display: grid;
   gap: 10px;
 }
@@ -420,28 +439,47 @@ textarea {
   color: #071311;
 }
 
+.view-select-mobile {
+  display: none;
+}
+
 .graph-stage-wrap {
   min-height: 0;
   overflow: auto;
   padding: 14px;
   position: relative;
+  overscroll-behavior: contain;
+  touch-action: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.graph-stage-wrap.is-touch-panning {
+  cursor: grabbing;
 }
 
 .graph-panel {
   min-height: 100%;
+  touch-action: none;
 }
 
 .graph-panel svg {
-  width: 100%;
+  display: block;
+  min-width: 960px;
   min-height: 540px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #1d2220;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
 .graph-panel line {
   stroke: var(--accent);
-  stroke-width: 2;
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .graph-panel line.heart {
@@ -454,8 +492,26 @@ textarea {
   stroke-dasharray: 4 5;
 }
 
+.graph-panel line.adoption,
+.graph-panel line.adoption-heart {
+  stroke: #f59e0b;
+  stroke-dasharray: 10 4;
+}
+
+.graph-panel line.confirmation,
+.graph-panel line.confirmation-heart {
+  stroke: #8b5cf6;
+  stroke-dasharray: 2 5;
+}
+
+.graph-panel line.adoption-heart,
+.graph-panel line.confirmation-heart {
+  stroke-width: 1.8;
+}
+
 .graph-node {
   cursor: pointer;
+  outline: none;
 }
 
 .graph-node circle {
@@ -475,11 +531,43 @@ textarea {
   pointer-events: none;
 }
 
+.network-card-expanded,
+.network-filiere-strip--expanded,
+.network-extra {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.network-card-expanded {
+  fill: #242826;
+  stroke: var(--line);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.22));
+}
+
+.graph-node--network:hover .network-card-expanded,
+.graph-node--network:focus-visible .network-card-expanded,
+.graph-node--network:hover .network-filiere-strip--expanded,
+.graph-node--network:focus-visible .network-filiere-strip--expanded,
+.graph-node--network:hover .network-extra,
+.graph-node--network:focus-visible .network-extra {
+  opacity: 1;
+}
+
 .graph-node.selected rect:not(.network-filiere-strip),
 .graph-node.selected circle {
-  fill: var(--accent-soft);
+  fill: #25312f;
   stroke: var(--accent-dark);
-  stroke-width: 4;
+  stroke-width: 2.5;
+}
+
+.graph-node--network.selected .network-card-base {
+  fill: #25312f;
+  opacity: 1;
+}
+
+.graph-node--network.selected .network-filiere-strip:not(.network-filiere-strip--expanded) {
+  opacity: 1;
 }
 
 .graph-node text {
@@ -499,13 +587,54 @@ textarea {
   font-size: 12px;
 }
 
+.network-extra {
+  pointer-events: none;
+}
+
+.network-hover-card {
+  pointer-events: none;
+}
+
+.network-hover-card .network-card-expanded,
+.network-hover-card .network-filiere-strip--expanded {
+  opacity: 1;
+}
+
+.network-extra-line {
+  fill: var(--muted);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: rgba(36, 40, 38, 0.78);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.network-extra-line--strong {
+  fill: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.network-hover-card .network-extra-line {
+  text-anchor: start;
+}
+
+
 .zoom-controls {
-  position: sticky;
-  top: 0;
-  z-index: 4;
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 90;
   display: inline-flex;
   gap: 6px;
-  margin-bottom: 10px;
+  width: max-content;
+  border: 1px solid rgba(112, 215, 223, 0.28);
+  border-radius: 999px;
+  background: rgba(36, 40, 38, 0.92);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  padding: 4px;
+  transform: translateZ(0);
+  backdrop-filter: blur(8px);
 }
 
 .zoom-controls button {
@@ -546,6 +675,28 @@ textarea {
 .legend-line.cross {
   border-top-color: #7c5cff;
   border-top-style: dashed;
+}
+
+.legend-line.adoption {
+  border-top-color: #f59e0b;
+  border-top-style: dashed;
+}
+
+.legend-line.adoption-heart {
+  border-top-color: #f59e0b;
+  border-top-style: dashed;
+  border-top-width: 3px;
+}
+
+.legend-line.confirmation {
+  border-top-color: #8b5cf6;
+  border-top-style: dotted;
+}
+
+.legend-line.confirmation-heart {
+  border-top-color: #8b5cf6;
+  border-top-style: dotted;
+  border-top-width: 3px;
 }
 
 .tree-view {
@@ -619,12 +770,16 @@ textarea {
   display: block;
   font-size: 1rem;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .node-card > span,
 .node-card > small {
   color: var(--muted);
   font-size: 0.86rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .node-card.focus {
@@ -640,20 +795,21 @@ textarea {
 
 .node-info {
   width: max-content;
-  max-width: min(260px, calc(100vw - 44px));
-  min-width: 190px;
+  max-width: min(280px, calc(100vw - 44px));
+  min-width: 210px;
   position: absolute;
   left: 50%;
   top: calc(100% + 8px);
   z-index: 10;
   display: grid;
-  gap: 3px;
+  gap: 7px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-left: 7px solid var(--filiere-strip, var(--line));
+  border-radius: 10px;
   background: var(--paper);
   box-shadow: var(--shadow);
   opacity: 0;
-  padding: 10px;
+  padding: 11px 12px;
   pointer-events: none;
   text-align: left;
   transform: translate(-50%, -4px);
@@ -666,9 +822,34 @@ textarea {
   transform: translate(-50%, 0);
 }
 
-.node-info span {
+.node-info__line {
   color: var(--muted);
   font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.node-info__line--strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.node-info__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.node-info__pill {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: var(--role-pill-color, var(--line));
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 5px 8px;
+  text-transform: uppercase;
 }
 
 .newcomers-grid {
@@ -714,6 +895,7 @@ textarea {
 
 .person-form,
 .person-details,
+.person-move,
 .sponsor-editor {
   border-top: 1px solid var(--line);
   padding: 14px;
@@ -817,6 +999,7 @@ textarea {
 }
 
 .person-form label,
+.person-move label,
 .sponsor-editor label {
   display: grid;
   gap: 6px;
@@ -824,6 +1007,7 @@ textarea {
 }
 
 .person-form .primary,
+.person-move .primary,
 .sponsor-editor button,
 .button-row button,
 .admin-summary button {
@@ -870,6 +1054,65 @@ textarea {
   padding-top: 8px;
 }
 
+
+.ceremony-event-editor {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  padding: 12px;
+}
+
+.section-heading--compact h3 {
+  margin: 0;
+}
+
+.ceremony-event-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.ceremony-event-list li {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(142, 158, 151, 0.24);
+  border-radius: 10px;
+  background: var(--field);
+  padding: 10px;
+}
+
+.ceremony-event-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ceremony-event-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.ceremony-event-list small,
+.ceremony-event-list span {
+  color: var(--muted);
+}
+
+.ceremony-event-add .details-body {
+  border-top: 1px solid var(--line);
+}
+
+.export-depth-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .role-pill-list {
   display: flex;
   flex-wrap: wrap;
@@ -903,6 +1146,21 @@ textarea {
 
 .person-details dd {
   margin: 4px 0 0;
+}
+
+.person-move {
+  display: grid;
+  gap: 10px;
+}
+
+.person-move h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.person-move p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .details-menu {
@@ -941,6 +1199,11 @@ textarea {
   transform: rotate(180deg);
 }
 
+.details-menu.ceremony-event-add[open] summary::after {
+  content: '⌃';
+  transform: none;
+}
+
 .details-menu summary::-webkit-details-marker {
   display: none;
 }
@@ -976,6 +1239,38 @@ textarea {
   border-radius: 999px;
   background: var(--paper);
   padding: 6px 9px;
+}
+
+.chip-button {
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.chip-button.is-active,
+.chip-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.role-people-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.role-people-list button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.role-people-list small {
+  display: block;
+  color: var(--muted);
 }
 
 .editor-directory {
@@ -1058,12 +1353,34 @@ textarea {
 
 .timeline-chart circle {
   fill: var(--accent-dark);
+  cursor: pointer;
 }
 
 .timeline-chart text {
   fill: var(--muted);
   text-anchor: middle;
   font-size: 11px;
+}
+
+.timeline-tooltip {
+  pointer-events: none;
+}
+
+.timeline-tooltip rect {
+  fill: rgba(36, 40, 38, 0.96);
+  stroke: var(--accent);
+  stroke-width: 1.2;
+}
+
+.timeline-tooltip text {
+  fill: var(--ink);
+  font-size: 12px;
+  text-anchor: start;
+}
+
+.timeline-tooltip .timeline-tooltip-title {
+  fill: var(--accent-dark);
+  font-weight: 800;
 }
 
 .timeline-summary {
@@ -1167,7 +1484,7 @@ textarea {
 .legacy-overlay {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 200;
   display: grid;
   place-items: center;
   padding: 18px;
@@ -1340,6 +1657,29 @@ textarea {
   padding: 0 10px;
 }
 
+.graph-scroll-top {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 90;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #071311;
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: 900;
+  opacity: 0.7;
+  box-shadow: var(--shadow);
+}
+
+.graph-scroll-top:hover,
+.graph-scroll-top:focus-visible {
+  opacity: 1;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1501,7 +1841,8 @@ textarea {
 
   .upcoming-fields,
   .attendance-fields,
-  .upcoming-actions {
+  .upcoming-actions,
+  .export-depth-fields {
     grid-template-columns: 1fr;
   }
 
@@ -1520,5 +1861,221 @@ textarea {
 
   .genealogy-admin-actions {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 8px;
+    gap: 12px;
+  }
+
+  .toolbar,
+  .options-bar {
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .toolbar {
+    display: grid;
+    gap: 14px;
+  }
+
+  .brand {
+    align-items: start;
+  }
+
+  .brand-mark {
+    width: 54px;
+    height: 54px;
+  }
+
+  .brand-copy {
+    flex: 1 1 auto;
+  }
+
+  .genealogy-menu,
+  .genealogy-menu summary,
+  .genealogy-trigger {
+    width: 100%;
+  }
+
+  .genealogy-trigger {
+    justify-content: space-between;
+    border-radius: 8px;
+    padding: 9px 10px;
+  }
+
+  .genealogy-trigger h1 {
+    max-width: calc(100vw - 190px);
+    font-size: 1.28rem;
+  }
+
+  .genealogy-popover {
+    width: calc(100vw - 40px);
+    max-width: none;
+    left: 50%;
+    transform: translateX(-50%);
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+  }
+
+  .genealogy-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .genealogy-option.genealogy-depth-1,
+  .genealogy-option.genealogy-depth-2 {
+    padding-left: 10px;
+  }
+
+  .genealogy-option.genealogy-depth-1 .genealogy-option-main {
+    padding-left: 18px;
+  }
+
+  .genealogy-option.genealogy-depth-2 .genealogy-option-main {
+    padding-left: 42px;
+  }
+
+  .genealogy-option-main {
+    min-width: 0;
+    align-items: center;
+  }
+
+  .genealogy-option-main span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .genealogy-option-main img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .genealogy-option small {
+    min-width: 52px;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .genealogy-trigger-chevron {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+  }
+
+  .brand p {
+    margin-top: 8px;
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .server-status {
+    grid-column: 1 / -1;
+    justify-content: center;
+    min-height: 48px;
+    border-radius: 999px;
+    color: var(--rose);
+  }
+
+  .action-button {
+    width: 100%;
+    min-height: 56px;
+    border-radius: 8px;
+    font-size: 1rem;
+  }
+
+  .options-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .search-menu,
+  .add-sheet-button {
+    grid-column: 1 / -1;
+  }
+
+  .search-menu summary,
+  .add-sheet-button {
+    width: 100%;
+    min-height: 48px;
+    justify-content: space-between;
+    border-radius: 8px;
+    font-size: 1.05rem;
+  }
+
+  .search-menu summary::after {
+    content: '⌄';
+    margin-left: auto;
+    font-size: 1.4rem;
+  }
+
+  .options-bar label {
+    min-width: 0;
+    font-size: 0.95rem;
+  }
+
+  .options-bar input {
+    min-height: 54px;
+    font-size: 1.05rem;
+  }
+
+  .graph-header {
+    padding: 14px 16px;
+  }
+
+  .graph-header-copy h2 {
+    font-size: 1.2rem;
+  }
+
+  .graph-header-copy p {
+    line-height: 1.35;
+  }
+
+  .view-toggle {
+    display: none;
+  }
+
+  .view-select-mobile {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .view-select-mobile select {
+    min-height: 54px;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 900;
+  }
+
+  .graph-stage-wrap {
+    min-height: 70vh;
+  }
+
+  .graph-scroll-top {
+    width: 48px;
+    height: 48px;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .zoom-controls {
+    left: 12px;
+    bottom: 12px;
   }
 }

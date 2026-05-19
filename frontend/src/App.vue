@@ -1,5 +1,5 @@
 <template>
-  <main class="app-shell">
+  <main ref="pageTop" class="app-shell">
     <AppHeader
       :genealogies="genealogies"
       :selected-genealogy-id="selectedGenealogyId"
@@ -54,6 +54,10 @@
           Descendants visibles
           <input v-model.number="descendantDepth" type="number" min="0" max="20" />
         </label>
+
+        <button class="add-sheet-button" type="button" @click="openPersonCreation">
+          Fiche d'ajout
+        </button>
       </section>
 
       <section class="workspace" :class="{ 'workspace--editor-hidden': editorHidden }">
@@ -75,9 +79,28 @@
                 {{ view.label }}
               </button>
             </div>
+
+            <label class="view-select-mobile">
+              Affichage
+              <select v-model="activeView">
+                <option v-for="view in views" :key="view.id" :value="view.id">
+                  {{ view.label }}
+                </option>
+              </select>
+            </label>
           </div>
 
-          <div class="graph-stage-wrap">
+          <div
+            ref="graphStageWrap"
+            class="graph-stage-wrap"
+            :class="{ 'is-touch-panning': graphPan.active }"
+            @pointerdown="startGraphPan"
+            @pointermove="moveGraphPan"
+            @pointerup="endGraphPan"
+            @pointercancel="endGraphPan"
+            @wheel="handleGraphWheel"
+            @click.capture="cancelClickAfterGraphPan"
+          >
             <div
               v-if="activeView === 'tree' || activeView === 'network'"
               class="zoom-controls graph-stage-zoom"
@@ -98,6 +121,15 @@
               :role-options="roleOptions"
               @select="selectPerson"
             />
+            <button
+              v-if="activeView === 'tree' || activeView === 'network'"
+              class="graph-scroll-top"
+              type="button"
+              aria-label="Remonter en haut de la page"
+              @click="scrollToTop"
+            >
+              ↑
+            </button>
             <OverviewPanel
               v-else-if="activeView === 'overview'"
               :people="people"
@@ -108,7 +140,7 @@
               :people="people"
               @select="handlePersonFocus"
             />
-            <StatsDashboard v-else-if="activeView === 'stats'" :stats="stats" />
+            <StatsDashboard v-else-if="activeView === 'stats'" :stats="stats" @select="handlePersonFocus" />
             <template v-else>
               <UpcomingComposer
                 :people="people"
@@ -131,16 +163,39 @@
           </div>
         </section>
 
-        <aside v-if="!editorHidden" class="panel editor" aria-label="Fiche faluchard">
+        <aside v-if="!editorHidden" ref="editorPanel" class="panel editor" aria-label="Fiche faluchard">
           <PersonForm
             :person="selectedPerson"
             :people="people"
             :role-options="roleOptions"
+            :can-manage-ceremony-events="Boolean(adminSession)"
             @save="handlePersonFormSave"
             @new="createPerson"
             @editing="markEditing"
           />
           <PersonDetails :person="selectedPerson" :role-options="roleOptions" />
+          <section v-if="canMoveSelectedPerson" class="person-move">
+            <h3>Déplacer la fiche</h3>
+            <p>
+              Arbre actuel :
+              <strong>{{ selectedPersonSourceGenealogy?.name }}</strong>
+            </p>
+            <label>
+              Nouvel arbre
+              <select v-model="moveTargetGenealogyId">
+                <option
+                  v-for="genealogy in movableGenealogyOptions"
+                  :key="genealogy.id"
+                  :value="genealogy.id"
+                >
+                  {{ genealogy.name }}
+                </option>
+              </select>
+            </label>
+            <button class="primary" type="button" @click="moveSelectedPerson">
+              Déplacer
+            </button>
+          </section>
           <details class="editor-directory">
             <summary>
               <span>Fiches existantes</span>
@@ -170,12 +225,12 @@
 
         <ExportPanel
           v-if="activeOverlay === 'exports'"
-          @export-active="exportActiveGenealogy"
-          @export-all="exportAllGenealogies"
+          :selected-person="selectedPerson"
+          @export-pdf="exportSelectedPersonPdf"
         />
 
         <template v-else-if="activeOverlay === 'doleances'">
-          <DoleancePanel v-if="!adminSession" @submit="doleances.submitPublicDoleance" />
+          <DoleancePanel v-if="!adminSession" @submit="handleDoleanceSubmit" />
           <AdminDoleanceList
             v-if="adminSession"
             :items="doleanceItems"
@@ -221,6 +276,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAdmin } from './composables/useAdmin.js'
 import { useDoleances } from './composables/useDoleances.js'
 import { useGenealogyData } from './composables/useGenealogyData.js'
+import { getPersonSourceGenealogy, movePersonToGenealogy } from './domain/genealogy.js'
 import { buildGraphModel } from './domain/graph.js'
 import { cooptageRoleForRegion, roleOptionsForGenealogy } from './domain/roles.js'
 import { computeStats } from './domain/stats.js'
@@ -229,6 +285,7 @@ import GenealogyAdmin from './features/admin/GenealogyAdmin.vue'
 import AdminDoleanceList from './features/doleances/AdminDoleanceList.vue'
 import DoleancePanel from './features/doleances/DoleancePanel.vue'
 import ExportPanel from './features/exports/ExportPanel.vue'
+import { downloadPersonNetworkPdf } from './features/exports/pdfExport.js'
 import GenealogyGraph from './features/graph/GenealogyGraph.vue'
 import AppHeader from './features/layout/AppHeader.vue'
 import OverviewPanel from './features/overview/OverviewPanel.vue'
@@ -255,6 +312,10 @@ const searchQuery = ref('')
 const ancestorDepth = ref(20)
 const descendantDepth = ref(20)
 const graphZoom = ref(1)
+const moveTargetGenealogyId = ref('')
+const pageTop = ref(null)
+const editorPanel = ref(null)
+const graphStageWrap = ref(null)
 const searchMenu = ref(null)
 const searchInput = ref(null)
 const feedbackMessage = ref('')
@@ -263,6 +324,16 @@ let feedbackTimeout = 0
 let autosaveTimeout = 0
 let editingTimeout = 0
 const editing = ref(false)
+const graphPan = ref({
+  active: false,
+  moved: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  scrollLeft: 0,
+  scrollTop: 0,
+})
+let suppressGraphClickUntil = 0
 
 const {
   loading,
@@ -304,6 +375,7 @@ const graph = computed(() =>
     mode: activeView.value,
     ancestorDepth: ancestorDepth.value,
     descendantDepth: descendantDepth.value,
+    includeAllNetwork: activeView.value === 'network' && selectedGenealogy.value?.type === 'national',
   }),
 )
 const upcomingEvents = computed(() => upcoming.events.value)
@@ -312,6 +384,36 @@ const upcomingRegion = computed(() => upcoming.region.value)
 const editorHidden = computed(() => ['stats', 'upcoming'].includes(activeView.value))
 const roleOptions = computed(() => roleOptionsForGenealogy(genealogies.value, selectedGenealogy.value))
 const cooptageRole = computed(() => cooptageRoleForRegion(upcomingRegion.value))
+const selectedPersonSourceGenealogy = computed(() =>
+  selectedPerson.value ? getPersonSourceGenealogy(data.value, selectedPerson.value.id) : null,
+)
+const adminManageableGenealogyIds = computed(() => {
+  const session = adminSession.value
+  if (!session) return []
+  if (session.level === 'general') {
+    return genealogies.value.map((genealogy) => genealogy.id)
+  }
+  if (session.level !== 'region' || !session.regionId) return []
+
+  return genealogies.value
+    .filter((genealogy) => genealogy.id === session.regionId || genealogy.parentId === session.regionId)
+    .map((genealogy) => genealogy.id)
+})
+const movableGenealogyOptions = computed(() => {
+  const session = adminSession.value
+  const source = selectedPersonSourceGenealogy.value
+  if (!session || !source) return []
+
+  const manageableIds = new Set(adminManageableGenealogyIds.value)
+  if (session.level === 'region' && !manageableIds.has(source.id)) return []
+
+  return genealogies.value
+    .filter((genealogy) => genealogy.type !== 'national')
+    .filter((genealogy) => genealogy.id !== source.id)
+    .filter((genealogy) => session.level === 'general' || manageableIds.has(genealogy.id))
+    .sort((left, right) => genealogySortLabel(left).localeCompare(genealogySortLabel(right), 'fr'))
+})
+const canMoveSelectedPerson = computed(() => movableGenealogyOptions.value.length > 0)
 
 const statusLabel = computed(() => {
   if (loading.value) return 'Synchronisation'
@@ -367,6 +469,16 @@ async function handleAdminLogout() {
   await admin.logout()
 }
 
+async function handleDoleanceSubmit(payload) {
+  try {
+    const result = await doleances.submitPublicDoleance(payload)
+    const remaining = Number.isFinite(result?.remaining) ? ` Il reste ${result.remaining} envoi(s) pour cette session.` : ''
+    showFeedback(`Doléance envoyée.${remaining}`, 'success')
+  } catch (error) {
+    showFeedback(error.message || 'Impossible d’envoyer la doléance.', 'warning')
+  }
+}
+
 async function handlePersonFormSave(updatedPerson) {
   const personId = updatedPerson?.id || ''
   updatePerson(updatedPerson)
@@ -395,11 +507,90 @@ function handlePersonFocus(personId) {
 }
 
 function adjustZoom(delta) {
-  graphZoom.value = Math.min(1.8, Math.max(0.5, Number((graphZoom.value + delta).toFixed(2))))
+  setGraphZoom(graphZoom.value + delta)
+}
+
+function setGraphZoom(value) {
+  graphZoom.value = Math.min(1.8, Math.max(0.5, Number(value.toFixed(2))))
 }
 
 function resetZoom() {
   graphZoom.value = 1
+}
+
+async function openPersonCreation() {
+  if (editorHidden.value) activeView.value = 'tree'
+  createPerson()
+  await nextTick()
+  editorPanel.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
+
+function scrollToTop() {
+  pageTop.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
+
+function startGraphPan(event) {
+  if (!['tree', 'network'].includes(activeView.value) || event.pointerType !== 'touch') return
+  const scroller = graphStageWrap.value
+  if (!scroller) return
+
+  graphPan.value = {
+    active: true,
+    moved: false,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    scrollLeft: scroller.scrollLeft,
+    scrollTop: scroller.scrollTop,
+  }
+  scroller.setPointerCapture?.(event.pointerId)
+}
+
+function moveGraphPan(event) {
+  const pan = graphPan.value
+  if (!pan.active || event.pointerId !== pan.pointerId) return
+  const scroller = graphStageWrap.value
+  if (!scroller) return
+
+  const deltaX = event.clientX - pan.startX
+  const deltaY = event.clientY - pan.startY
+  const movedEnough = Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6
+  if (!movedEnough && !pan.moved) return
+
+  event.preventDefault()
+  graphPan.value = { ...pan, moved: true }
+  scroller.scrollLeft = pan.scrollLeft - deltaX
+  scroller.scrollTop = pan.scrollTop - deltaY
+}
+
+function endGraphPan(event) {
+  const pan = graphPan.value
+  if (!pan.active || event.pointerId !== pan.pointerId) return
+  graphStageWrap.value?.releasePointerCapture?.(event.pointerId)
+  if (pan.moved) suppressGraphClickUntil = Date.now() + 250
+  graphPan.value = { ...pan, active: false, pointerId: null }
+}
+
+function cancelClickAfterGraphPan(event) {
+  if (Date.now() > suppressGraphClickUntil) return
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+function handleGraphWheel(event) {
+  if (!['tree', 'network'].includes(activeView.value) || event.ctrlKey) return
+  const scroller = graphStageWrap.value
+  if (!scroller) return
+
+  const horizontalIntent = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)
+  if (horizontalIntent) {
+    scroller.scrollLeft += event.deltaX || event.deltaY
+    event.preventDefault()
+    return
+  }
+
+  window.scrollBy({ top: event.deltaY, behavior: 'auto' })
+  event.preventDefault()
 }
 
 async function handleAttendanceRequest(payload) {
@@ -432,22 +623,35 @@ function handleGenealogyUpdate({ genealogyId, patch }) {
   scheduleAutosave()
 }
 
-function downloadJson(filename, payload) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
+async function moveSelectedPerson() {
+  const personId = selectedPerson.value?.id || ''
+  const targetGenealogyId = moveTargetGenealogyId.value || movableGenealogyOptions.value[0]?.id || ''
+  if (!personId || !targetGenealogyId) return
+
+  const allowedIds = adminSession.value?.level === 'region' ? adminManageableGenealogyIds.value : null
+  const previousState = data.value
+  data.value = movePersonToGenealogy(data.value, personId, targetGenealogyId, allowedIds)
+
+  if (data.value === previousState) {
+    showFeedback("Cette fiche ne peut pas être déplacée avec cette session admin.", 'warning')
+    return
+  }
+
+  selectGenealogy(targetGenealogyId)
+  await nextTick()
+  selectPerson(personId)
+  scheduleAutosave(300)
+  showFeedback('La fiche a été déplacée.', 'success')
 }
 
-function exportActiveGenealogy() {
-  downloadJson(`${selectedGenealogyId.value || 'genealogie'}.json`, selectedGenealogy.value)
-}
-
-function exportAllGenealogies() {
-  downloadJson('faluche-nationale.json', data.value)
+function exportSelectedPersonPdf({ ancestorDepth: pdfAncestorDepth, descendantDepth: pdfDescendantDepth }) {
+  const exported = downloadPersonNetworkPdf({
+    person: selectedPerson.value,
+    people: people.value,
+    ancestorDepth: pdfAncestorDepth,
+    descendantDepth: pdfDescendantDepth,
+  })
+  showFeedback(exported ? 'Le PDF simplifié a été généré.' : "Sélectionne une fiche avant d'exporter.", exported ? 'success' : 'warning')
 }
 
 function personUpdateWasApplied(expectedPerson, savedPerson) {
@@ -464,12 +668,20 @@ function personUpdateWasApplied(expectedPerson, savedPerson) {
   return (
     fields.every((field) => (savedPerson[field] || '') === (expectedPerson[field] || '')) &&
     sameStringArray(savedPerson.nicknames, expectedPerson.nicknames) &&
-    sameStringArray(savedPerson.roles, expectedPerson.roles)
+    sameStringArray(savedPerson.roles, expectedPerson.roles) &&
+    sameStringArray(savedPerson.sponsorIds, expectedPerson.sponsorIds) &&
+    sameStringArray(savedPerson.heartSponsorIds, expectedPerson.heartSponsorIds) &&
+    JSON.stringify(savedPerson.ceremonyEvents || []) === JSON.stringify(expectedPerson.ceremonyEvents || [])
   )
 }
 
 function sameStringArray(left = [], right = []) {
   return JSON.stringify(left || []) === JSON.stringify(right || [])
+}
+
+function genealogySortLabel(genealogy) {
+  const typeRank = { region: '1', family: '2' }[genealogy.type] || '3'
+  return `${typeRank}-${genealogy.name || genealogy.id}`
 }
 
 function showFeedback(message, kind = 'success') {
@@ -531,6 +743,15 @@ watch(activeOverlay, async (overlay) => {
     await doleances.loadAdminDoleances()
   }
 })
+
+watch(
+  movableGenealogyOptions,
+  (options) => {
+    if (options.some((genealogy) => genealogy.id === moveTargetGenealogyId.value)) return
+    moveTargetGenealogyId.value = options[0]?.id || ''
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   document.addEventListener('pointerdown', closeSearchOnOutsideClick)

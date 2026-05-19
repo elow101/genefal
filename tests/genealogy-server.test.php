@@ -41,6 +41,29 @@ assert_same(CURRENT_GENEALOGY_SCHEMA_VERSION, $legacyMigrated['schemaVersion'], 
 assert_same('faluche-nationale', $legacyMigrated['activeGenealogyId'], 'legacy payload gets a national active genealogy');
 assert_same('legacy-a', $legacyMigrated['genealogies'][0]['people'][0]['id'], 'legacy people are preserved during migration');
 
+$legacyTreesMigrated = migrate_genealogy_payload([
+    'activeGenealogyId' => 'kfetteria',
+    'genealogies' => [
+        [
+            'id' => 'kfetteria',
+            'name' => "Descendance de la K'fetteria",
+            'people' => [['id' => 'regional-person', 'name' => 'Regional Person', 'filiere' => 'carab']],
+        ],
+        [
+            'id' => 'family-a',
+            'name' => 'Famille A',
+            'people' => [['id' => 'family-person', 'name' => 'Family Person', 'filiere' => 'dentaire']],
+        ],
+    ],
+]);
+assert_same(['national', 'region', 'family'], array_map(static function (array $genealogy): string {
+    return (string) ($genealogy['type'] ?? '');
+}, $legacyTreesMigrated['genealogies']), 'legacy multi-tree payload gets national, region and family levels');
+assert_same('regional-person', $legacyTreesMigrated['genealogies'][1]['people'][0]['id'], 'legacy regional people are preserved');
+assert_same('family-person', $legacyTreesMigrated['genealogies'][2]['people'][0]['id'], 'legacy family people are preserved');
+assert_same('medecine', $legacyTreesMigrated['genealogies'][1]['people'][0]['filiere'], 'legacy filiere aliases are mapped during migration');
+assert_same('chirurgie-dentaire', $legacyTreesMigrated['genealogies'][2]['people'][0]['filiere'], 'legacy dentaire alias is mapped during migration');
+
 $public = public_genealogies([
     [
         'id' => 'region-a',
@@ -161,18 +184,19 @@ $publicAppend = public_person_with_allowed_updates(
         'heartSponsorIds' => [],
         'ceremonyEvents' => [
             ['id' => 'adoption-1', 'type' => 'adoption', 'city' => 'Amiens', 'nickname' => 'Adoptee modifiee', 'sponsorIds' => ['sponsor-a']],
-            ['id' => 'confirmation-1', 'type' => 'confirmation', 'city' => 'Tours', 'nickname' => 'Confirmee', 'sponsorIds' => ['sponsor-b']],
+            ['id' => 'confirmation-1', 'type' => 'confirmation', 'city' => 'Tours', 'nickname' => 'Confirmee', 'sponsorIds' => ['sponsor-b'], 'heartSponsorIds' => ['heart-b']],
         ],
     ]
 );
 
 assert_same('Alice', $publicAppend['name'], 'public append keeps existing person fields');
 assert_same(['tva'], $publicAppend['roles'], 'public append does not replace existing roles');
-assert_same(['new-sponsor', 'heart-sponsor'], $publicAppend['sponsorIds'], 'public append updates classic sponsors and preserves heart sponsors');
-assert_same(['heart-sponsor'], $publicAppend['heartSponsorIds'], 'public append does not replace heart sponsors');
+assert_same(['old-sponsor', 'new-sponsor', 'heart-sponsor'], $publicAppend['sponsorIds'], 'public append only adds classic sponsors and preserves existing sponsors');
+assert_same(['heart-sponsor'], $publicAppend['heartSponsorIds'], 'public append preserves heart sponsors');
 assert_same(2, count($publicAppend['ceremonyEvents']), 'public append adds only new ceremony events');
 assert_same('Adoptee', $publicAppend['ceremonyEvents'][0]['nickname'], 'public append does not modify existing ceremony nickname');
 assert_same('confirmation', $publicAppend['ceremonyEvents'][1]['type'], 'public append preserves new ceremony type');
 assert_same('Confirmee', $publicAppend['ceremonyEvents'][1]['nickname'], 'public append preserves adoption or confirmation nickname');
+assert_same(['heart-b'], $publicAppend['ceremonyEvents'][1]['heartSponsorIds'], 'public append preserves ceremony heart sponsors');
 
 echo "genealogy-server: ok\n";

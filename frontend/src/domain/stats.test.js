@@ -20,4 +20,30 @@ describe('computeStats', () => {
     expect(stats.longestNickname.nickname).toBe('Très Long Surnom')
     expect(stats.crossGroupCount).toBe(1)
   })
+
+  it('deduplicates people present in national, regional and family trees', () => {
+    const stats = computeStats([
+      {
+        id: 'national',
+        type: 'national',
+        people: [{ id: 'a', name: 'Alice', roles: ['tva'], sponsorIds: [] }],
+      },
+      {
+        id: 'region',
+        type: 'region',
+        people: [{ id: 'a', name: 'Alice Region', roles: ['tva'], sponsorIds: [] }],
+      },
+      {
+        id: 'family',
+        type: 'family',
+        parentId: 'region',
+        people: [{ id: 'a', name: 'Alice Family', roles: ['tva'], sponsorIds: [] }],
+      },
+    ])
+
+    expect(stats.peopleCount).toBe(1)
+    expect(stats.roles.TVA).toBe(1)
+    expect(stats.rolePeople.TVA.map((person) => person.name)).toEqual(['Alice Family'])
+  })
+
 })
