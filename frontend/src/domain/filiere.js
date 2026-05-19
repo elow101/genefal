@@ -41,6 +41,14 @@ const legacyAliases = new Map([
   ['bts', 'but-dut-bts-bachelor'],
   ['cpge-hypokhagne-khagne', 'classes-preparatoires'],
   ['cpge-scientifique', 'classes-preparatoires'],
+  ['sciences-general', 'sciences'],
+  ['paramedical-kinesitherapie', 'paramedical'],
+  ['economie-comptabilite', 'sciences-economiques-gestion-iae'],
+  ['enseignement-2nd-degre', 'meef-2nd-degre'],
+  ['enseignement-1er-degre', 'meef-1er-degre'],
+  ['lettres', 'lettres-langues-sciences-humaines-sociales'],
+  ['lea', 'lettres-langues-sciences-humaines-sociales'],
+  ['psychologie', 'lettres-langues-sciences-humaines-sociales'],
 ])
 
 export function normaliseFiliereId(id = '') {

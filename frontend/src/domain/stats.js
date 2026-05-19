@@ -1,15 +1,20 @@
 import { filiereLabel } from './filiere.js'
+import { getAllPeople } from './genealogy.js'
 import { roleLabel } from './roles.js'
 
 export function computeStats(genealogies) {
-  const people = genealogies.flatMap((genealogy) => genealogy.people || [])
+  const people = getAllPeople({ genealogies })
   const songs = countValues(people.map((person) => person.song).filter(Boolean))
-  const filieres = countValues(people.map((person) => filiereLabel(person.filiere) || 'Non renseignée'))
-  const roles = countValues(
-    people.flatMap((person) =>
-      (person.roles || []).map((roleId) => roleLabel(roleId, genealogies, { type: 'national' })),
-    ),
+  const filieres = countValues(people.map((person) => filiereLabel(person.filiere) || 'Non renseign?e'))
+  const roleEntries = people.flatMap((person) =>
+    (person.roles || []).map((roleId) => ({
+      roleId,
+      label: roleLabel(roleId, genealogies, { type: 'national' }),
+      person,
+    })),
   )
+  const roles = countValues(roleEntries.map((entry) => entry.label))
+  const rolePeople = groupRolePeople(roleEntries)
   const nicknameEntries = people
     .flatMap((person) => (person.nicknames?.length ? person.nicknames : [person.nickname || '']).map((nickname) => ({
       person,
@@ -35,6 +40,7 @@ export function computeStats(genealogies) {
     topSong: topEntry(songs),
     filieres,
     roles,
+    rolePeople,
     longestNickname: nicknameEntries[0] || null,
     largestDescendance: descendants[0]?.count ? descendants[0] : null,
     crossGroupCount: Object.keys(crossGroups).length,
@@ -70,6 +76,21 @@ export function buildTimeline(entries, period = 'month', selectedMonth = '') {
     )
     return { key: `${monthKey}-${String(day).padStart(2, '0')}`, label: String(day), count: people.length, entries: people }
   })
+}
+
+
+function groupRolePeople(entries) {
+  const byLabel = new Map()
+  for (const entry of entries) {
+    if (!byLabel.has(entry.label)) byLabel.set(entry.label, new Map())
+    byLabel.get(entry.label).set(entry.person.id, entry.person)
+  }
+  return Object.fromEntries(
+    [...byLabel.entries()].map(([label, peopleById]) => [
+      label,
+      [...peopleById.values()].sort((left, right) => left.name.localeCompare(right.name, 'fr')),
+    ]),
+  )
 }
 
 function countValues(values) {

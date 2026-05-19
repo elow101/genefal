@@ -16,6 +16,10 @@ const MAX_PEOPLE_PER_GENEALOGY = 5000;
 const MAX_UPCOMING_EVENTS = 1000;
 const MAX_IMAGE_DATA_BYTES = 2097152;
 const CURRENT_GENEALOGY_SCHEMA_VERSION = 1;
+const MAIN_GENEALOGY_ID = 'faluche-nationale';
+const DEFAULT_REGIONAL_GENEALOGY_ID = 'faluche-alsacienne';
+const DEFAULT_GENEALOGY_NAME = 'Faluche Nationale';
+const DEFAULT_REGIONAL_GENEALOGY_NAME = 'La faluche alsacienne';
 
 if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     site_security_headers();
@@ -162,11 +166,20 @@ function migrate_genealogy_payload($data): array
         return empty_genealogy_payload();
     }
 
-    $genealogies = isset($data['genealogies']) && is_array($data['genealogies'])
-        ? public_genealogies($data['genealogies'])
-        : legacy_people_to_genealogies(is_array($data) ? $data : []);
+    if (isset($data['genealogies']) && is_array($data['genealogies'])) {
+        $rawGenealogies = $data['genealogies'];
+        if (should_migrate_legacy_genealogies($rawGenealogies)) {
+            $rawGenealogies = migrate_legacy_genealogies($rawGenealogies);
+        }
+        $genealogies = ensure_main_genealogy(public_genealogies($rawGenealogies));
+    } else {
+        $genealogies = legacy_people_to_genealogies(is_array($data) ? $data : []);
+    }
     $activeGenealogyId = api_safe_id($data['activeGenealogyId'] ?? '', 100);
     if ($activeGenealogyId === '' && count($genealogies) > 0) {
+        $activeGenealogyId = (string) ($genealogies[0]['id'] ?? '');
+    }
+    if ($activeGenealogyId !== '' && !genealogy_id_exists($genealogies, $activeGenealogyId)) {
         $activeGenealogyId = (string) ($genealogies[0]['id'] ?? '');
     }
 
@@ -189,8 +202,8 @@ function legacy_people_to_genealogies(array $people): array
         return [];
     }
     return [[
-        'id' => 'faluche-nationale',
-        'name' => 'Faluche Nationale',
+        'id' => MAIN_GENEALOGY_ID,
+        'name' => DEFAULT_GENEALOGY_NAME,
         'type' => 'national',
         'parentId' => '',
         'photoData' => '',
@@ -198,6 +211,175 @@ function legacy_people_to_genealogies(array $people): array
         'customRoles' => [],
         'cooptageRoleId' => '',
     ]];
+}
+
+function should_migrate_legacy_genealogies(array $genealogies): bool
+{
+    if (count($genealogies) === 0) {
+        return false;
+    }
+    foreach ($genealogies as $genealogy) {
+        if (!is_array($genealogy)) {
+            continue;
+        }
+        if (
+            array_key_exists('type', $genealogy)
+            || array_key_exists('level', $genealogy)
+            || array_key_exists('scope', $genealogy)
+            || array_key_exists('parentId', $genealogy)
+            || array_key_exists('regionId', $genealogy)
+        ) {
+            return false;
+        }
+    }
+    foreach ($genealogies as $genealogy) {
+        if (is_array($genealogy) && is_main_genealogy_raw($genealogy)) {
+            return true;
+        }
+    }
+    return count($genealogies) > 1;
+}
+
+function migrate_legacy_genealogies(array $genealogies): array
+{
+    $legacyMain = null;
+    foreach ($genealogies as $genealogy) {
+        if (is_array($genealogy) && is_main_genealogy_raw($genealogy)) {
+            $legacyMain = $genealogy;
+            break;
+        }
+    }
+    if ($legacyMain === null) {
+        $legacyMain = is_array($genealogies[0] ?? null) ? $genealogies[0] : [];
+    }
+
+    $migrated = [[
+        'id' => MAIN_GENEALOGY_ID,
+        'name' => DEFAULT_GENEALOGY_NAME,
+        'type' => 'national',
+        'parentId' => '',
+        'photoData' => '',
+        'people' => [],
+        'customRoles' => [],
+        'cooptageRoleId' => '',
+    ]];
+
+    $region = $legacyMain;
+    $region['id'] = DEFAULT_REGIONAL_GENEALOGY_ID;
+    $region['name'] = DEFAULT_REGIONAL_GENEALOGY_NAME;
+    $region['type'] = 'region';
+    $region['parentId'] = MAIN_GENEALOGY_ID;
+    $migrated[] = $region;
+
+    foreach ($genealogies as $genealogy) {
+        if (!is_array($genealogy) || $genealogy === $legacyMain) {
+            continue;
+        }
+        $family = $genealogy;
+        $family['type'] = 'family';
+        $family['parentId'] = DEFAULT_REGIONAL_GENEALOGY_ID;
+        $migrated[] = $family;
+    }
+
+    return $migrated;
+}
+
+function ensure_main_genealogy(array $genealogies): array
+{
+    $national = null;
+    $regions = [];
+    $families = [];
+
+    foreach ($genealogies as $genealogy) {
+        $type = (string) ($genealogy['type'] ?? '');
+        if ($type === 'national') {
+            if ($national === null) {
+                $national = array_merge($genealogy, [
+                    'id' => MAIN_GENEALOGY_ID,
+                    'name' => DEFAULT_GENEALOGY_NAME,
+                    'type' => 'national',
+                    'parentId' => '',
+                    'customRoles' => [],
+                    'cooptageRoleId' => '',
+                ]);
+            }
+            continue;
+        }
+        if ($type === 'region') {
+            $genealogy['parentId'] = MAIN_GENEALOGY_ID;
+            $regions[] = $genealogy;
+            continue;
+        }
+        $genealogy['type'] = 'family';
+        $families[] = $genealogy;
+    }
+
+    if ($national === null) {
+        $national = [
+            'id' => MAIN_GENEALOGY_ID,
+            'name' => DEFAULT_GENEALOGY_NAME,
+            'type' => 'national',
+            'parentId' => '',
+            'photoData' => '',
+            'people' => [],
+            'customRoles' => [],
+            'cooptageRoleId' => '',
+        ];
+    }
+
+    if (count($regions) === 0 && count($families) > 0) {
+        $regions[] = [
+            'id' => DEFAULT_REGIONAL_GENEALOGY_ID,
+            'name' => DEFAULT_REGIONAL_GENEALOGY_NAME,
+            'type' => 'region',
+            'parentId' => MAIN_GENEALOGY_ID,
+            'photoData' => '',
+            'people' => [],
+            'customRoles' => [],
+            'cooptageRoleId' => 'tva',
+        ];
+    }
+
+    $regionIds = [];
+    foreach ($regions as $region) {
+        $regionIds[(string) ($region['id'] ?? '')] = true;
+    }
+    $fallbackRegionId = (string) ($regions[0]['id'] ?? '');
+    $families = array_map(static function (array $family) use ($regionIds, $fallbackRegionId): array {
+        $parentId = (string) ($family['parentId'] ?? '');
+        $family['parentId'] = isset($regionIds[$parentId]) ? $parentId : $fallbackRegionId;
+        return $family;
+    }, $families);
+
+    return array_values(array_filter(array_merge([$national], $regions, $families), static function ($item): bool {
+        return is_array($item);
+    }));
+}
+
+function genealogy_id_exists(array $genealogies, string $id): bool
+{
+    foreach ($genealogies as $genealogy) {
+        if (($genealogy['id'] ?? '') === $id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function is_main_genealogy_raw(array $genealogy): bool
+{
+    $id = api_safe_id($genealogy['id'] ?? '', 100);
+    $name = normalise_text($genealogy['name'] ?? '');
+    $aliases = [
+        'faluche nationale',
+        'la faluche nationale',
+        'faluche alsacienne',
+        'la faluche alsacienne',
+        'faluche alscacienne',
+        'la faluche alscacienne',
+        'descendance de la k fetteria',
+    ];
+    return $id === MAIN_GENEALOGY_ID || $id === 'kfetteria' || in_array($name, $aliases, true);
 }
 
 function public_genealogies(array $genealogies): array
@@ -233,7 +415,7 @@ function normalise_genealogy_for_storage($genealogy, int $fallbackIndex = 1): ar
     $rawName = api_safe_text($genealogy['name'] ?? '', 140);
     $name = $rawName !== '' ? $rawName : 'Genealogie ' . $fallbackIndex;
     $id = api_safe_id($genealogy['id'] ?? $name, 100);
-    $type = normalise_genealogy_type($genealogy['type'] ?? ($genealogy['level'] ?? ($genealogy['scope'] ?? '')));
+    $type = normalise_genealogy_type($genealogy['type'] ?? ($genealogy['level'] ?? ($genealogy['scope'] ?? '')), $id, $name);
 
     return [
         'id' => $id,
@@ -364,19 +546,26 @@ function normalise_ceremony_events($events): array
             'city' => $city,
             'nickname' => api_safe_text($event['nickname'] ?? ($event['adoptionNickname'] ?? ($event['confirmationNickname'] ?? '')), 90),
             'sponsorIds' => id_array($event['sponsorIds'] ?? []),
+            'heartSponsorIds' => id_array($event['heartSponsorIds'] ?? []),
         ];
     }
     return $normalised;
 }
 
-function normalise_genealogy_type($value): string
+function normalise_genealogy_type($value, string $id = '', string $name = ''): string
 {
     $type = normalise_text($value);
-    if (in_array($type, ['national', 'nation'], true)) {
+    if (in_array($type, ['national', 'nation', 'nationale', 'root'], true) || $id === MAIN_GENEALOGY_ID) {
         return 'national';
     }
     if (in_array($type, ['region', 'regional', 'regionale', 'ville', 'city'], true)) {
         return 'region';
+    }
+    if (in_array($type, ['family', 'famille'], true)) {
+        return 'family';
+    }
+    if (is_main_genealogy_raw(['id' => $id, 'name' => $name])) {
+        return 'national';
     }
     return 'family';
 }
@@ -423,6 +612,14 @@ function normalise_filiere_id($value): string
         'bts' => 'but-dut-bts-bachelor',
         'cpge-hypokhagne-khagne' => 'classes-preparatoires',
         'cpge-scientifique' => 'classes-preparatoires',
+        'sciences-general' => 'sciences',
+        'paramedical-kinesitherapie' => 'paramedical',
+        'economie-comptabilite' => 'sciences-economiques-gestion-iae',
+        'enseignement-2nd-degre' => 'meef-2nd-degre',
+        'enseignement-1er-degre' => 'meef-1er-degre',
+        'lettres' => 'lettres-langues-sciences-humaines-sociales',
+        'lea' => 'lettres-langues-sciences-humaines-sociales',
+        'psychologie' => 'lettres-langues-sciences-humaines-sociales',
     ];
     $allowed = [
         'chirurgie-dentaire',
@@ -688,9 +885,12 @@ function genealogy_payload_for_write(array $body, ?array $adminSession): array
         'schemaVersion' => CURRENT_GENEALOGY_SCHEMA_VERSION,
         'roleResetVersion' => role_reset_version_from($body),
         'activeGenealogyId' => api_safe_id($body['activeGenealogyId'] ?? '', 100),
-        'genealogies' => public_genealogies($body['genealogies']),
+        'genealogies' => ensure_main_genealogy(public_genealogies($body['genealogies'])),
         'upcomingBaptisms' => public_upcoming_baptisms(is_array($body['upcomingBaptisms'] ?? null) ? $body['upcomingBaptisms'] : []),
     ];
+    if ($incoming['activeGenealogyId'] === '' || !genealogy_id_exists($incoming['genealogies'], $incoming['activeGenealogyId'])) {
+        $incoming['activeGenealogyId'] = (string) ($incoming['genealogies'][0]['id'] ?? '');
+    }
 
     if (($adminSession['level'] ?? '') === 'general') {
         return $incoming;
@@ -1071,6 +1271,20 @@ function merge_public_people_for_session(string $genealogyId, array $currentPeop
                 is_array($person['heartSponsorIds'] ?? null) ? $person['heartSponsorIds'] : [],
                 static fn($id): bool => is_string($id) && !isset($deletedEditableIds[$id])
             ));
+            $person['ceremonyEvents'] = array_map(
+                static function (array $event) use ($deletedEditableIds): array {
+                    $event['sponsorIds'] = array_values(array_filter(
+                        is_array($event['sponsorIds'] ?? null) ? $event['sponsorIds'] : [],
+                        static fn($id): bool => is_string($id) && !isset($deletedEditableIds[$id])
+                    ));
+                    $event['heartSponsorIds'] = array_values(array_filter(
+                        is_array($event['heartSponsorIds'] ?? null) ? $event['heartSponsorIds'] : [],
+                        static fn($id): bool => is_string($id) && !isset($deletedEditableIds[$id])
+                    ));
+                    return $event;
+                },
+                is_array($person['ceremonyEvents'] ?? null) ? $person['ceremonyEvents'] : []
+            );
             return $person;
         },
         array_filter(
@@ -1114,16 +1328,10 @@ function public_person_with_allowed_updates(array $currentPerson, array $incomin
 
     $currentSponsorIds = id_array($currentPerson['sponsorIds'] ?? []);
     $currentHeartSponsorIds = id_array($currentPerson['heartSponsorIds'] ?? []);
-    $incomingSponsorIds = id_array($incomingPerson['sponsorIds'] ?? $currentSponsorIds);
+    $incomingSponsorIds = id_array($incomingPerson['sponsorIds'] ?? []);
     $incomingHeartSponsorIds = id_array($incomingPerson['heartSponsorIds'] ?? []);
-    if ($incomingHeartSponsorIds === []) {
-        $incomingHeartSponsorIds = $currentHeartSponsorIds;
-    }
-    $nextSponsorIds = id_array(array_merge($incomingSponsorIds, $incomingHeartSponsorIds));
-    $nextHeartSponsorIds = array_values(array_filter(
-        $incomingHeartSponsorIds,
-        static fn($id): bool => is_string($id) && in_array($id, $nextSponsorIds, true)
-    ));
+    $nextHeartSponsorIds = id_array(array_merge($currentHeartSponsorIds, $incomingHeartSponsorIds));
+    $nextSponsorIds = id_array(array_merge($currentSponsorIds, $incomingSponsorIds, $nextHeartSponsorIds));
 
     if (!$added && $nextSponsorIds === $currentSponsorIds && $nextHeartSponsorIds === $currentHeartSponsorIds) {
         return $currentPerson;
@@ -1145,13 +1353,16 @@ function public_person_with_appended_ceremonies(array $currentPerson, array $inc
 function ceremony_event_key(array $event): string
 {
     $sponsorIds = id_array($event['sponsorIds'] ?? []);
+    $heartSponsorIds = id_array($event['heartSponsorIds'] ?? []);
     sort($sponsorIds);
+    sort($heartSponsorIds);
     return json_encode([
         'id' => api_safe_id($event['id'] ?? '', 100),
         'type' => normalise_text($event['type'] ?? ''),
         'city' => api_safe_text($event['city'] ?? '', 120),
         'nickname' => api_safe_text($event['nickname'] ?? '', 90),
         'sponsorIds' => $sponsorIds,
+        'heartSponsorIds' => $heartSponsorIds,
     ], JSON_UNESCAPED_UNICODE) ?: '';
 }
 

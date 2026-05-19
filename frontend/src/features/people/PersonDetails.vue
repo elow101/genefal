@@ -32,6 +32,21 @@
 
       <details class="details-menu">
         <summary>
+          <span>Adoptions / confirmations</span>
+          <small>{{ person.ceremonyEvents?.length || 0 }}</small>
+        </summary>
+        <div class="details-body info-grid">
+          <div v-for="event in person.ceremonyEvents || []" :key="event.id">
+            <strong>{{ event.type === 'confirmation' ? 'Confirmation' : 'Adoption' }}</strong>
+            <span>{{ event.city || 'Ville non renseignée' }}</span>
+            <span v-if="event.nickname">{{ event.nickname }}</span>
+          </div>
+          <span v-if="!person.ceremonyEvents?.length" class="empty">Aucune cérémonie secondaire.</span>
+        </div>
+      </details>
+
+      <details class="details-menu">
+        <summary>
           <span>Rôles</span>
           <small>{{ person.roles?.length || 0 }}</small>
         </summary>

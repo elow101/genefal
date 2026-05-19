@@ -73,6 +73,7 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await wrapper.findAll('.genealogy-option').find((button) => button.text().includes('Région')).trigger('click')
     await wrapper.findAll('button').find((button) => button.text().includes('Event')).trigger('click')
     await wrapper.findAll('button').find((button) => button.text().includes('Annoncer un baptême')).trigger('click')
     await wrapper.get('select').setValue('bapteme')

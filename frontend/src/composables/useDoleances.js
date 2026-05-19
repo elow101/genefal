@@ -24,7 +24,13 @@ export function useDoleances(csrfToken) {
   }
 
   async function submitPublicDoleance(payload) {
-    await createDoleance(payload, csrfToken.value)
+    error.value = ''
+    try {
+      return await createDoleance(payload, csrfToken.value)
+    } catch (err) {
+      error.value = err.message
+      throw err
+    }
   }
 
   async function setResolved(id, resolved) {

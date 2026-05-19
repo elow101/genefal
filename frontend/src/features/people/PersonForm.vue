@@ -16,7 +16,7 @@
           Baptême
         </button>
         <button class="text-button" type="button" :class="{ 'is-active': activeSection === 'sponsorship' }" @click="activateSection('sponsorship')">
-          Parrainage
+          Famille
         </button>
         <button class="text-button" type="button" :class="{ 'is-active': activeSection === 'roles' }" @click="activateSection('roles')">
           Rôles
@@ -60,11 +60,17 @@
               <option value="unbaptized">Pas encore baptisé</option>
             </select>
           </label>
+          <CeremonyEventEditor
+            :person="person"
+            :people="people"
+            :can-delete="canManageCeremonyEvents"
+            @update="$emit('save', $event)"
+          />
         </div>
       </details>
 
       <details ref="sponsorshipSection" class="form-section">
-        <summary>Parrainage</summary>
+        <summary>Famille</summary>
         <div class="form-section-body relation-editors">
           <SponsorEditor
             title="Parrains / Marraines"
@@ -119,12 +125,14 @@
 <script setup>
 import { nextTick, reactive, ref, watch } from 'vue'
 import { filiereOptions, normaliseFiliereId } from '../../domain/filiere.js'
+import CeremonyEventEditor from './CeremonyEventEditor.vue'
 import SponsorEditor from './SponsorEditor.vue'
 
 const props = defineProps({
   person: { type: Object, default: null },
   people: { type: Array, required: true },
   roleOptions: { type: Array, default: () => [] },
+  canManageCeremonyEvents: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['save', 'new', 'editing'])
@@ -145,6 +153,7 @@ const draft = reactive({
   baptismStatus: 'unknown',
   song: '',
   roles: [],
+  ceremonyEvents: [],
 })
 
 watch(
@@ -160,6 +169,7 @@ watch(
     draft.baptismStatus = person?.baptismStatus || 'unknown'
     draft.song = person?.song || ''
     draft.roles = [...(person?.roles || [])]
+    draft.ceremonyEvents = [...(person?.ceremonyEvents || [])]
     activeSection.value = 'identity'
     closeSections()
   },
@@ -180,6 +190,7 @@ function submit() {
     baptismStatus: draft.baptismStatus,
     song: draft.song,
     roles: [...draft.roles],
+    ceremonyEvents: [...draft.ceremonyEvents],
   })
 }
 

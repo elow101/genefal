@@ -66,7 +66,8 @@ export function useGenealogyData() {
 
   onMounted(async () => {
     try {
-      const auth = await fetchAuthState()
+      const [authResult, stateResult] = await Promise.allSettled([fetchAuthState(), fetchGenealogyState()])
+      const auth = authResult.status === 'fulfilled' ? authResult.value : { authenticated: false }
 
       if (!auth.authenticated) {
         throw new Error(
@@ -75,7 +76,8 @@ export function useGenealogyData() {
       }
       csrfToken.value = auth.csrfToken || ''
 
-      data.value = await fetchGenealogyState()
+      if (stateResult.status === 'rejected') throw stateResult.reason
+      data.value = stateResult.value
       selection.initialiseSelection()
     } catch (err) {
       error.value = err.message

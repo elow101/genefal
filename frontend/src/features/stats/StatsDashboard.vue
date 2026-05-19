@@ -29,13 +29,42 @@
       </div>
 
       <p v-if="timeline.length === 0" class="empty">Aucune date de baptême renseignée.</p>
-      <svg v-else class="timeline-chart" viewBox="0 0 760 260" role="img" aria-label="Évolution des baptêmes">
+      <svg
+        v-else
+        class="timeline-chart"
+        viewBox="0 0 760 260"
+        role="img"
+        aria-label="?volution des bapt?mes"
+        @mouseleave="hoveredPointKey = ''"
+      >
         <line x1="44" y1="214" x2="724" y2="214" />
         <line x1="44" y1="24" x2="44" y2="214" />
         <polyline :points="polylinePoints" />
         <g v-for="point in points" :key="point.key">
-          <circle :cx="point.x" :cy="point.y" r="4" />
+          <circle
+            :cx="point.x"
+            :cy="point.y"
+            r="4"
+            tabindex="0"
+            @focus="hoveredPointKey = point.key"
+            @mouseenter="hoveredPointKey = point.key"
+          />
           <text :x="point.x" y="238">{{ point.label }}</text>
+        </g>
+        <g v-if="hoveredPoint" class="timeline-tooltip">
+          <rect
+            :x="tooltipBox.x"
+            :y="tooltipBox.y"
+            :width="tooltipBox.width"
+            :height="tooltipBox.height"
+            rx="8"
+          />
+          <text :x="tooltipBox.x + 10" :y="tooltipBox.y + 18" class="timeline-tooltip-title">
+            {{ hoveredPoint.label }}
+          </text>
+          <text :x="tooltipBox.x + 10" :y="tooltipBox.y + 38">
+            {{ hoveredPoint.count }} personne(s)
+          </text>
         </g>
       </svg>
 
@@ -73,10 +102,31 @@
         </div>
       </article>
       <article class="stat-card stat-card--wide">
-        <h3>Rôles</h3>
+        <h3>R?les</h3>
         <div class="chip-list">
-          <span v-for="[label, count] in Object.entries(stats.roles)" :key="label" class="chip">{{ label }} · {{ count }}</span>
-          <span v-if="Object.keys(stats.roles).length === 0" class="empty">Aucun rôle.</span>
+          <button
+            v-for="[label, count] in Object.entries(stats.roles)"
+            :key="label"
+            class="chip chip-button"
+            type="button"
+            :class="{ 'is-active': selectedRole === label }"
+            @click="selectedRole = selectedRole === label ? '' : label"
+          >
+            {{ label }} ? {{ count }}
+          </button>
+          <span v-if="Object.keys(stats.roles).length === 0" class="empty">Aucun r?le.</span>
+        </div>
+        <div v-if="selectedRole" class="role-people-list">
+          <strong>{{ selectedRole }}</strong>
+          <button
+            v-for="person in stats.rolePeople[selectedRole] || []"
+            :key="person.id"
+            type="button"
+            @click="$emit('select', person.id)"
+          >
+            {{ person.name }}
+            <small v-if="person.nickname">dit {{ person.nickname }}</small>
+          </button>
         </div>
       </article>
     </div>
@@ -88,8 +138,11 @@ import { computed, ref, watch } from 'vue'
 import { buildTimeline } from '../../domain/stats.js'
 
 const props = defineProps({ stats: { type: Object, required: true } })
+defineEmits(['select'])
 const period = ref('month')
 const selectedMonth = ref('')
+const selectedRole = ref('')
+const hoveredPointKey = ref('')
 
 watch(
   () => props.stats.timelineMonths,
@@ -112,4 +165,18 @@ const points = computed(() => {
   }))
 })
 const polylinePoints = computed(() => points.value.map((point) => `${point.x},${point.y}`).join(' '))
+
+const hoveredPoint = computed(() => points.value.find((point) => point.key === hoveredPointKey.value) || null)
+const tooltipBox = computed(() => {
+  const point = hoveredPoint.value
+  if (!point) return { x: 0, y: 0, width: 0, height: 0 }
+  const width = 138
+  const height = 48
+  return {
+    x: Math.min(760 - width - 8, Math.max(8, point.x - width / 2)),
+    y: Math.max(8, point.y - height - 12),
+    width,
+    height,
+  }
+})
 </script>

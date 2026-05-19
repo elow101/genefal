@@ -3,7 +3,7 @@
     <div class="section-heading">
       <div>
         <h2>Doléances</h2>
-        <p>Les signalements anonymes vivent maintenant dans Vue.</p>
+        <p>Les signalements anonymes sont limités à 5 envois par session.</p>
       </div>
     </div>
 
