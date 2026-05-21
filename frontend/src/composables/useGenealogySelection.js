@@ -4,7 +4,6 @@ import {
   getPeopleForGenealogy,
   getSelectedGenealogy,
   getSelectedPerson,
-  getUpcomingEvents,
 } from '../domain/genealogy.js'
 
 export function useGenealogySelection(data) {
@@ -15,7 +14,6 @@ export function useGenealogySelection(data) {
   const selectedGenealogy = computed(() => getSelectedGenealogy(data.value, selectedGenealogyId.value))
   const people = computed(() => getPeopleForGenealogy(selectedGenealogy.value, genealogies.value))
   const selectedPerson = computed(() => getSelectedPerson(people.value, selectedPersonId.value))
-  const upcomingEvents = computed(() => getUpcomingEvents(data.value))
 
   function initialiseSelection() {
     const national = genealogies.value.find((genealogy) => genealogy.type === 'national')
@@ -39,7 +37,6 @@ export function useGenealogySelection(data) {
     selectedGenealogy,
     selectedPersonId,
     selectedPerson,
-    upcomingEvents,
     people,
     initialiseSelection,
     selectGenealogy,

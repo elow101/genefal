@@ -34,7 +34,7 @@
         class="timeline-chart"
         viewBox="0 0 760 260"
         role="img"
-        aria-label="?volution des bapt?mes"
+        aria-label="Evolution des baptêmes"
         @mouseleave="hoveredPointKey = ''"
       >
         <line x1="44" y1="214" x2="724" y2="214" />
@@ -102,7 +102,7 @@
         </div>
       </article>
       <article class="stat-card stat-card--wide">
-        <h3>R?les</h3>
+        <h3>Rôles</h3>
         <div class="chip-list">
           <button
             v-for="[label, count] in Object.entries(stats.roles)"
@@ -114,7 +114,7 @@
           >
             {{ label }} ? {{ count }}
           </button>
-          <span v-if="Object.keys(stats.roles).length === 0" class="empty">Aucun r?le.</span>
+          <span v-if="Object.keys(stats.roles).length === 0" class="empty">Aucun rôle.</span>
         </div>
         <div v-if="selectedRole" class="role-people-list">
           <strong>{{ selectedRole }}</strong>

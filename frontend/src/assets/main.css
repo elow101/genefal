@@ -316,6 +316,7 @@ textarea {
 }
 
 .add-sheet-button {
+  display: none;
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -382,6 +383,10 @@ textarea {
   grid-template-columns: minmax(360px, 1fr);
 }
 
+.workspace--document-flow {
+  overflow: visible;
+}
+
 .graph-area {
   min-width: 0;
   min-height: 0;
@@ -390,6 +395,12 @@ textarea {
   background: rgba(14, 22, 17, 0.74);
   display: grid;
   grid-template-rows: auto 1fr;
+}
+
+.graph-area--document-flow {
+  align-content: start;
+  overflow: visible;
+  grid-template-rows: max-content max-content;
 }
 
 .graph-header {
@@ -449,8 +460,19 @@ textarea {
   padding: 14px;
   position: relative;
   overscroll-behavior: contain;
-  touch-action: none;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+.graph-stage-wrap--pannable {
+  touch-action: none;
+}
+
+.graph-stage-wrap--document-flow {
+  min-height: auto;
+  overflow: visible;
+  overscroll-behavior: auto;
+  touch-action: auto;
 }
 
 .graph-stage-wrap.is-touch-panning {
@@ -2010,6 +2032,8 @@ textarea {
 
   .search-menu summary,
   .add-sheet-button {
+    display: inline-flex;
+    align-items: center;
     width: 100%;
     min-height: 48px;
     justify-content: space-between;
@@ -2065,6 +2089,10 @@ textarea {
 
   .graph-stage-wrap {
     min-height: 70vh;
+  }
+
+  .graph-stage-wrap--document-flow {
+    min-height: auto;
   }
 
   .graph-scroll-top {

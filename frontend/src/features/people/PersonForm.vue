@@ -36,6 +36,14 @@
               </option>
             </select>
           </label>
+          <label v-if="canSelectGenealogy && genealogyOptions.length">
+            Arbre d'ajout
+            <select :value="selectedGenealogyId" @change="$emit('change-genealogy', $event.target.value)">
+              <option v-for="option in genealogyOptions" :key="option.id" :value="option.id">
+                {{ genealogyOptionLabel(option) }}
+              </option>
+            </select>
+          </label>
         </div>
 
         <details ref="advancedSection" class="form-section">
@@ -131,11 +139,14 @@ import SponsorEditor from './SponsorEditor.vue'
 const props = defineProps({
   person: { type: Object, default: null },
   people: { type: Array, required: true },
+  genealogyOptions: { type: Array, default: () => [] },
+  selectedGenealogyId: { type: String, default: '' },
+  canSelectGenealogy: { type: Boolean, default: false },
   roleOptions: { type: Array, default: () => [] },
   canManageCeremonyEvents: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['save', 'new', 'editing'])
+const emit = defineEmits(['save', 'new', 'editing', 'change-genealogy'])
 const activeSection = ref('identity')
 const identityAnchor = ref(null)
 const advancedSection = ref(null)
@@ -232,5 +243,10 @@ function toggleRole(roleId) {
     ? draft.roles.filter((id) => id !== roleId)
     : [...draft.roles, roleId]
   emit('editing')
+}
+
+function genealogyOptionLabel(option) {
+  if (!option?.parentName || option.parentName === option.name) return option?.name || ''
+  return `${option.parentName} / ${option.name}`
 }
 </script>

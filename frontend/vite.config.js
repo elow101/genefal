@@ -1,4 +1,5 @@
-import { fileURLToPath, URL } from 'node:url'
+import { URL } from 'node:url'
+import process from 'node:process'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -25,7 +26,7 @@ export default defineConfig({
   // Les assets buildés restent physiquement dans `frontend/dist/assets/`,
   // donc leurs URLs publiques doivent pointer vers ce dossier explicite.
   base: '/frontend/dist/',
-  plugins: [vue(), vueDevTools()],
+  plugins: [vue(), process.env.NODE_ENV === 'production' ? null : vueDevTools()].filter(Boolean),
 
   server: {
     host: '127.0.0.1',
@@ -34,12 +35,6 @@ export default defineConfig({
     proxy: {
       '/api': proxyToPhp(),
       '/index.php': proxyToPhp(),
-    },
-  },
-
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 })

@@ -31,10 +31,6 @@ export function getSelectedPerson(people, selectedPersonId) {
   return people.find((person) => person.id === selectedPersonId) || null
 }
 
-export function getUpcomingEvents(state) {
-  return state?.upcomingBaptisms || []
-}
-
 export function createEmptyPerson(id = `person-${Date.now()}`) {
   return {
     id,

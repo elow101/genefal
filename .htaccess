@@ -1,22 +1,44 @@
 DirectoryIndex index.php index.html
 Options -Indexes
 
+TraceEnable Off
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
 <IfModule mod_headers.c>
   Header always set X-Frame-Options "DENY"
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "same-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  <FilesMatch "^frontend/dist/assets/.+\.(css|js|png|jpg|jpeg|gif|webp|svg|woff2?)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
 </IfModule>
 
-# Le HTML applicatif doit etre servi par index.php, apres saisie du mot de passe.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# Bloque l'accès aux fichiers cachés : .env, .git, .htaccess, etc.
+<FilesMatch "^\.">
+  Require all denied
+  Deny from all
+</FilesMatch>
+
+# Le HTML applicatif doit être servi par index.php, après saisie du mot de passe.
 <Files "index.html">
   Require all denied
   Deny from all
 </Files>
 
-# Les donnees locales ne doivent jamais etre servies directement.
-<FilesMatch "(\.json|\.log|\.bak|\.tmp|\.ini)$">
+# Les données locales ne doivent jamais être servies directement.
+<FilesMatch "(\.json|\.log|\.bak|\.tmp|\.ini|\.sql|\.sqlite|\.db)$">
   Require all denied
   Deny from all
 </FilesMatch>

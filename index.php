@@ -51,6 +51,7 @@ if ($isAuthenticatedForThisPage) {
 if (!$isAuthenticatedForThisPage) {
     site_auth_logout();
     $csrfToken = site_csrf_token();
+    $styleNonce = site_csp_nonce();
     header('Content-Type: text/html; charset=utf-8');
     echo '<!doctype html>
 <html class="theme-dark" lang="fr">
@@ -59,7 +60,7 @@ if (!$isAuthenticatedForThisPage) {
     <meta name="robots" content="noindex, nofollow" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Acces protege - Faluche Nationale</title>
-    <style>
+    <style nonce="' . htmlspecialchars($styleNonce, ENT_QUOTES, 'UTF-8') . '">
       :root { color-scheme: dark; --accent: #1e98a3; }
       * { box-sizing: border-box; }
       body {

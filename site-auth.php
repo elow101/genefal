@@ -23,6 +23,16 @@ const ADMIN_AUDIT_RECENT_LIMIT = 8;
 const SESSION_IDLE_TIMEOUT_SECONDS = 3600;
 const SESSION_ABSOLUTE_TIMEOUT_SECONDS = 21600;
 const SESSION_REGENERATE_SECONDS = 900;
+const HSTS_MAX_AGE_SECONDS = 31536000;
+
+function site_csp_nonce(): string
+{
+    static $nonce = '';
+    if ($nonce === '') {
+        $nonce = base64_encode(random_bytes(16));
+    }
+    return $nonce;
+}
 
 function site_auth_start(): void
 {
@@ -112,13 +122,17 @@ function site_auth_session_fingerprint(): string
 
 function site_security_headers(bool $noStore = true): void
 {
+    $styleNonce = site_csp_nonce();
+
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: same-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
-    header("Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");
+    header(
+        "Content-Security-Policy: default-src 'none'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'; img-src 'self' data:; script-src 'self'; script-src-attr 'none'; style-src 'self' 'nonce-{$styleNonce}'; style-src-elem 'self' 'nonce-{$styleNonce}'; style-src-attr 'unsafe-inline'; upgrade-insecure-requests"
+    );
     if (site_auth_is_https()) {
-        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        header('Strict-Transport-Security: max-age=' . HSTS_MAX_AGE_SECONDS . '; includeSubDomains');
     }
     if ($noStore) {
         header('Cache-Control: no-store');

@@ -45,7 +45,7 @@ describe('App integration', () => {
     const saveRequest = requests.find((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')
     const body = JSON.parse(saveRequest.options.body)
     expect(body.schemaVersion).toBe(1)
-    expect(body.genealogies[0].people.some((person) => person.name === 'Bérénice')).toBe(true)
+    expect(body.genealogies.some((genealogy) => genealogy.people.some((person) => person.name === 'Bérénice'))).toBe(true)
     expect(wrapper.text()).toContain('La fiche a bien')
   })
 
@@ -75,6 +75,8 @@ describe('App integration', () => {
 
     await wrapper.findAll('.genealogy-option').find((button) => button.text().includes('Région')).trigger('click')
     await wrapper.findAll('button').find((button) => button.text().includes('Event')).trigger('click')
+    await vi.dynamicImportSettled()
+    await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Annoncer un baptême')).trigger('click')
     await wrapper.get('select').setValue('bapteme')
     await wrapper.find('form.upcoming-form input[type="search"]').setValue('Alice')
@@ -97,6 +99,8 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.findAll('button').find((button) => button.text().includes('Admin')).trigger('click')
+    await vi.dynamicImportSettled()
+    await flushPromises()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Mot de passe admin')
