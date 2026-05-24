@@ -1,10 +1,10 @@
 <template>
   <section class="toolbar" aria-label="Gestion de la généalogie">
     <div class="brand">
-      <img class="brand-mark" :src="selectedPhoto" alt="" />
+      <img class="brand-mark" :src="selectedPhoto" :alt="`Visuel de ${selectedGenealogyName}`" loading="lazy" />
 
       <div class="brand-copy">
-        <details class="genealogy-menu">
+        <details ref="genealogyMenu" class="genealogy-menu">
           <summary>
             <span class="genealogy-trigger">
               <span class="genealogy-trigger-text">
@@ -26,10 +26,10 @@
                   `genealogy-depth-${item.depth}`,
                   { 'is-active': item.genealogy.id === selectedGenealogyId },
                 ]"
-                @click="$emit('select-genealogy', item.genealogy.id)"
+                @click="selectGenealogy(item.genealogy.id)"
               >
                 <span class="genealogy-option-main">
-                  <img :src="item.genealogy.photoData || brandMark" alt="" />
+                  <img :src="item.genealogy.photoData || brandMark" :alt="`Visuel de ${item.genealogy.name}`" loading="lazy" />
                   <span>
                     {{ item.genealogy.name }}
                     <em>{{ genealogyTypeLabel(item.genealogy) }}</em>
@@ -46,18 +46,20 @@
     </div>
 
     <div class="actions">
+      <button class="home-shortcut" type="button" aria-label="Accueil" title="Accueil" @click="$emit('go-home')">⌂</button>
       <span class="server-status" :class="{ 'is-offline': error, 'is-online': !error }">
         {{ statusLabel }}
       </span>
-      <button class="action-button" type="button" @click="$emit('export')">Exporter</button>
-      <button class="action-button" type="button" @click="$emit('open-doleances')">Doléances</button>
-      <button class="action-button" type="button" @click="$emit('open-admin')">Admin</button>
+      <AppButton @click="$emit('export')">Exporter</AppButton>
+      <AppButton @click="$emit('open-doleances')">Doléances</AppButton>
+      <AppButton @click="$emit('open-admin')">Admin</AppButton>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import AppButton from '../../components/ui/AppButton.vue'
 import brandMark from '../../assets/fetterama.png'
 
 const props = defineProps({
@@ -68,7 +70,8 @@ const props = defineProps({
   error: { type: String, default: '' },
 })
 
-defineEmits(['select-genealogy', 'export', 'open-doleances', 'open-admin'])
+const emit = defineEmits(['select-genealogy', 'go-home', 'export', 'open-doleances', 'open-admin'])
+const genealogyMenu = ref(null)
 
 const selectedPhoto = computed(
   () => props.genealogies.find((genealogy) => genealogy.id === props.selectedGenealogyId)?.photoData || brandMark,
@@ -93,5 +96,9 @@ function genealogyTypeLabel(genealogy) {
   if (genealogy.type === 'region') return 'Région / ville'
   const parent = props.genealogies.find((item) => item.id === genealogy.parentId)
   return `Famille${parent ? ` · ${parent.name}` : ''}`
+}
+function selectGenealogy(genealogyId) {
+  emit('select-genealogy', genealogyId)
+  if (genealogyMenu.value) genealogyMenu.value.open = false
 }
 </script>

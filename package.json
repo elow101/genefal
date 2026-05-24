@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
+    "build": "npm run frontend:build",
     "test:php": "php tests/genealogy-server.test.php",
     "test": "npm run frontend:test && npm run test:php",
     "frontend:dev": "npm --prefix frontend run dev",

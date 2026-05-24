@@ -8,7 +8,35 @@
       </p>
     </header>
 
-    <section class="stats-evolution stat-card">
+    <div class="metric-grid">
+      <article>
+        <strong>{{ stats.peopleCount }}</strong>
+        <span>personnes</span>
+        <small>{{ stats.genealogyCount }} arbre(s)</small>
+      </article>
+      <article>
+        <strong>{{ stats.baptizedCount }}</strong>
+        <span>baptisés</span>
+        <small>{{ stats.datedBaptisms.length }} date(s) renseignée(s)</small>
+      </article>
+      <article>
+        <strong>{{ stats.unbaptizedCount }}</strong>
+        <span>non baptisés</span>
+        <small>statut à suivre</small>
+      </article>
+      <article>
+        <strong>{{ stats.sponsorLinkCount }}</strong>
+        <span>parrains / marraines</span>
+        <small>liens de parrainage</small>
+      </article>
+      <article>
+        <strong>{{ stats.crossGroupCount }}</strong>
+        <span>groupes croisés</span>
+        <small>baptêmes croisés</small>
+      </article>
+    </div>
+
+    <section class="stats-evolution stat-card stat-card--featured">
       <div class="stats-section-head">
         <h3>Évolution des baptêmes</h3>
         <p>{{ stats.datedBaptisms.length }} baptême(s) daté(s).</p>
@@ -75,12 +103,30 @@
       </div>
     </section>
 
-    <div class="metric-grid">
-      <article><strong>{{ stats.genealogyCount }}</strong><span>généalogies</span></article>
-      <article><strong>{{ stats.peopleCount }}</strong><span>personnes</span></article>
-      <article><strong>{{ stats.sponsorLinkCount }}</strong><span>liens de parrainage</span></article>
-      <article><strong>{{ stats.crossGroupCount }}</strong><span>groupes croisés</span></article>
-    </div>
+    <section class="stat-card stat-card--wide newcomers-panel">
+      <div class="stats-section-head">
+        <h3>Nouveaux venus</h3>
+        <p>Les 10 derniers baptêmes renseignés.</p>
+      </div>
+      <p v-if="newcomers.length === 0" class="empty">Aucun baptême renseigné pour le moment.</p>
+      <div v-else class="newcomers-grid">
+        <button
+          v-for="person in newcomers"
+          :key="person.id"
+          type="button"
+          class="node-card newcomer-card"
+          :style="filiereStyle(person)"
+          @click="$emit('select', person.id)"
+        >
+          <strong>{{ person.name }}</strong>
+          <span class="node-info">
+            <span>{{ filiereLabel(person.filiere) || 'Filière non renseignée' }}</span>
+            <span>{{ formatDate(person.baptismDate) }}</span>
+            <span v-if="person.nickname">{{ person.nickname }}</span>
+          </span>
+        </button>
+      </div>
+    </section>
 
     <div class="stats-grid">
       <article class="stat-card">
@@ -112,7 +158,7 @@
             :class="{ 'is-active': selectedRole === label }"
             @click="selectedRole = selectedRole === label ? '' : label"
           >
-            {{ label }} ? {{ count }}
+            {{ label }} · {{ count }}
           </button>
           <span v-if="Object.keys(stats.roles).length === 0" class="empty">Aucun rôle.</span>
         </div>
@@ -135,9 +181,13 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { filiereLabel, filiereStyle } from '../../domain/filiere.js'
 import { buildTimeline } from '../../domain/stats.js'
 
-const props = defineProps({ stats: { type: Object, required: true } })
+const props = defineProps({
+  stats: { type: Object, required: true },
+  people: { type: Array, required: true },
+})
 defineEmits(['select'])
 const period = ref('month')
 const selectedMonth = ref('')
@@ -179,4 +229,18 @@ const tooltipBox = computed(() => {
     height,
   }
 })
+
+const newcomers = computed(() =>
+  [...props.people]
+    .filter((person) => person.baptismDate)
+    .sort((a, b) => String(a.baptismDate).localeCompare(String(b.baptismDate)))
+    .slice(-10),
+)
+
+function formatDate(value) {
+  if (!value) return 'Date inconnue'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(date)
+}
 </script>

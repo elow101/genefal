@@ -5,7 +5,7 @@
     <p v-if="people.length === 0" class="empty">Aucune personne pour le moment.</p>
 
     <ul v-else>
-      <li v-for="person in people" :key="person.id">
+      <li v-for="person in visiblePeople" :key="person.id">
         <button
           type="button"
           :class="{ selected: person.id === selectedPersonId }"
@@ -16,11 +16,16 @@
         </button>
       </li>
     </ul>
+    <button v-if="visiblePeople.length < people.length" class="load-more" type="button" @click="limit += 30">
+      Afficher plus de fiches
+    </button>
   </section>
 </template>
 
 <script setup>
-defineProps({
+import { computed, ref } from 'vue'
+
+const props = defineProps({
   people: {
     type: Array,
     required: true,
@@ -32,6 +37,9 @@ defineProps({
 })
 
 defineEmits(['select'])
+
+const limit = ref(60)
+const visiblePeople = computed(() => props.people.slice(0, limit.value))
 </script>
 
 <style scoped>
@@ -67,5 +75,10 @@ button.selected {
 
 span {
   color: var(--muted);
+}
+
+.load-more {
+  margin-top: 8px;
+  border-color: var(--accent);
 }
 </style>

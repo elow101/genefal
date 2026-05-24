@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <p v-if="events.length === 0" class="empty">Aucune adoption ou confirmation renseign??e.</p>
+    <p v-if="events.length === 0" class="empty">Aucune adoption ou confirmation renseignée.</p>
     <ul v-else class="ceremony-event-list">
       <li v-for="event in events" :key="event.id">
         <div class="ceremony-event-row">
@@ -16,7 +16,7 @@
             <span>{{ event.city }}</span>
             <small v-if="event.nickname">Surnom : {{ event.nickname }}</small>
             <small v-if="event.sponsorIds?.length">Parrains / marraines : {{ names(event.sponsorIds) }}</small>
-            <small v-if="event.heartSponsorIds?.length">C??ur : {{ names(event.heartSponsorIds) }}</small>
+            <small v-if="event.heartSponsorIds?.length">Cœur : {{ names(event.heartSponsorIds) }}</small>
           </div>
           <button
             v-if="canDelete"

@@ -77,12 +77,13 @@ describe('App integration', () => {
     await wrapper.findAll('button').find((button) => button.text().includes('Event')).trigger('click')
     await vi.dynamicImportSettled()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Annoncer un baptême')).trigger('click')
+    await wrapper.find('form.upcoming-form input[placeholder="Soirée, baptême, repas..."]').setValue('Baptême de Camille')
     await wrapper.get('select').setValue('bapteme')
     await wrapper.find('form.upcoming-form input[type="search"]').setValue('Alice')
     await wrapper.findAll('form.upcoming-form button').find((button) => button.text().includes('Alice')).trigger('click')
     await wrapper.get('textarea').setValue('Camille')
-    await wrapper.get('input[type="datetime-local"]').setValue('2026-06-01T20:30')
+    await wrapper.get('input[type="date"]').setValue('2026-06-01')
+    await wrapper.get('input[type="time"]').setValue('20:30')
     await wrapper.get('form.upcoming-form').trigger('submit.prevent')
     await vi.advanceTimersByTimeAsync(1500)
     await flushPromises()
@@ -124,6 +125,17 @@ function installFetchMock(config = {}) {
             ? config.saveState({ incomingState, previousState: currentState })
             : incomingState
         return json({ ok: true, state: currentState })
+      }
+      if (url === '/api/upcoming.php' && options.method === 'POST') {
+        const event = JSON.parse(options.body)
+        currentState = {
+          ...currentState,
+          upcomingBaptisms: [
+            ...currentState.upcomingBaptisms,
+            { ...event, id: 'event-1', requests: [], createdAt: '2026-01-01T00:00:00Z' },
+          ],
+        }
+        return json({ ok: true, state: currentState, temporaryPassword: 'secret' })
       }
       if (url === '/api/genealogy.php') return json(currentState)
       return json({})

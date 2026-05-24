@@ -35,7 +35,7 @@
     <div class="genealogy-admin-list">
       <article v-for="genealogy in manageableGenealogies" :key="genealogy.id" class="genealogy-admin-row">
         <div class="genealogy-admin-main">
-          <img :src="genealogy.photoData || brandMark" alt="" />
+          <img :src="genealogy.photoData || brandMark" :alt="`Visuel de ${genealogy.name}`" loading="lazy" />
           <div>
             <strong>{{ genealogy.name }}</strong>
             <small>{{ typeLabel(genealogy) }}</small>

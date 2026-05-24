@@ -8,12 +8,11 @@ describe('UpcomingView', () => {
       props: {
         events: [],
         people: [],
-        selectedEventIds: [],
         region: { id: 'region-1', name: 'Alsace' },
       },
     })
 
-    expect(wrapper.text()).toContain('Aucune annonce pour Alsace')
+    expect(wrapper.text()).toContain('Aucun événement trouvé')
   })
 
   it('renders a formatted upcoming event', () => {
@@ -22,6 +21,7 @@ describe('UpcomingView', () => {
         events: [
           {
             id: 'event-1',
+            title: 'Cooptage de juin',
             eventType: 'cooptage',
             dateTime: '2026-06-01T20:30',
             place: 'Paris',
@@ -30,11 +30,11 @@ describe('UpcomingView', () => {
           },
         ],
         people: [{ id: 'person-1', name: 'Camille' }],
-        selectedEventIds: [],
         region: { id: 'region-1', name: 'Alsace' },
       },
     })
 
+    expect(wrapper.text()).toContain('Cooptage de juin')
     expect(wrapper.text()).toContain('Cooptage')
     expect(wrapper.text()).toContain('Camille')
     expect(wrapper.text()).toContain('Paris')

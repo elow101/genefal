@@ -68,6 +68,32 @@
               <option value="unbaptized">Pas encore baptisé</option>
             </select>
           </label>
+          <div class="cross-baptism-fields">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <h3>Baptême croisé</h3>
+                <p>Renseigne le même identifiant pour toutes les fiches du groupe croisé.</p>
+              </div>
+            </div>
+            <div class="quick-fields">
+              <label>
+                Identifiant du groupe croisé
+                <input v-model="draft.crossGroupId" placeholder="ex : promo-2026-tours" />
+              </label>
+              <label>
+                Nombre de personnes dans le groupe
+                <input v-model.number="draft.crossGroupSize" type="number" min="0" max="10" />
+              </label>
+            </div>
+            <button
+              v-if="draft.crossGroupId || draft.crossGroupSize"
+              class="text-button danger-text"
+              type="button"
+              @click="clearCrossBaptism"
+            >
+              Supprimer le baptême croisé
+            </button>
+          </div>
           <CeremonyEventEditor
             :person="person"
             :people="people"
@@ -162,6 +188,8 @@ const draft = reactive({
   baptismCity: '',
   baptismDate: '',
   baptismStatus: 'unknown',
+  crossGroupId: '',
+  crossGroupSize: 0,
   song: '',
   roles: [],
   ceremonyEvents: [],
@@ -178,6 +206,8 @@ watch(
     draft.baptismCity = person?.baptismCity || ''
     draft.baptismDate = person?.baptismDate || ''
     draft.baptismStatus = person?.baptismStatus || 'unknown'
+    draft.crossGroupId = person?.crossGroupId || ''
+    draft.crossGroupSize = person?.crossGroupSize || 0
     draft.song = person?.song || ''
     draft.roles = [...(person?.roles || [])]
     draft.ceremonyEvents = [...(person?.ceremonyEvents || [])]
@@ -199,6 +229,8 @@ function submit() {
     baptismCity: draft.baptismCity,
     baptismDate: draft.baptismDate,
     baptismStatus: draft.baptismStatus,
+    crossGroupId: draft.crossGroupId,
+    crossGroupSize: Number(draft.crossGroupSize) || 0,
     song: draft.song,
     roles: [...draft.roles],
     ceremonyEvents: [...draft.ceremonyEvents],
@@ -242,6 +274,12 @@ function toggleRole(roleId) {
   draft.roles = draft.roles.includes(roleId)
     ? draft.roles.filter((id) => id !== roleId)
     : [...draft.roles, roleId]
+  emit('editing')
+}
+
+function clearCrossBaptism() {
+  draft.crossGroupId = ''
+  draft.crossGroupSize = 0
   emit('editing')
 }
 

@@ -6,6 +6,7 @@ require_site_auth();
 require_general_admin_auth();
 
 require __DIR__ . '/config.php';
+require_once __DIR__ . '/database.php';
 
 site_security_headers();
 header('Content-Type: application/json; charset=utf-8');
@@ -37,4 +38,5 @@ echo json_encode([
     'genealogy_file_size' => is_file(GENEALOGY_DATA_FILE) ? filesize(GENEALOGY_DATA_FILE) : 0,
     'doleances_file_exists' => is_file(DOLEANCES_DATA_FILE),
     'doleances_file_size' => is_file(DOLEANCES_DATA_FILE) ? filesize(DOLEANCES_DATA_FILE) : 0,
+    'sql' => database_diagnostic(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

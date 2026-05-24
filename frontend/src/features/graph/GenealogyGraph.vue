@@ -1,6 +1,6 @@
 <template>
-  <section ref="panelRef" class="graph-panel">
-    <div v-if="graph.legend" class="graph-legend">
+  <section class="graph-panel">
+    <div v-if="showLegend && graph.legend" class="graph-legend">
       <span><i class="legend-line"></i>Parrain / marraine</span>
       <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
       <span><i class="legend-line adoption"></i>Adoption</span>
@@ -59,7 +59,6 @@
 
     <svg
       v-else
-      ref="svgRef"
       :viewBox="viewBox"
       :width="graphWidth * zoom"
       :height="graphHeight * zoom"
@@ -168,7 +167,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { filiereAccent, filiereLabel, filiereStyle } from '../../domain/filiere.js'
 import { ceremonySummaries } from '../../domain/graph.js'
 
@@ -178,12 +177,11 @@ const props = defineProps({
   zoom: { type: Number, default: 1 },
   mode: { type: String, default: 'tree' },
   roleOptions: { type: Array, default: () => [] },
+  showLegend: { type: Boolean, default: true },
 })
 
 defineEmits(['select'])
 
-const panelRef = ref(null)
-const svgRef = ref(null)
 const hoveredNetworkNodeId = ref('')
 
 const isEmpty = computed(() => (props.mode === 'tree' ? props.graph.rows.length === 0 : props.graph.nodes.length === 0))
@@ -285,34 +283,6 @@ function hoverInfoLines(person) {
     ...ceremonySummaries(person),
   ].filter(Boolean)
 }
-function centerSelectedNetworkNode() {
-  if (props.mode !== 'network' || !props.selectedPersonId) return
-  const selected = node(props.selectedPersonId)
-  const svg = svgRef.value
-  const scroller = panelRef.value?.closest('.graph-stage-wrap')
-  if (!selected || !svg || !scroller) return
-
-  const targetLeft = svg.offsetLeft + selected.x * props.zoom - scroller.clientWidth / 2
-  const targetTop = svg.offsetTop + selected.y * props.zoom - scroller.clientHeight / 2
-  scroller.scrollTo({
-    left: Math.max(0, targetLeft),
-    top: Math.max(0, targetTop),
-    behavior: 'auto',
-  })
-}
-
-async function scheduleNetworkCenter() {
-  await nextTick()
-  window.requestAnimationFrame(centerSelectedNetworkNode)
-}
-
-watch(
-  () => [props.mode, props.selectedPersonId, props.zoom, props.graph.nodes.length, props.graph.width, props.graph.height],
-  scheduleNetworkCenter,
-)
-
-onMounted(scheduleNetworkCenter)
-
 function wrapSvgText(value, maxLength) {
   const text = String(value || '').trim()
   if (!text) return []

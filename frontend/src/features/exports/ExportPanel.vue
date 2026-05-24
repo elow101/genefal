@@ -2,15 +2,15 @@
   <section class="panel export-panel">
     <div class="section-heading">
       <div>
-        <h2>Export PDF</h2>
-        <p>Export simplifié centré sur une personne du réseau affiché.</p>
+        <h2>Export PDF réseau</h2>
+        <p>Génère un PDF clair et imprimable autour de la fiche sélectionnée.</p>
       </div>
     </div>
 
-    <p v-if="!props.selectedPerson" class="empty">Sélectionne une fiche avant d'exporter.</p>
-    <div v-else class="stack-form">
+    <p v-if="!selectedPerson" class="empty">Sélectionne une fiche avant d'exporter.</p>
+    <form v-else class="stack-form" @submit.prevent="$emit('export-pdf', { ancestorDepth, descendantDepth })">
       <p>
-        Fiche centrale : <strong>{{ props.selectedPerson.name }}</strong>
+        Fiche centrale : <strong>{{ selectedPerson.name }}</strong>
       </p>
       <div class="export-depth-fields">
         <label>
@@ -22,21 +22,22 @@
           <input v-model.number="descendantDepth" type="number" min="0" max="20" />
         </label>
       </div>
-      <button type="button" @click="$emit('export-pdf', { ancestorDepth, descendantDepth })">
-        Télécharger le PDF simplifié
-      </button>
-    </div>
+      <div class="export-actions">
+        <button type="submit">Exporter en PDF</button>
+        <button type="button" class="text-button" @click="$emit('cancel')">Annuler</button>
+      </div>
+    </form>
   </section>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 
-const props = defineProps({
+defineProps({
   selectedPerson: { type: Object, default: null },
 })
 
-defineEmits(['export-pdf'])
+defineEmits(['cancel', 'export-pdf'])
 
 const ancestorDepth = ref(2)
 const descendantDepth = ref(2)

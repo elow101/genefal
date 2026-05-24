@@ -3,7 +3,8 @@ function fallbackId(prefix = 'event') {
 }
 
 export function normaliseUpcomingEventType(value) {
-  return ['adoption', 'confirmation', 'cooptage'].includes(value) ? value : 'bapteme'
+  const type = String(value || '').trim().toLowerCase()
+  return ['bapteme', 'adoption', 'confirmation', 'cooptage'].includes(type) ? type : 'autre'
 }
 
 export function normaliseDateTimeLocal(value) {
@@ -36,6 +37,8 @@ export function formatUpcomingDateTime(value) {
 
 export function eventTypeLabel(value) {
   switch (normaliseUpcomingEventType(value)) {
+    case 'bapteme':
+      return 'Baptême'
     case 'adoption':
       return 'Adoption'
     case 'confirmation':
@@ -43,30 +46,46 @@ export function eventTypeLabel(value) {
     case 'cooptage':
       return 'Cooptage'
     default:
-      return 'Baptême'
+      return 'Autre'
   }
+}
+
+export function eventRequiresParticipation(value) {
+  return ['bapteme', 'adoption', 'confirmation'].includes(normaliseUpcomingEventType(value))
+}
+
+export function requestStatusLabel(value) {
+  if (value === 'accepted') return 'Accepté'
+  if (value === 'rejected') return 'Refusé'
+  return 'En attente'
 }
 
 export function createUpcomingEvent({
   regionId,
   eventType,
+  title = '',
   sponsorIds,
   fillotIds = [],
   baptizedNames = [],
   dateTime,
   place = '',
   message = '',
+  creatorName = '',
+  visibility = 'public',
 }) {
   return {
     id: fallbackId(normaliseUpcomingEventType(eventType)),
     regionId,
+    title: String(title || '').trim(),
     eventType: normaliseUpcomingEventType(eventType),
-    sponsorIds: [...new Set(sponsorIds)],
+    sponsorIds: [...new Set(sponsorIds || [])],
     fillotIds: [...new Set(fillotIds)],
     baptizedNames: [...new Set(baptizedNames)],
     dateTime: normaliseDateTimeLocal(dateTime),
     place: String(place || '').trim(),
     message: String(message || '').trim(),
+    creatorName: String(creatorName || '').trim(),
+    visibility,
     createdAt: new Date().toISOString(),
     requests: [],
   }
@@ -76,7 +95,7 @@ export function getUpcomingEventsForRegion(state, regionId) {
   return (state?.upcomingBaptisms || [])
     .filter((event) => event.regionId === regionId)
     .slice()
-    .sort((a, b) => String(a.dateTime).localeCompare(String(b.dateTime)))
+    .sort((a, b) => String(a.dateTime).localeCompare(String(b.dateTime)) || String(a.title).localeCompare(String(b.title)))
 }
 
 export function appendUpcomingEvent(state, event) {
@@ -99,10 +118,7 @@ export function addAttendanceRequest(state, eventIds, request) {
     upcomingBaptisms: (state?.upcomingBaptisms || []).map((event) => {
       if (!eventIds.includes(event.id)) return event
       const requests = event.requests || []
-      const alreadyExists = requests.some(
-        (candidate) =>
-          candidate.name === request.name && candidate.nickname === request.nickname,
-      )
+      const alreadyExists = requests.some((candidate) => candidate.email === request.email)
 
       return alreadyExists
         ? event
@@ -113,6 +129,7 @@ export function addAttendanceRequest(state, eventIds, request) {
               {
                 id: fallbackId('demande'),
                 ...request,
+                status: 'pending',
                 createdAt: new Date().toISOString(),
               },
             ],

@@ -8,6 +8,7 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
 }
 
 require __DIR__ . '/config.php';
+require_once __DIR__ . '/upcoming_sql.php';
 
 const PUBLIC_EDITABLE_PEOPLE_SESSION_KEY = 'faluche_public_editable_people';
 const MAX_JSON_BODY_BYTES = 8388608;
@@ -35,7 +36,7 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         if (!is_array($data) && trim($raw) !== '') {
             api_respond(['error' => 'Donnees temporairement indisponibles.'], 503);
         }
-        $payload = migrate_genealogy_payload(is_array($data) ? $data : []);
+        $payload = genealogy_payload_with_optional_sql_events(migrate_genealogy_payload(is_array($data) ? $data : []));
         if ($payload !== $data) {
             write_genealogy_payload($payload);
         }
@@ -687,10 +688,22 @@ function public_upcoming_baptisms(array $events): array
         $regionId = api_safe_id($event['regionId'] ?? '', 100);
         $dateTime = normalise_datetime_local($event['dateTime'] ?? ($event['date'] ?? ''));
         $eventType = normalise_upcoming_event_type($event['eventType'] ?? ($event['type'] ?? ''));
+        $title = api_safe_text($event['title'] ?? '', 140);
         $sponsorIds = id_array($event['sponsorIds'] ?? (isset($event['sponsorId']) ? [$event['sponsorId']] : []));
         $fillotIds = id_array($event['fillotIds'] ?? (isset($event['fillotId']) ? [$event['fillotId']] : []));
         $baptizedNames = name_array($event['baptizedNames'] ?? ($event['baptisedNames'] ?? ($event['fillotNames'] ?? [])));
-        if ($id === '' || $regionId === '' || $dateTime === '' || !$sponsorIds || (!$fillotIds && !$baptizedNames) || isset($seen[$id])) {
+        $requiresCeremonyPeople = in_array($eventType, ['bapteme', 'adoption', 'confirmation'], true);
+        $requiresCooptagePeople = $eventType === 'cooptage';
+        $hasCeremonyPeople = $sponsorIds && ($fillotIds || $baptizedNames);
+        if (
+            $id === ''
+            || $regionId === ''
+            || $dateTime === ''
+            || isset($seen[$id])
+            || ($requiresCeremonyPeople && !$hasCeremonyPeople)
+            || ($requiresCooptagePeople && !$hasCeremonyPeople)
+            || (!$requiresCeremonyPeople && !$requiresCooptagePeople && $title === '')
+        ) {
             continue;
         }
         if (upcoming_baptism_expired($dateTime)) {
@@ -700,13 +713,16 @@ function public_upcoming_baptisms(array $events): array
         $normalised[] = [
             'id' => $id,
             'regionId' => $regionId,
+            'title' => $title,
             'eventType' => $eventType,
             'sponsorIds' => $sponsorIds,
             'fillotIds' => $fillotIds,
             'baptizedNames' => $baptizedNames,
             'dateTime' => $dateTime,
             'place' => api_safe_text($event['place'] ?? '', 160),
-            'message' => api_safe_text($event['message'] ?? '', 600),
+            'message' => api_safe_text($event['message'] ?? ($event['description'] ?? ''), 1200),
+            'creatorName' => api_safe_text($event['creatorName'] ?? ($event['creator'] ?? ''), 120),
+            'visibility' => api_safe_id($event['visibility'] ?? 'public', 40) ?: 'public',
             'createdAt' => normalise_created_at($event['createdAt'] ?? gmdate('c')),
             'requests' => public_upcoming_requests(is_array($event['requests'] ?? null) ? $event['requests'] : (is_array($event['responses'] ?? null) ? $event['responses'] : [])),
         ];
@@ -729,11 +745,13 @@ function public_upcoming_requests(array $requests): array
         if ($name === '') {
             continue;
         }
-        $key = normalise_text($name . ' ' . $nickname);
+        $key = api_safe_id($request['id'] ?? '', 100) ?: normalise_text($name . ' ' . $nickname);
         $byName[$key] = [
             'id' => api_safe_id($request['id'] ?? ('demande-' . bin2hex(random_bytes(4))), 100),
             'name' => $name,
             'nickname' => $nickname,
+            'message' => api_safe_text($request['message'] ?? '', 600),
+            'status' => normalise_request_status($request['status'] ?? 'pending'),
             'createdAt' => normalise_created_at($request['createdAt'] ?? gmdate('c')),
         ];
     }
@@ -845,6 +863,9 @@ function normalise_datetime_local($value): string
 function normalise_upcoming_event_type($value): string
 {
     $type = normalise_text($value);
+    if ($type === 'bapteme' || $type === 'baptême') {
+        return 'bapteme';
+    }
     if ($type === 'cooptage') {
         return 'cooptage';
     }
@@ -854,7 +875,19 @@ function normalise_upcoming_event_type($value): string
     if ($type === 'confirmation') {
         return 'confirmation';
     }
-    return 'bapteme';
+    return 'autre';
+}
+
+function normalise_request_status($value): string
+{
+    $status = normalise_text($value);
+    if ($status === 'accepted' || $status === 'accepte') {
+        return 'accepted';
+    }
+    if ($status === 'rejected' || $status === 'refuse') {
+        return 'rejected';
+    }
+    return 'pending';
 }
 
 function upcoming_baptism_expired(string $dateTime): bool
@@ -1017,7 +1050,21 @@ function current_genealogy_payload()
 
     $raw = read_genealogy_file();
     $data = json_decode($raw ?: '[]', true);
-    return migrate_genealogy_payload(is_array($data) ? $data : []);
+    return genealogy_payload_with_optional_sql_events(migrate_genealogy_payload(is_array($data) ? $data : []));
+}
+
+function genealogy_payload_with_optional_sql_events(array $payload): array
+{
+    if (!database_read_enabled() || !upcoming_sql_available()) {
+        return $payload;
+    }
+
+    try {
+        $payload['upcomingBaptisms'] = upcoming_sql_events();
+    } catch (Throwable $exception) {
+        error_log('Upcoming SQL read fallback: ' . $exception->getMessage());
+    }
+    return $payload;
 }
 
 function genealogy_record_audit_event($before, $after, array $body, ?array $adminSession): void

@@ -25,6 +25,7 @@ export function useGenealogyData() {
   })
   const upcoming = useUpcomingEvents({
     data,
+    csrfToken,
     selectedGenealogy: selection.selectedGenealogy,
   })
 
