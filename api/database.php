@@ -74,6 +74,21 @@ function database_read_enabled(): bool
     return in_array(strtolower(database_env('SQL_READ_UPCOMING', '0')), ['1', 'true', 'yes', 'on'], true);
 }
 
+function database_genealogy_write_enabled(): bool
+{
+    return in_array(strtolower(database_env('SQL_WRITE_GENEALOGY', '0')), ['1', 'true', 'yes', 'on'], true);
+}
+
+function database_genealogy_json_write_enabled(): bool
+{
+    return in_array(strtolower(database_env('JSON_WRITE_GENEALOGY', '1')), ['1', 'true', 'yes', 'on'], true);
+}
+
+function database_genealogy_read_enabled(): bool
+{
+    return in_array(strtolower(database_env('SQL_READ_GENEALOGY', '0')), ['1', 'true', 'yes', 'on'], true);
+}
+
 function database_configured(): bool
 {
     return database_env('DB_HOST') !== ''
@@ -131,12 +146,39 @@ function database_execute_file(PDO $pdo, string $path): void
     }
 }
 
+function database_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $statement = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name'
+    );
+    $statement->execute([':table_name' => $table, ':column_name' => $column]);
+    return (int) $statement->fetchColumn() > 0;
+}
+
+function database_add_column_if_missing(PDO $pdo, string $table, string $column, string $definition): void
+{
+    if (database_column_exists($pdo, $table, $column)) {
+        return;
+    }
+    $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+}
+
+function database_ensure_genealogy_sql_schema(PDO $pdo): void
+{
+    database_add_column_if_missing($pdo, 'genealogies', 'genealogy_json', 'JSON NULL');
+    database_add_column_if_missing($pdo, 'people', 'baptism_city', 'VARCHAR(160) NULL');
+    database_add_column_if_missing($pdo, 'people', 'baptism_status', 'VARCHAR(40) NULL');
+    database_add_column_if_missing($pdo, 'people', 'song', 'TEXT NULL');
+    database_add_column_if_missing($pdo, 'people', 'person_json', 'JSON NULL');
+}
+
 function database_diagnostic(): array
 {
     $pdo = database_pdo();
     $tables = [];
     if ($pdo) {
-        foreach (['events', 'event_participation_requests', 'event_region_subscriptions', 'event_creator_secrets'] as $table) {
+        foreach (['genealogies', 'people', 'genealogy_people', 'app_settings', 'events', 'event_participation_requests', 'event_region_subscriptions', 'event_creator_secrets'] as $table) {
             try {
                 $tables[$table] = (int) $pdo->query('SELECT COUNT(*) FROM ' . $table)->fetchColumn();
             } catch (Throwable) {
@@ -148,6 +190,9 @@ function database_diagnostic(): array
     return [
         'enabled' => database_enabled(),
         'read_upcoming_enabled' => database_read_enabled(),
+        'write_genealogy_enabled' => database_genealogy_write_enabled(),
+        'write_genealogy_json_enabled' => database_genealogy_json_write_enabled(),
+        'read_genealogy_enabled' => database_genealogy_read_enabled(),
         'configured' => database_configured(),
         'connected' => $pdo instanceof PDO,
         'host_set' => database_env('DB_HOST') !== '',

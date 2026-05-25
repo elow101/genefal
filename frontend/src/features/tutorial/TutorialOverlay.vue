@@ -29,32 +29,32 @@ const emit = defineEmits(['finish', 'skip'])
 
 const steps = [
   {
-    title: "Explorer l'arbre et le réseau",
-    text: "Utilise les onglets Arbre et Réseau pour passer d'une vue familiale simple à une vue relationnelle complète.",
+    title: "Explorer l'arbre",
+    text: "Utilise l'onglet Arbre puis choisis le mode Réseau ou Hiérarchie selon l'exploration voulue.",
   },
   {
-    title: 'Déplacer le graphe',
-    text: 'Glisse dans une zone vide pour te déplacer horizontalement ou verticalement. Sur mobile, glisse au doigt.',
+    title: 'Se repérer dans le graphe',
+    text: 'Touche une fiche pour la mettre en avant : ses liens directs restent plus visibles et le reste de la généalogie reste accessible.',
   },
   {
     title: 'Zoomer et recentrer',
-    text: 'Les boutons +, - et le pourcentage permettent de zoomer, dézoomer et recentrer le graphe.',
+    text: 'Les boutons +, -, Recentrer et Retour au profil permettent de garder une lecture confortable sur mobile.',
   },
   {
-    title: 'Ouvrir une fiche',
-    text: 'Clique sur une carte pour afficher ses détails, modifier la fiche ou gérer ses relations.',
+    title: 'Créer une fiche',
+    text: "Le bouton Fiche d'ajout crée une personne dans l'arbre actif. Vérifie d'abord qu'elle n'existe pas déjà pour éviter les doublons.",
   },
   {
-    title: "Changer d'onglet",
-    text: 'Le menu Affichage regroupe les vues utiles : profils, statistiques et prochains events.',
+    title: 'Relier parent et fillot',
+    text: "Ouvre une fiche pour ajouter un parent, un fillot ou une relation. Le bon lien évite les branches isolées et les corrections manuelles.",
   },
   {
-    title: 'Ajouter une fiche',
-    text: "Le bouton Fiche d'ajout crée une nouvelle personne dans l'arbre actif.",
+    title: 'Envoyer une modification',
+    text: "En mode admin, la fiche est modifiée directement. Sinon, envoie une doléance claire pour qu'une validation puisse être faite.",
   },
   {
-    title: 'Suivre les stats et events',
-    text: 'Statistiques centralise les indicateurs et nouveaux venus. Events liste les annonces à venir.',
+    title: 'Naviguer sans perdre le contexte',
+    text: 'Glisse dans une zone vide pour te déplacer. Le menu Affichage regroupe les profils, statistiques et prochains events.',
   },
 ]
 

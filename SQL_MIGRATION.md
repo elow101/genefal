@@ -30,7 +30,7 @@ Autre stockage detecte :
   - lit/ecrit `data/doleances.json`.
 - `site-auth.php`
   - lit/ecrit `data/auth.json`.
-  - lit `data/genealogy.json` pour les droits regionaux.
+  - lit SQL pour les droits regionaux quand `SQL_READ_GENEALOGY=1`, avec fallback `data/genealogy.json`.
 - `api/diagnostic.php`
   - verifie la presence et la taille des fichiers JSON.
 
@@ -43,6 +43,9 @@ La connexion est optionnelle et controlee par `.env` :
 ```env
 SQL_ENABLED=0
 SQL_READ_UPCOMING=0
+SQL_WRITE_GENEALOGY=0
+SQL_READ_GENEALOGY=0
+JSON_WRITE_GENEALOGY=1
 DB_HOST=
 DB_PORT=3306
 DB_NAME=
@@ -56,7 +59,10 @@ Pendant la transition :
 - `SQL_ENABLED=0` garde le fonctionnement JSON actuel.
 - `SQL_ENABLED=1` active le miroir SQL pour les evenements.
 - `SQL_READ_UPCOMING=1` permet de lire les evenements depuis SQL si la base est disponible.
-- En cas d'erreur SQL, le code loggue l'erreur et conserve le fallback JSON.
+- `SQL_WRITE_GENEALOGY=1` rend l'ecriture SQL obligatoire pour les sauvegardes genealogie.
+- `SQL_READ_GENEALOGY=1` lit les arbres et fiches depuis SQL, avec fallback JSON si la base est indisponible.
+- `JSON_WRITE_GENEALOGY=0` coupe l'ecriture automatique de `data/genealogy.json`; a activer seulement apres validation SQL.
+- En cas d'erreur SQL, les lectures gardent le fallback JSON. Les sauvegardes genealogie echouent volontairement si `SQL_WRITE_GENEALOGY=1`, pour eviter une divergence silencieuse.
 
 ## Schema SQL propose
 
@@ -93,14 +99,19 @@ php scripts/migrate_upcoming_json_to_sql.php
 6. Verifier `api/diagnostic.php` en admin general : la cle `sql.connected` doit etre `true` et les compteurs de tables doivent etre visibles.
 7. Tester les creations/modifications d'evenements avec `SQL_ENABLED=1`.
 8. Quand les donnees SQL sont validees, activer `SQL_READ_UPCOMING=1`.
-9. Garder les JSON en sauvegarde tant que toute la genealogie n'est pas migree.
+9. Migrer la genealogie avec `php scripts/migrate_genealogy_json_to_sql.php`, puis activer `SQL_WRITE_GENEALOGY=1`.
+10. Quand les lectures/ecritures genealogie SQL sont validees, activer `SQL_READ_GENEALOGY=1`.
+11. Garder `JSON_WRITE_GENEALOGY=1` tant que tu veux un miroir JSON automatique.
+12. Quand SQL est la source fiable, passer `JSON_WRITE_GENEALOGY=0` et utiliser `php scripts/backup_genealogy_sql_to_json.php` pour creer un backup JSON manuel.
 
 ## Compatibilite temporaire
 
-Le code garde une strategie JSON-first :
+Le code garde une strategie progressive :
 
 - les ecritures evenements continuent de mettre a jour `genealogy.json`, `upcoming-secrets.json` et `upcoming-subscriptions.json`;
 - si `SQL_ENABLED=1`, ces memes ecritures sont aussi miroir en SQL;
+- les ecritures genealogie peuvent etre SQL-first avec `SQL_WRITE_GENEALOGY=1`;
+- l'ecriture automatique de `genealogy.json` reste active par defaut et se coupe avec `JSON_WRITE_GENEALOGY=0`;
 - les notifications region lisent les abonnes JSON et SQL, dedoublonnes par hash email;
 - les mots de passe createur sont verifies depuis JSON, puis depuis SQL si le secret JSON n'est pas disponible;
 - la lecture publique des evenements ne passe a SQL que si `SQL_READ_UPCOMING=1`.

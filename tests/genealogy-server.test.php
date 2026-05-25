@@ -34,6 +34,11 @@ function event_by_id(array $payload, string $id): array
     return [];
 }
 
+function duplicate_group_count(array $genealogies): int
+{
+    return count(find_duplicate_person_groups(['genealogies' => $genealogies]));
+}
+
 $legacyMigrated = migrate_genealogy_payload([
     ['id' => 'legacy-a', 'name' => 'Legacy A'],
 ]);
@@ -165,6 +170,41 @@ assert_same('cooptage', event_by_id($merged, 'event-a')['eventType'], 'regional 
 assert_same('bapteme', event_by_id($merged, 'event-b')['eventType'], 'regional admin cannot replace another region event');
 assert_same(1, $merged['roleResetVersion'], 'regional merge keeps current role reset version');
 
+$publicUpcoming = public_upcoming_baptisms([
+    [
+        'id' => 'autre-open',
+        'regionId' => 'region-a',
+        'title' => 'Autre ouvert',
+        'eventType' => 'autre',
+        'allowParticipation' => true,
+        'visibility' => 'family',
+        'dateTime' => '2099-02-01T18:30',
+    ],
+    [
+        'id' => 'autre-legacy',
+        'regionId' => 'region-a',
+        'title' => 'Autre historique',
+        'eventType' => 'autre',
+        'visibility' => 'invalid',
+        'dateTime' => '2099-02-02T18:30',
+    ],
+    [
+        'id' => 'cooptage-forced',
+        'regionId' => 'region-a',
+        'title' => 'Cooptage force',
+        'eventType' => 'cooptage',
+        'allowParticipation' => true,
+        'sponsorIds' => ['a2'],
+        'fillotIds' => ['fa2'],
+        'dateTime' => '2099-02-03T18:30',
+    ],
+]);
+assert_same(true, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-open')['allowParticipation'], 'custom upcoming event keeps explicit participation opt-in');
+assert_same('family', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-open')['visibility'], 'custom upcoming event keeps valid visibility');
+assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-legacy')['allowParticipation'], 'legacy custom upcoming event defaults participation opt-in to false');
+assert_same('public', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-legacy')['visibility'], 'invalid upcoming visibility defaults to public');
+assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-forced')['allowParticipation'], 'cooptage cannot force participation opt-in');
+
 $publicAppend = public_person_with_allowed_updates(
     [
         'id' => 'person-a',
@@ -198,5 +238,188 @@ assert_same('Adoptee', $publicAppend['ceremonyEvents'][0]['nickname'], 'public a
 assert_same('confirmation', $publicAppend['ceremonyEvents'][1]['type'], 'public append preserves new ceremony type');
 assert_same('Confirmee', $publicAppend['ceremonyEvents'][1]['nickname'], 'public append preserves adoption or confirmation nickname');
 assert_same(['heart-b'], $publicAppend['ceremonyEvents'][1]['heartSponsorIds'], 'public append preserves ceremony heart sponsors');
+
+assert_same(1, duplicate_group_count([
+    [
+        'id' => 'region-a',
+        'people' => [
+            ['id' => 'leo-1', 'name' => 'Léo Dupont', 'nickname' => 'Herbizéeébi'],
+            ['id' => 'leo-2', 'name' => '  leo   dupont ', 'nickname' => 'herbizeeebi'],
+        ],
+    ],
+]), 'duplicate people are detected after normalisation');
+
+assert_same(0, duplicate_group_count([
+    [
+        'id' => 'region-a',
+        'people' => [
+            ['id' => 'leo-1', 'name' => 'Léo Dupont', 'nickname' => 'Herbizéeébi'],
+            ['id' => 'leo-2', 'name' => 'Leo Dupont', 'nickname' => 'autre surnom'],
+        ],
+    ],
+]), 'same name with different nickname is allowed');
+
+assert_same(0, duplicate_group_count([
+    [
+        'id' => 'region-a',
+        'people' => [
+            ['id' => 'leo-1', 'name' => 'Léo Dupont', 'nickname' => 'Herbizéeébi'],
+        ],
+    ],
+    [
+        'id' => 'family-a',
+        'people' => [
+            ['id' => 'leo-1', 'name' => '  leo   dupont ', 'nickname' => 'herbizeeebi'],
+        ],
+    ],
+]), 'same person copied across genealogies is allowed');
+
+$duplicatePayload = [
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'mentor-a', 'name' => 'Mentor A', 'nickname' => 'A', 'sponsorIds' => ['leo-2']],
+                ['id' => 'leo-1', 'name' => 'Leo Dupont', 'nickname' => 'Herbizeeebi', 'sponsorIds' => ['mentor-a'], 'roles' => ['tva']],
+                ['id' => 'leo-2', 'name' => '  leo   dupont ', 'nickname' => 'herbizeeebi', 'heartSponsorIds' => ['mentor-a'], 'roles' => ['vp']],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$duplicateGroups = find_duplicate_person_groups($duplicatePayload);
+assert_same(1, count($duplicateGroups), 'admin duplicate scan returns one duplicate group');
+assert_same(2, count($duplicateGroups[0]['people']), 'admin duplicate scan groups both people');
+
+$mergedPayload = merge_duplicate_people_payload($duplicatePayload, [
+    'keepPersonId' => 'leo-1',
+    'mergePersonIds' => ['leo-2'],
+]);
+$mergedPeople = $mergedPayload['genealogies'][0]['people'];
+assert_same(2, count($mergedPeople), 'merge removes one duplicate person');
+$mergedLeo = null;
+$mentor = null;
+foreach ($mergedPeople as $person) {
+    if (($person['id'] ?? '') === 'leo-1') {
+        $mergedLeo = $person;
+    }
+    if (($person['id'] ?? '') === 'mentor-a') {
+        $mentor = $person;
+    }
+}
+assert_same(['mentor-a'], $mergedLeo['sponsorIds'] ?? [], 'merge preserves sponsor ids');
+assert_same(['mentor-a'], $mergedLeo['heartSponsorIds'] ?? [], 'merge preserves heart sponsor ids');
+assert_same(['tva', 'vp'], $mergedLeo['roles'] ?? [], 'merge combines roles');
+assert_same(['leo-1'], $mentor['sponsorIds'] ?? [], 'merge rewrites references to removed person');
+assert_same([], find_duplicate_person_groups($mergedPayload), 'merge clears the duplicate group');
+
+$undoBefore = [
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'mentor-a', 'name' => 'Mentor A', 'sponsorIds' => []],
+                ['id' => 'fillot-a', 'name' => 'Fillot A', 'sponsorIds' => []],
+                ['id' => 'other-a', 'name' => 'Other A', 'song' => 'Ancien chant'],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$undoAfter = $undoBefore;
+$undoAfter['genealogies'][0]['people'][1]['sponsorIds'] = ['mentor-a'];
+$undoAction = public_session_action_from_payload($undoBefore, $undoAfter, []);
+$currentWithUnrelatedChange = $undoAfter;
+$currentWithUnrelatedChange['genealogies'][0]['people'][2]['song'] = 'Nouveau chant sans rapport';
+$undone = undo_public_action_on_payload($currentWithUnrelatedChange, $undoAction);
+assert_same([], $undone['genealogies'][0]['people'][1]['sponsorIds'], 'granular undo removes only the added relation');
+assert_same('Nouveau chant sans rapport', $undone['genealogies'][0]['people'][2]['song'], 'granular undo preserves unrelated changes');
+
+$currentAfterDelete = [
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$incomingWithRecreatedPerson = [
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'alice-new', 'name' => 'Alice', 'nickname' => 'Test'],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$recreated = merge_public_genealogy_additions($incomingWithRecreatedPerson, $currentAfterDelete);
+assert_same(1, count($recreated['genealogies'][0]['people']), 'recreating a deleted identity is allowed when storage no longer contains it');
+assert_same(0, duplicate_group_count($recreated['genealogies']), 'deleted people are not considered by duplicate detection after merge');
+
+$publicDuplicateAllowed = genealogy_payload_for_write([
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'public-1', 'name' => 'Alice', 'nickname' => 'Test'],
+                ['id' => 'public-2', 'name' => '  alice ', 'nickname' => 'test'],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+], null);
+assert_same(true, is_array($publicDuplicateAllowed), 'public duplicate creation remains allowed');
+
+$_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY] = ['created-a' => time()];
+$createdEditableCurrent = [
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'created-a', 'name' => 'Nouvelle personne', 'nickname' => 'Bleu'],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$createdEditableIncoming = [
+    'activeGenealogyId' => 'region-a',
+    'genealogies' => [
+        [
+            'id' => 'region-a',
+            'name' => 'Region A',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'created-a', 'name' => 'Nom corrigé', 'nickname' => 'Bleu corrigé', 'song' => 'Chant corrigé'],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$createdEditableMerged = merge_public_genealogy_additions($createdEditableIncoming, $createdEditableCurrent);
+$createdEditablePerson = $createdEditableMerged['genealogies'][0]['people'][0];
+assert_same('Nom corrigé', $createdEditablePerson['name'], 'public session can freely edit a person created in the session');
+assert_same('Chant corrigé', $createdEditablePerson['song'], 'public session can edit created person fields beyond relations');
 
 echo "genealogy-server: ok\n";

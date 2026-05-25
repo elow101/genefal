@@ -113,11 +113,26 @@ if (!$isAuthenticatedForThisPage) {
         padding: 10px 12px;
       }
       .warning::before { content: "⚠️"; flex-shrink: 0; }
+      .beta-warning {
+        border: 1px solid rgba(30,152,163,.45);
+        border-radius: 8px;
+        background: rgba(30,152,163,.12);
+        color: #d9f6f5;
+        font-size: .9rem;
+        line-height: 1.5;
+        padding: 12px 14px;
+      }
+      .beta-warning strong {
+        display: block;
+        color: #f4f8f7;
+        margin-bottom: 4px;
+      }
     </style>
   </head>
   <body>
     <form method="post" autocomplete="off">
       <h1>Faluche Nationale</h1>
+      <p class="beta-warning"><strong>Version bêta : le site est encore en cours d’amélioration.</strong>Si vous avez une proposition d’amélioration, une modification à suggérer ou un bug à signaler, merci de l’envoyer via l’espace doléance après connexion.</p>
       <p class="warning">Pas toutes les traditions permettent aux imp&eacute;trants de voir leur g&eacute;n&eacute;alogie.<br>Ne montrez pas ce site &agrave; n&rsquo;importe qui.</p>
       <p class="hint"><strong>Indice :</strong> question de rapidit&eacute; et ann&eacute;e de cr&eacute;ation de la coiffe.</p>
       <input name="csrfToken" type="hidden" value="' . htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') . '" />

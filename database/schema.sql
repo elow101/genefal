@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS genealogies (
   photo_path VARCHAR(255) NULL,
   cooptage_role_id VARCHAR(80) NULL,
   custom_roles_json JSON NULL,
+  genealogy_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -20,10 +21,14 @@ CREATE TABLE IF NOT EXISTS people (
   nickname VARCHAR(160) NULL,
   birth_date DATE NULL,
   baptism_date DATE NULL,
+  baptism_city VARCHAR(160) NULL,
+  baptism_status VARCHAR(40) NULL,
   filiere VARCHAR(120) NULL,
   roles_json JSON NULL,
+  song TEXT NULL,
   notes TEXT NULL,
   photo_path VARCHAR(255) NULL,
+  person_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -31,6 +36,13 @@ CREATE TABLE IF NOT EXISTS people (
   INDEX idx_people_name (name),
   FULLTEXT INDEX ft_people_search (name, nickname),
   CONSTRAINT fk_people_genealogy FOREIGN KEY (genealogy_id) REFERENCES genealogies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(100) NOT NULL,
+  setting_value TEXT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS person_relations (
@@ -48,6 +60,17 @@ CREATE TABLE IF NOT EXISTS person_relations (
   CONSTRAINT fk_relation_genealogy FOREIGN KEY (genealogy_id) REFERENCES genealogies(id) ON DELETE CASCADE,
   CONSTRAINT fk_relation_source FOREIGN KEY (source_person_id) REFERENCES people(id) ON DELETE CASCADE,
   CONSTRAINT fk_relation_target FOREIGN KEY (target_person_id) REFERENCES people(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS genealogy_people (
+  genealogy_id VARCHAR(100) NOT NULL,
+  person_id VARCHAR(100) NOT NULL,
+  person_json JSON NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (genealogy_id, person_id),
+  INDEX idx_genealogy_people_person (person_id),
+  CONSTRAINT fk_genealogy_people_genealogy FOREIGN KEY (genealogy_id) REFERENCES genealogies(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS events (

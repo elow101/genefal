@@ -6,9 +6,10 @@
         <p v-if="region">{{ filteredEvents.length }} événement(s) visible(s) dans {{ region.name }}.</p>
         <p v-else>Ouvre une faluche de région ou une famille pour voir les événements.</p>
       </div>
+      <span v-if="canDelete" class="mode-badge">Mode admin</span>
     </div>
 
-    <form v-if="region" class="attendance-form" @submit.prevent="subscribe">
+    <form v-if="region" class="attendance-form compact-form" @submit.prevent="subscribe">
       <h3>Suivre les événements de ma région</h3>
       <div class="attendance-fields">
         <label>
@@ -21,6 +22,19 @@
         <button type="button" class="text-button" @click="unsubscribe">Me désabonner</button>
       </div>
     </form>
+
+    <div v-if="region" class="quick-filter-strip" aria-label="Filtres rapides">
+      <button
+        v-for="filter in quickFilters"
+        :key="filter.id"
+        type="button"
+        class="filter-chip"
+        :class="{ 'is-active': activeQuickFilter === filter.id }"
+        @click="applyQuickFilter(filter.id)"
+      >
+        {{ filter.label }}
+      </button>
+    </div>
 
     <div v-if="region" class="upcoming-filters">
       <label>
@@ -54,13 +68,26 @@
         :participation-status="participationByEvent[event.id] || ''"
         @request="openRequest"
         @manage="openManagement"
-        @delete="$emit('delete', $event)"
+        @delete="queueDelete"
       />
     </div>
 
-    <form v-if="requestEvent" class="attendance-form" @submit.prevent="submitRequest">
-      <h3>Demande de participation</h3>
-      <p class="field-hint">{{ requestEvent.title }}</p>
+    <section v-if="canDelete && pendingDeleteEventId && !managementEventId" class="delete-confirmation">
+      <p>Supprimer définitivement cet événement ?</p>
+      <div class="button-row">
+        <button type="button" class="danger-button" @click="confirmAdminDelete">Confirmer</button>
+        <button type="button" class="text-button" @click="pendingDeleteEventId = ''">Annuler</button>
+      </div>
+    </section>
+
+    <form v-if="requestEvent" class="attendance-form action-panel" @submit.prevent="submitRequest">
+      <div class="form-title-row">
+        <div>
+          <h3>Demande de participation</h3>
+          <p class="field-hint">{{ requestEvent.title }}</p>
+        </div>
+        <button type="button" class="text-button" @click="requestEventId = ''">Fermer</button>
+      </div>
       <div class="attendance-fields">
         <label>
           Nom / pseudo
@@ -81,8 +108,14 @@
       </div>
     </form>
 
-    <form v-if="managementEventId" class="attendance-form" @submit.prevent="loadManagement">
-      <h3>Gestion créateur</h3>
+    <form v-if="managementEventId" class="attendance-form action-panel" @submit.prevent="loadManagement">
+      <div class="form-title-row">
+        <div>
+          <h3>Gestion créateur</h3>
+          <p class="field-hint">Modification limitée aux options de l’annonce et aux demandes.</p>
+        </div>
+        <span v-if="managedEvent" class="mode-badge">Vous êtes créateur</span>
+      </div>
       <div class="attendance-fields">
         <label>
           Mot de passe temporaire
@@ -93,13 +126,44 @@
         <button type="submit">Ouvrir la gestion</button>
         <button type="button" class="text-button" @click="closeManagement">Annuler</button>
       </div>
+
       <div v-if="managedEvent" class="request-list">
+        <section class="manager-options">
+          <h4>Options visibles</h4>
+          <label>
+            Visibilité
+            <select v-model="managedVisibility">
+              <option value="public">Public régional</option>
+              <option value="private">Privé</option>
+              <option value="family">Visible seulement aux fillots/famille</option>
+            </select>
+          </label>
+          <label v-if="managedEvent.eventType === 'autre'" class="switch-field">
+            <span>
+              <strong>Autoriser les demandes de participation</strong>
+              <small>Si activé, les visiteurs pourront demander à participer à cet événement.</small>
+            </span>
+            <input v-model="managedAllowParticipation" type="checkbox" />
+            <i aria-hidden="true"></i>
+          </label>
+          <button type="button" @click="updateManagedEvent">Enregistrer les options</button>
+        </section>
+
         <section v-for="group in requestGroups" :key="group.status" class="request-group">
           <h4>{{ group.title }}</h4>
-          <article v-for="request in group.items" :key="request.id">
-            <strong>{{ request.name }}</strong>
-            <span>{{ requestStatusLabel(request.status) }}</span>
-            <small v-if="request.createdAt">{{ formatRequestDate(request.createdAt) }}</small>
+          <article
+            v-for="request in group.items"
+            :key="request.id"
+            class="request-card"
+            :class="`request-card--${group.status}`"
+          >
+            <div class="request-card-head">
+              <div>
+                <strong>{{ request.name }}</strong>
+                <small v-if="request.createdAt">{{ formatRequestDate(request.createdAt) }}</small>
+              </div>
+              <span class="request-status">{{ requestStatusLabel(request.status) }}</span>
+            </div>
             <p v-if="request.nickname">Surnom : {{ request.nickname }}</p>
             <p v-if="request.message">{{ request.message }}</p>
             <div v-if="group.status === 'pending'" class="button-row">
@@ -109,7 +173,20 @@
           </article>
           <p v-if="group.items.length === 0" class="empty">Aucune demande.</p>
         </section>
-        <button type="button" class="danger-text text-button" @click="deleteManagedEvent">
+
+        <section v-if="pendingDeleteEventId" class="delete-confirmation">
+          <p>Supprimer définitivement cet événement ?</p>
+          <div class="button-row">
+            <button type="button" class="danger-button" @click="confirmQueuedDelete">Confirmer</button>
+            <button type="button" class="text-button" @click="pendingDeleteEventId = ''">Annuler</button>
+          </div>
+        </section>
+        <button
+          v-else
+          type="button"
+          class="danger-text text-button"
+          @click="pendingDeleteEventId = managementEventId"
+        >
           Supprimer l'événement
         </button>
       </div>
@@ -119,7 +196,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { eventTypeLabel, requestStatusLabel } from '../../domain/upcoming.js'
+import { canRequestParticipation, eventTypeLabel, isThisWeek, requestStatusLabel } from '../../domain/upcoming.js'
 import UpcomingCard from './UpcomingCard.vue'
 
 const props = defineProps({
@@ -130,21 +207,37 @@ const props = defineProps({
   canDelete: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete', 'request', 'subscribe', 'unsubscribe', 'creator-access', 'request-status', 'creator-delete'])
+const emit = defineEmits(['delete', 'request', 'subscribe', 'unsubscribe', 'creator-access', 'creator-update', 'request-status', 'creator-delete'])
 const typeFilter = ref('')
 const sortDirection = ref('asc')
+const activeQuickFilter = ref('all')
 const subscriptionEmail = ref('')
 const requestEventId = ref('')
 const managementEventId = ref('')
 const managementPassword = ref('')
 const managedEvent = ref(null)
+const managedAllowParticipation = ref(false)
+const managedVisibility = ref('public')
+const pendingDeleteEventId = ref('')
 const attendance = reactive({ name: '', email: '', message: '' })
 const participationByEvent = reactive({})
+
+const quickFilters = [
+  { id: 'all', label: 'Tous' },
+  { id: 'bapteme', label: 'Baptêmes' },
+  { id: 'adoption', label: 'Adoptions' },
+  { id: 'confirmation', label: 'Confirmations' },
+  { id: 'cooptage', label: 'Cooptages' },
+  { id: 'autre', label: 'Autres' },
+  { id: 'week', label: 'Cette semaine' },
+  { id: 'open', label: 'Participation ouverte' },
+]
 
 const eventTypes = computed(() => [...new Set(props.events.map((event) => event.eventType).filter(Boolean))])
 const filteredEvents = computed(() =>
   props.events
     .filter((event) => !typeFilter.value || event.eventType === typeFilter.value)
+    .filter(matchesQuickFilter)
     .slice()
     .sort((a, b) => sortDirection.value === 'asc'
       ? String(a.dateTime).localeCompare(String(b.dateTime))
@@ -159,6 +252,20 @@ const requestGroups = computed(() => {
     { status: 'rejected', title: 'Demandes refusées', items: requests.filter((request) => request.status === 'rejected') },
   ]
 })
+
+function matchesQuickFilter(event) {
+  if (activeQuickFilter.value === 'all') return true
+  if (['bapteme', 'adoption', 'confirmation', 'cooptage', 'autre'].includes(activeQuickFilter.value)) {
+    return event.eventType === activeQuickFilter.value
+  }
+  if (activeQuickFilter.value === 'week') return isThisWeek(event.dateTime)
+  if (activeQuickFilter.value === 'open') return canRequestParticipation(event)
+  return true
+}
+
+function applyQuickFilter(filterId) {
+  activeQuickFilter.value = filterId
+}
 
 function openRequest(eventId) {
   requestEventId.value = eventId
@@ -186,6 +293,7 @@ function unsubscribe() {
 
 function openManagement(eventId) {
   managementEventId.value = eventId
+  pendingDeleteEventId.value = ''
   managedEvent.value = null
 }
 
@@ -194,6 +302,22 @@ async function loadManagement() {
     eventId: managementEventId.value,
     password: managementPassword.value,
   })
+  managedAllowParticipation.value = managedEvent.value?.allowParticipation === true
+  managedVisibility.value = managedEvent.value?.visibility || 'public'
+}
+
+async function updateManagedEvent() {
+  const event = await emitAsync('creator-update', {
+    eventId: managementEventId.value,
+    password: managementPassword.value,
+    visibility: managedVisibility.value,
+    allowParticipation: managedEvent.value?.eventType === 'autre' && managedAllowParticipation.value === true,
+  })
+  if (event) {
+    managedEvent.value = event
+    managedAllowParticipation.value = event.allowParticipation === true
+    managedVisibility.value = event.visibility || 'public'
+  }
 }
 
 async function setStatus(requestId, status) {
@@ -206,10 +330,19 @@ async function setStatus(requestId, status) {
   await loadManagement()
 }
 
-async function deleteManagedEvent() {
-  if (!window.confirm("Supprimer définitivement cet événement ?")) return
+function queueDelete(eventId) {
+  pendingDeleteEventId.value = eventId
+}
+
+function confirmAdminDelete() {
+  emit('delete', pendingDeleteEventId.value)
+  pendingDeleteEventId.value = ''
+}
+
+async function confirmQueuedDelete() {
+  if (!pendingDeleteEventId.value) return
   await emitAsync('creator-delete', {
-    eventId: managementEventId.value,
+    eventId: pendingDeleteEventId.value,
     password: managementPassword.value,
   })
   closeManagement()
@@ -219,6 +352,9 @@ function closeManagement() {
   managementEventId.value = ''
   managementPassword.value = ''
   managedEvent.value = null
+  managedAllowParticipation.value = false
+  managedVisibility.value = 'public'
+  pendingDeleteEventId.value = ''
 }
 
 function emitAsync(eventName, payload) {

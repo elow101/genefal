@@ -6,7 +6,7 @@
       :selected-genealogy-name="selectedGenealogy?.name || 'Faluche Nationale'"
       :status-label="statusLabel"
       :error="error"
-      @select-genealogy="selectGenealogy"
+      @select-genealogy="handleGenealogySelect"
       @go-home="activeView = 'home'"
       @export="activeOverlay = 'exports'"
       @open-doleances="activeOverlay = 'doleances'"
@@ -40,6 +40,31 @@
         </button>
       </section>
 
+      <section v-if="sessionActions.length && !adminSession" class="session-actions panel" aria-label="Modifications récentes">
+        <div>
+          <h2>Actions de cette session</h2>
+          <p>Ces annulations restent disponibles tant que les données n'ont pas été modifiées ailleurs.</p>
+        </div>
+        <div class="session-action-list">
+          <article v-for="action in sessionActions" :key="action.id" class="session-action">
+            <span>{{ action.label }}</span>
+            <div>
+              <button
+                v-if="action.canEdit"
+                type="button"
+                class="text-button"
+                @click="selectSessionPerson(action.personId)"
+              >
+                Modifier
+              </button>
+              <button type="button" class="text-button danger-text" :disabled="saving" @click="undoRecentAction(action)">
+                Annuler
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section
         class="workspace"
         :class="{
@@ -68,19 +93,48 @@
               'graph-stage-wrap--document-flow': !graphIsPannable,
             }"
           >
+            <section v-if="activeView === 'tree'" class="graph-layout-controls" aria-label="Mode d'affichage de l'arbre">
+              <span>Mode d'affichage</span>
+              <div class="graph-layout-options" role="group" aria-label="Mode d'affichage de l'arbre">
+                <button
+                  type="button"
+                  :class="{ 'is-active': graphLayoutMode === 'network' }"
+                  @click="setGraphLayoutMode('network')"
+                >
+                  Mode Réseau
+                </button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': graphLayoutMode === 'tree' }"
+                  @click="setGraphLayoutMode('tree')"
+                >
+                  Mode Hiérarchie
+                </button>
+              </div>
+            </section>
             <div
-              v-if="activeView === 'tree' || activeView === 'network'"
+              v-if="activeView === 'tree'"
               class="zoom-controls graph-stage-zoom"
               aria-label="Zoom de l'arbre"
             >
               <button type="button" title="Zoom arrière" aria-label="Zoom arrière" @click="adjustZoom(-0.1)">−</button>
-              <button type="button" title="Recentrer le graphe" aria-label="Recentrer le graphe" @click="resetZoom">
+              <button type="button" title="Réinitialiser le zoom" aria-label="Réinitialiser le zoom" @click="resetZoom">
                 {{ Math.round(graphZoom * 100) }}%
               </button>
               <button type="button" title="Zoom avant" aria-label="Zoom avant" @click="adjustZoom(0.1)">+</button>
+              <button
+                type="button"
+                class="zoom-controls__selected"
+                title="Recentrer au profil sélectionné"
+                aria-label="Recentrer au profil sélectionné"
+                :disabled="!selectedPersonId"
+                @click="centerSelectedPerson"
+              >
+                Recentrer au profil sélectionné
+              </button>
             </div>
             <div
-              v-if="activeView === 'tree' || activeView === 'network'"
+              v-if="activeView === 'tree'"
               ref="graphViewport"
               class="graph-viewport"
               :class="{ 'is-touch-panning': graphPan.active }"
@@ -92,32 +146,83 @@
               @wheel="handleGraphWheel"
               @click.capture="cancelClickAfterGraphPan"
             >
-              <div v-if="graph.legend" class="graph-legend graph-legend--viewport" aria-label="Légende des liens">
-                <span><i class="legend-line"></i>Parrain / marraine</span>
-                <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
-                <span><i class="legend-line adoption"></i>Adoption</span>
-                <span><i class="legend-line adoption-heart"></i>Adoption de cœur</span>
-                <span><i class="legend-line confirmation"></i>Confirmation</span>
-                <span><i class="legend-line confirmation-heart"></i>Confirmation de cœur</span>
-                <span><i class="legend-line cross"></i>Baptême croisé</span>
-              </div>
-              <div class="graph-pan-content" :style="graphPanStyle">
+              <div
+                ref="graphPanContent"
+                class="graph-pan-content"
+                :class="{ 'is-recentering': graphRecentering }"
+                :style="graphPanStyle"
+              >
                 <GenealogyGraph
                   :graph="graph"
-                  :selected-person-id="selectedPersonId"
-                  :zoom="graphZoom"
-                  :mode="activeView"
+                  :selected-person-id="graphFocusPersonId"
+                  :zoom="graphRenderZoom"
+                  :mode="graphLayoutMode"
                   :role-options="roleOptions"
                   :show-legend="false"
-                  @select="selectPerson"
+                  :halo-ancestor-depth="networkHaloAncestorDepth"
+                  :halo-descendant-depth="networkHaloDescendantDepth"
+                  @select="handleGraphSelect"
                 />
               </div>
             </div>
-            <p v-if="activeView === 'tree' || activeView === 'network'" class="graph-help">
-              Glisse dans une zone vide pour déplacer le graphe. Clique une fiche pour ses détails. Sur mobile, pince pour zoomer.
+            <section
+              v-if="activeView === 'tree' && graphLayoutMode === 'network'"
+              class="network-halo-controls"
+              aria-label="Portée du halo généalogique"
+            >
+              <div class="network-halo-controls__header">
+                <strong>Portée du halo</strong>
+                <span>{{ graphFocusPersonId ? 'Appliquée au profil sélectionné' : 'Sélectionne une fiche' }}</span>
+              </div>
+              <div class="network-halo-controls__groups">
+                <div class="network-halo-group" role="group" aria-label="Générations ascendantes surlignées">
+                  <span>Ascendance</span>
+                  <div class="network-halo-options">
+                    <button
+                      v-for="option in haloDepthOptions"
+                      :key="`ancestor-${option.value}`"
+                      type="button"
+                      :class="{ 'is-active': networkHaloAncestorDepth === option.value }"
+                      @click="setNetworkHaloDepth('ancestor', option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+                <div class="network-halo-group" role="group" aria-label="Générations descendantes surlignées">
+                  <span>Descendance</span>
+                  <div class="network-halo-options">
+                    <button
+                      v-for="option in haloDepthOptions"
+                      :key="`descendant-${option.value}`"
+                      type="button"
+                      :class="{ 'is-active': networkHaloDescendantDepth === option.value }"
+                      @click="setNetworkHaloDepth('descendant', option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <div
+              v-if="activeView === 'tree' && graph.legend"
+              class="graph-legend graph-legend--below"
+              aria-label="Légende des liens"
+            >
+              <span><i class="legend-line"></i>Parrain / marraine</span>
+              <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
+              <span><i class="legend-line adoption"></i>Adoption</span>
+              <span><i class="legend-line adoption-heart"></i>Adoption de cœur</span>
+              <span><i class="legend-line confirmation"></i>Confirmation</span>
+              <span><i class="legend-line confirmation-heart"></i>Confirmation de cœur</span>
+              <span><i class="legend-line cross"></i>Baptême croisé</span>
+            </div>
+            <p v-if="activeView === 'tree'" class="graph-help">
+              Glisse dans une zone vide pour déplacer le graphe. Touche une fiche pour éclairer sa branche selon la portée choisie.
             </p>
             <button
-              v-if="activeView === 'tree' || activeView === 'network'"
+              v-if="activeView === 'tree'"
               class="graph-scroll-top"
               type="button"
               aria-label="Remonter en haut de la page"
@@ -134,11 +239,32 @@
             <template v-else>
               <section v-if="activeView === 'home'" class="home-panel">
                 <div class="home-actions" aria-label="Actions principales">
-                  <button type="button" class="primary" @click="activeView = 'tree'">Explorer l'arbre</button>
+                  <button type="button" class="primary" @click="openMainTreeView">Explorer l'arbre</button>
                   <button type="button" @click="activeView = 'upcoming'">Voir les prochains events</button>
                   <button type="button" @click="beginPersonCreation">Ajouter une fiche</button>
-                  <button type="button" class="tutorial-launch" @click="openTutorial">Tuto</button>
                 </div>
+                <section class="tutorial-home-card" aria-label="Tutoriels">
+                  <div>
+                    <h3>Tutoriels</h3>
+                    <p>Active les aides interactives uniquement quand tu veux les consulter.</p>
+                  </div>
+                  <label class="switch-field switch-field--compact">
+                    <span>
+                      <strong>Mode tutoriel</strong>
+                      <small>{{ tutorialEnabled ? 'Aides interactives activées' : 'Aides interactives désactivées' }}</small>
+                    </span>
+                    <input v-model="tutorialEnabled" type="checkbox" @change="handleTutorialToggle" />
+                    <i aria-hidden="true"></i>
+                  </label>
+                  <button
+                    v-if="tutorialEnabled"
+                    type="button"
+                    class="tutorial-launch"
+                    @click="openTutorial"
+                  >
+                    Ouvrir les aides interactives
+                  </button>
+                </section>
                 <div class="home-summary" aria-label="Résumé">
                   <article>
                     <strong>{{ people.length }}</strong>
@@ -178,6 +304,7 @@
                   @subscribe="handleUpcomingSubscribe"
                   @unsubscribe="handleUpcomingUnsubscribe"
                   @creator-access="handleUpcomingCreatorAccess"
+                  @creator-update="handleUpcomingCreatorUpdate"
                   @request-status="handleUpcomingRequestStatus"
                   @creator-delete="handleUpcomingCreatorDelete"
                 />
@@ -235,10 +362,10 @@
             />
           </details>
           <button
-            v-if="selectedPerson"
+            v-if="selectedPerson && adminSession"
             type="button"
             class="text-button danger-text editor-delete"
-            @click="deletePerson(selectedPerson.id)"
+            @click="handlePersonDelete(selectedPerson.id)"
           >
             Supprimer cette personne
           </button>
@@ -288,9 +415,11 @@
             v-if="adminSession"
             :genealogies="genealogies"
             :session="adminSession"
+            :csrf-token="csrfToken"
             @create="handleGenealogyCreate"
             @delete="handleGenealogyDelete"
             @update="handleGenealogyUpdate"
+            @duplicates-merged="handleDuplicateMerge"
           />
         </template>
       </div>
@@ -301,7 +430,7 @@
     </p>
 
     <TutorialOverlay
-      v-if="tutorialOpen"
+      v-if="tutorialEnabled && tutorialOpen"
       @finish="completeTutorial"
       @skip="completeTutorial"
     />
@@ -346,17 +475,32 @@ const UpcomingView = defineAsyncComponent(() => import('./features/upcoming/Upco
 const views = [
   { id: 'home', label: 'Accueil' },
   { id: 'tree', label: 'Arbre' },
-  { id: 'network', label: 'Réseau' },
   { id: 'overview', label: "Vue d'ensemble" },
   { id: 'stats', label: 'Statistiques' },
   { id: 'upcoming', label: 'Event à venir' },
 ]
+const TUTORIAL_ENABLED_KEY = 'fetterama:tutorials-enabled'
+const GRAPH_LAYOUT_MODE_KEY = 'fetterama:graph-layout-mode'
+const NETWORK_HALO_ANCESTOR_KEY = 'fetterama:network-halo-ancestor-depth'
+const NETWORK_HALO_DESCENDANT_KEY = 'fetterama:network-halo-descendant-depth'
+const GRAPH_RENDER_SCALE = 0.7
+const GRAPH_ZOOM_MIN = 0.7
+const GRAPH_ZOOM_MAX = 2.6
+const haloDepthOptions = [
+  { value: 1, label: '1' },
+  { value: 2, label: '2' },
+  { value: 3, label: '3' },
+  { value: 'all', label: 'Toutes' },
+]
 
 const activeView = ref('home')
 const activeOverlay = ref('')
+const graphLayoutMode = ref(readGraphLayoutModePreference())
 const searchQuery = ref('')
 const ancestorDepth = ref(20)
 const descendantDepth = ref(20)
+const networkHaloAncestorDepth = ref(readHaloDepthPreference(NETWORK_HALO_ANCESTOR_KEY))
+const networkHaloDescendantDepth = ref(readHaloDepthPreference(NETWORK_HALO_DESCENDANT_KEY))
 const graphZoom = ref(1)
 const upcomingCreatorPassword = ref('')
 const moveTargetGenealogyId = ref('')
@@ -365,8 +509,10 @@ const editorPanel = ref(null)
 const overlayPanel = ref(null)
 const overlayClose = ref(null)
 const graphViewport = ref(null)
+const graphPanContent = ref(null)
 const feedbackMessage = ref('')
 const feedbackKind = ref('success')
+const tutorialEnabled = ref(readTutorialPreference())
 const tutorialOpen = ref(false)
 const newPersonId = ref('')
 let feedbackTimeout = 0
@@ -384,7 +530,10 @@ const graphPan = ref({
   x: 0,
   y: 0,
 })
+const graphRecentering = ref(false)
+const graphFocusPersonId = ref('')
 let graphPanFrame = 0
+let graphRecenteringTimeout = 0
 let pendingGraphPanX = 0
 let pendingGraphPanY = 0
 let suppressGraphClickUntil = 0
@@ -396,6 +545,7 @@ const {
   loginUrl,
   csrfToken,
   data,
+  sessionActions,
   genealogies,
   selectedGenealogyId,
   selectedGenealogy,
@@ -411,7 +561,9 @@ const {
   addGenealogy,
   deleteGenealogy,
   patchGenealogy,
+  replaceState,
   save,
+  undoSessionAction,
 } = useGenealogyData()
 
 const doleances = useDoleances(csrfToken)
@@ -427,21 +579,22 @@ const stats = computed(() => computeStats(genealogies.value))
 const graph = computed(() =>
   buildGraphModel(people.value, {
     focusId: selectedPersonId.value,
-    mode: activeView.value,
+    mode: graphLayoutMode.value,
     ancestorDepth: ancestorDepth.value,
     descendantDepth: descendantDepth.value,
-    includeAllNetwork: activeView.value === 'network' && selectedGenealogy.value?.type === 'national',
+    includeAllNetwork: activeView.value === 'tree' && graphLayoutMode.value === 'network' && selectedGenealogy.value?.type === 'national',
   }),
 )
-const graphIsPannable = computed(() => ['tree', 'network'].includes(activeView.value))
+const graphIsPannable = computed(() => activeView.value === 'tree')
 const graphPanStyle = computed(() => ({
   transform: `translate3d(${graphPan.value.x}px, ${graphPan.value.y}px, 0)`,
 }))
+const graphRenderZoom = computed(() => graphZoom.value * GRAPH_RENDER_SCALE)
 const graphContentSize = computed(() => {
-  if (activeView.value === 'network') {
+  if (graphLayoutMode.value === 'network') {
     return {
-      width: Math.max(graph.value.width || 0, 960, ...graph.value.nodes.map((entry) => entry.x + 170)) * graphZoom.value,
-      height: Math.max(graph.value.height || 0, 540, ...graph.value.nodes.map((entry) => entry.y + 190)) * graphZoom.value,
+      width: Math.max(graph.value.width || 0, 960, ...graph.value.nodes.map((entry) => entry.x + 170)) * graphRenderZoom.value,
+      height: Math.max(graph.value.height || 0, 540, ...graph.value.nodes.map((entry) => entry.y + 190)) * graphRenderZoom.value,
     }
   }
 
@@ -459,8 +612,8 @@ const graphContentSize = computed(() => {
     0,
   )
   return {
-    width: (maxCardsInVisualRow * cardWidth + (maxCardsInVisualRow - 1) * gap + 80) * graphZoom.value,
-    height: Math.max(540, visualRows * cardHeight + Math.max(0, visualRows - 1) * rowGap + 140) * graphZoom.value,
+    width: (maxCardsInVisualRow * cardWidth + (maxCardsInVisualRow - 1) * gap + 80) * graphRenderZoom.value,
+    height: Math.max(540, visualRows * cardHeight + Math.max(0, visualRows - 1) * rowGap + 140) * graphRenderZoom.value,
   }
 })
 const upcomingEvents = computed(() => upcoming.events.value)
@@ -543,6 +696,12 @@ const focusSubtitle = computed(() => {
       ? `${upcomingEvents.value.length} annonce(s) visible(s) dans ${upcomingRegion.value.name}`
       : 'Ouvre une faluche de région ou une famille pour voir les annonces.'
   }
+  if (activeView.value === 'tree') {
+    const layout = graphLayoutMode.value === 'network' ? 'Mode Réseau' : 'Mode Hiérarchie'
+    if (!selectedPerson.value) return `${layout} · Ajoute une personne pour commencer.`
+    const nickname = selectedPerson.value.nickname ? ` — ${selectedPerson.value.nickname}` : ''
+    return `${layout} · ${selectedGenealogy.value?.name || 'Généalogie active'}${nickname}`
+  }
   if (!selectedPerson.value) return 'Ajoute une personne pour commencer.'
   const nickname = selectedPerson.value.nickname ? ` — ${selectedPerson.value.nickname}` : ''
   return `${selectedGenealogy.value?.name || 'Généalogie active'}${nickname}`
@@ -602,7 +761,31 @@ async function handlePersonFormSave(updatedPerson) {
 
 function handlePersonFocus(personId) {
   selectPerson(personId)
+  graphFocusPersonId.value = personId
   activeView.value = 'tree'
+  setGraphLayoutMode('network')
+  nextTick(() => centerSelectedPerson())
+}
+
+function handleGraphSelect(personId) {
+  selectPerson(personId)
+  graphFocusPersonId.value = personId
+  nextTick(() => centerSelectedPerson())
+}
+
+function openMainTreeView() {
+  activeView.value = 'tree'
+  setGraphLayoutMode('network')
+}
+
+function setGraphLayoutMode(mode) {
+  graphLayoutMode.value = mode === 'tree' ? 'tree' : 'network'
+  writeGraphLayoutModePreference(graphLayoutMode.value)
+}
+
+function handleGenealogySelect(genealogyId) {
+  graphFocusPersonId.value = ''
+  selectGenealogy(genealogyId)
 }
 
 function adjustZoom(delta) {
@@ -610,18 +793,20 @@ function adjustZoom(delta) {
 }
 
 function setGraphZoom(value) {
-  graphZoom.value = Math.min(1.8, Math.max(0.5, Number(value.toFixed(2))))
+  graphZoom.value = Math.min(GRAPH_ZOOM_MAX, Math.max(GRAPH_ZOOM_MIN, Number(value.toFixed(2))))
   const next = clampGraphPan(graphPan.value.x, graphPan.value.y)
-  graphPan.value = { ...graphPan.value, x: next.x, y: next.y }
+  setGraphPanSmooth(next.x, next.y)
 }
 
 function resetZoom() {
   graphZoom.value = 1
-  resetGraphPan()
+  const next = clampGraphPan(graphPan.value.x, graphPan.value.y)
+  setGraphPanSmooth(next.x, next.y)
 }
 
 function beginPersonCreation() {
   if (editorHidden.value || activeView.value === 'home') activeView.value = 'tree'
+  if (activeView.value === 'tree') setGraphLayoutMode('network')
   const person = createPerson()
   newPersonId.value = person?.id || ''
   const source = person?.id ? getPersonSourceGenealogy(data.value, person.id) : null
@@ -711,6 +896,7 @@ function endGraphPan(event) {
   }
   const moved = graphPan.value.moved
   if (moved) suppressGraphClickUntil = Date.now() + 250
+  if (!moved) clearGraphFocus()
   graphPan.value = { ...graphPan.value, active: false, pointerId: null }
 }
 
@@ -718,6 +904,10 @@ function cancelClickAfterGraphPan(event) {
   if (Date.now() > suppressGraphClickUntil) return
   event.preventDefault()
   event.stopPropagation()
+}
+
+function clearGraphFocus() {
+  graphFocusPersonId.value = ''
 }
 
 function handleGraphWheel(event) {
@@ -737,12 +927,9 @@ function clampGraphPan(x, y) {
   const viewport = graphViewport.value
   if (!viewport) return { x, y }
   const content = graphContentSize.value
-  const horizontalMargin = Math.max(content.width * 1.5, viewport.clientWidth * 8, 2400)
+  const horizontalMargin = Math.max(content.width, viewport.clientWidth * 2, 720)
   const verticalMargin = Math.max(content.height, viewport.clientHeight * 5, 1800)
-  const mobileVirtualWidth =
-    viewport.clientWidth <= 640 ? Math.max(content.width + viewport.clientWidth * 6, viewport.clientWidth * 9) : 0
-  const virtualWidth = viewport.clientWidth <= 640 ? Math.max(content.width, mobileVirtualWidth) : content.width
-  const minX = Math.min(horizontalMargin, viewport.clientWidth - virtualWidth - horizontalMargin)
+  const minX = Math.min(horizontalMargin, viewport.clientWidth - content.width - horizontalMargin)
   const maxX = horizontalMargin
   const minY = Math.min(verticalMargin, viewport.clientHeight - content.height - verticalMargin)
   const maxY = verticalMargin
@@ -756,9 +943,84 @@ function isGraphSelectableTarget(target) {
   return Boolean(target?.closest?.('.graph-node, .node-card'))
 }
 
+function setGraphPanSmooth(x, y) {
+  window.clearTimeout(graphRecenteringTimeout)
+  const next = clampGraphPan(x, y)
+  graphRecentering.value = true
+  graphPan.value = {
+    ...graphPan.value,
+    active: false,
+    pointerId: null,
+    x: next.x,
+    y: next.y,
+  }
+  graphRecenteringTimeout = window.setTimeout(() => {
+    graphRecentering.value = false
+  }, 260)
+}
+
+function centerGraphView() {
+  setGraphPanSmooth(0, 0)
+}
+
+function centerSelectedPerson() {
+  if (!selectedPersonId.value) {
+    centerGraphView()
+    return
+  }
+
+  const viewport = graphViewport.value
+  const content = graphPanContent.value
+  if (!viewport || !content) return
+
+  const selector = `[data-person-id="${cssEscape(selectedPersonId.value)}"]`
+  const nodeElement = content.querySelector(selector)
+  if (!nodeElement) {
+    centerGraphView()
+    return
+  }
+
+  // Keep the selected profile comfortably centered without filtering the graph.
+  const nodeCenter = graphNodeCenter(nodeElement)
+  if (!nodeCenter) return
+  setGraphPanSmooth(
+    viewport.clientWidth / 2 - nodeCenter.x * graphRenderZoom.value,
+    viewport.clientHeight / 2 - nodeCenter.y * graphRenderZoom.value,
+  )
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) return window.CSS.escape(value)
+  return String(value).replace(/["\\]/g, '\\$&')
+}
+
+function graphNodeCenter(nodeElement) {
+  if (graphLayoutMode.value === 'network') {
+    const transform = nodeElement.getAttribute('transform') || ''
+    const match = transform.match(/translate\(([-\d.]+)[,\s]+([-\d.]+)\)/)
+    if (match) return { x: Number(match[1]), y: Number(match[2]) }
+    const card = nodeElement.querySelector?.('.network-card-base')
+    if (card) {
+      const x = Number(card.getAttribute('x')) + Number(card.getAttribute('width')) / 2
+      const y = Number(card.getAttribute('y')) + Number(card.getAttribute('height')) / 2
+      if (Number.isFinite(x) && Number.isFinite(y)) return { x, y }
+    }
+  }
+
+  const viewportRect = graphViewport.value?.getBoundingClientRect()
+  const nodeRect = nodeElement.getBoundingClientRect()
+  if (!viewportRect) return null
+  return {
+    x: (nodeRect.left + nodeRect.width / 2 - viewportRect.left - graphPan.value.x) / graphRenderZoom.value,
+    y: (nodeRect.top + nodeRect.height / 2 - viewportRect.top - graphPan.value.y) / graphRenderZoom.value,
+  }
+}
+
 function resetGraphPan() {
   window.cancelAnimationFrame(graphPanFrame)
   graphPanFrame = 0
+  window.clearTimeout(graphRecenteringTimeout)
+  graphRecentering.value = false
   graphPan.value = {
     ...graphPan.value,
     active: false,
@@ -787,12 +1049,21 @@ async function handleAttendanceRequest(payload, done = () => {}) {
   }
 }
 
-async function handleUpcomingCreate(payload) {
-  const result = await upcoming.createEvent(payload)
-  if (!result) return
-  upcomingCreatorPassword.value = result.temporaryPassword || ''
-  scheduleAutosave()
-  showFeedback("L'annonce a été créée.", 'success')
+async function handleUpcomingCreate(payload, done = () => {}) {
+  try {
+    const result = await upcoming.createEvent(payload)
+    if (!result) {
+      done(false)
+      return
+    }
+    upcomingCreatorPassword.value = result.temporaryPassword || ''
+    scheduleAutosave()
+    showFeedback("L'annonce a été créée.", 'success')
+    done(true)
+  } catch (err) {
+    showFeedback(err.message || 'Création impossible.', 'warning')
+    done(false)
+  }
 }
 
 async function handleUpcomingDelete(eventId) {
@@ -829,10 +1100,21 @@ async function handleUpcomingCreatorAccess(payload, done) {
   }
 }
 
+async function handleUpcomingCreatorUpdate(payload, done) {
+  try {
+    const event = await upcoming.updateEvent(payload)
+    showFeedback("L'événement a été mis à jour.", 'success')
+    done(event)
+  } catch (err) {
+    showFeedback(err.message || 'Mise à jour impossible.', 'warning')
+    done(null)
+  }
+}
+
 async function handleUpcomingRequestStatus(payload, done) {
   try {
     await upcoming.setRequestStatus(payload)
-    showFeedback('Statut de demande mis à jour.', 'success')
+    showFeedback(payload.status === 'accepted' ? 'Demande acceptée.' : 'Demande refusée.', 'success')
     done(true)
   } catch (err) {
     showFeedback(err.message || 'Mise à jour impossible.', 'warning')
@@ -872,6 +1154,44 @@ function handleGenealogyUpdate({ genealogyId, patch }) {
   patchGenealogy(genealogyId, patch)
   scheduleAutosave()
   showFeedback("L'arbre a été mis à jour.", 'success')
+}
+
+function handleDuplicateMerge(nextState) {
+  replaceState(nextState)
+  showFeedback('Les fiches doublons ont été fusionnées.', 'success')
+}
+
+async function handlePersonDelete(personId) {
+  if (!personId || !adminSession.value) return
+  if (!window.confirm('Supprimer cette fiche ? Cette action retirera aussi ses références dans les relations.')) return
+
+  const previousState = data.value
+  deletePerson(personId)
+  const saved = await save()
+  if (!saved) {
+    data.value = previousState
+    selectPerson(personId)
+    showFeedback(error.value || 'Suppression impossible.', 'warning')
+    return
+  }
+  showFeedback('La fiche a été supprimée.', 'success')
+}
+
+async function undoRecentAction(action) {
+  if (!action?.id) return
+  if (!window.confirm(`Annuler cette action ?\n${action.label}`)) return
+  const undone = await undoSessionAction(action.id)
+  showFeedback(
+    undone ? 'La modification a été annulée.' : error.value || 'Annulation impossible.',
+    undone ? 'success' : 'warning',
+  )
+}
+
+function selectSessionPerson(personId) {
+  if (!personId) return
+  selectPerson(personId)
+  activeView.value = 'tree'
+  setGraphLayoutMode('network')
 }
 
 async function moveSelectedPerson() {
@@ -953,7 +1273,74 @@ function showFeedback(message, kind = 'success') {
   }, 4200)
 }
 
+function readTutorialPreference() {
+  try {
+    return window.localStorage.getItem(TUTORIAL_ENABLED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeTutorialPreference(enabled) {
+  try {
+    window.localStorage.setItem(TUTORIAL_ENABLED_KEY, enabled ? '1' : '0')
+  } catch {
+    // Storage can be unavailable in private or embedded contexts.
+  }
+}
+
+function handleTutorialToggle() {
+  writeTutorialPreference(tutorialEnabled.value)
+  if (!tutorialEnabled.value) tutorialOpen.value = false
+}
+
+function readGraphLayoutModePreference() {
+  try {
+    return window.localStorage.getItem(GRAPH_LAYOUT_MODE_KEY) === 'tree' ? 'tree' : 'network'
+  } catch {
+    return 'network'
+  }
+}
+
+function writeGraphLayoutModePreference(mode) {
+  try {
+    window.localStorage.setItem(GRAPH_LAYOUT_MODE_KEY, mode)
+  } catch {
+    // Storage can be unavailable in private or embedded contexts.
+  }
+}
+
+function readHaloDepthPreference(key) {
+  try {
+    const stored = window.localStorage.getItem(key)
+    if (stored === 'all') return 'all'
+    const depth = Number(stored)
+    return [1, 2, 3].includes(depth) ? depth : 1
+  } catch {
+    return 1
+  }
+}
+
+function writeHaloDepthPreference(key, value) {
+  try {
+    window.localStorage.setItem(key, String(value))
+  } catch {
+    // Storage can be unavailable in private or embedded contexts.
+  }
+}
+
+function setNetworkHaloDepth(direction, value) {
+  if (direction === 'ancestor') {
+    networkHaloAncestorDepth.value = value
+    writeHaloDepthPreference(NETWORK_HALO_ANCESTOR_KEY, value)
+    return
+  }
+  networkHaloDescendantDepth.value = value
+  writeHaloDepthPreference(NETWORK_HALO_DESCENDANT_KEY, value)
+}
+
 function openTutorial() {
+  if (!tutorialEnabled.value || activeView.value !== 'home') return
   tutorialOpen.value = true
 }
 
@@ -982,9 +1369,15 @@ function scheduleAutosave(delay = 1400) {
 
 function selectSearchResult(personId) {
   selectPerson(personId)
+  graphFocusPersonId.value = personId
   activeView.value = 'tree'
+  setGraphLayoutMode('network')
   searchQuery.value = ''
 }
+
+watch(selectedGenealogyId, () => {
+  graphFocusPersonId.value = ''
+})
 
 watch(
   adminSession,
@@ -1067,5 +1460,6 @@ onBeforeUnmount(() => {
   window.clearTimeout(feedbackTimeout)
   window.clearTimeout(autosaveTimeout)
   window.clearTimeout(editingTimeout)
+  window.clearTimeout(graphRecenteringTimeout)
 })
 </script>

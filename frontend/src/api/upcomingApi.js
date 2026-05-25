@@ -16,6 +16,10 @@ export function manageUpcomingRequest(payload, csrfToken) {
   return upcomingRequest({ action: 'manage_request', ...payload }, csrfToken)
 }
 
+export function updateUpcomingEvent(payload, csrfToken) {
+  return upcomingRequest({ action: 'update_event', ...payload }, csrfToken)
+}
+
 export function deleteUpcomingEvent(payload, csrfToken) {
   return upcomingRequest({ action: 'delete_event', ...payload }, csrfToken)
 }

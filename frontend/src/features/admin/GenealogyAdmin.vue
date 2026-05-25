@@ -93,24 +93,80 @@
         </div>
       </template>
     </section>
+
+    <section v-if="isGeneralAdmin" class="admin-duplicate-tools">
+      <div class="section-heading compact-heading">
+        <div>
+          <h3>Doublons de fiches</h3>
+          <p>Analyse les fiches avec le même nom et surnom après normalisation.</p>
+        </div>
+        <button type="button" :disabled="duplicateLoading" @click="scanDuplicates">
+          {{ duplicateLoading ? 'Vérification...' : 'Vérifier les doublons' }}
+        </button>
+      </div>
+
+      <p v-if="duplicateMessage" class="success-message">{{ duplicateMessage }}</p>
+      <p v-if="duplicateError" class="form-error">{{ duplicateError }}</p>
+
+      <div v-if="duplicateGroups.length" class="duplicate-group-list">
+        <article v-for="group in duplicateGroups" :key="group.key" class="duplicate-group">
+          <div class="duplicate-group__header">
+            <div>
+              <strong>{{ group.people.length }} fiches similaires</strong>
+              <small>{{ group.label }}</small>
+            </div>
+            <button type="button" :disabled="duplicateLoading" @click="mergeGroup(group)">
+              Fusionner
+            </button>
+          </div>
+
+          <fieldset class="duplicate-keep-choice">
+            <legend>Fiche principale à conserver</legend>
+            <label v-for="person in group.people" :key="person.id">
+              <input v-model="selectedKeepByGroup[group.key]" type="radio" :value="person.id" />
+              <span>{{ person.name || 'Sans nom' }} <small v-if="person.nickname">({{ person.nickname }})</small></span>
+            </label>
+          </fieldset>
+
+          <div class="duplicate-card-list">
+            <div v-for="person in group.people" :key="person.id" class="duplicate-card">
+              <strong>{{ person.name || 'Sans nom' }}</strong>
+              <span v-if="person.nickname">{{ person.nickname }}</span>
+              <small>ID : {{ person.id }}</small>
+              <small v-if="person.genealogies?.length">Arbre(s) : {{ person.genealogies.join(', ') }}</small>
+              <small v-if="person.baptismDate">Baptême : {{ person.baptismDate }}</small>
+              <small v-if="person.differences?.length">Différences : {{ person.differences.join(', ') }}</small>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
   </section>
 </template>
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { mergePersonDuplicates, scanPersonDuplicates } from '../../api/genealogyApi.js'
 import { uniqueRoleId } from '../../domain/roles.js'
 import brandMark from '../../assets/fetterama.png'
 
 const props = defineProps({
   genealogies: { type: Array, required: true },
   session: { type: Object, required: true },
+  csrfToken: { type: String, required: true },
 })
 
-const emit = defineEmits(['create', 'delete', 'update'])
+const emit = defineEmits(['create', 'delete', 'update', 'duplicates-merged'])
 const draft = reactive({ name: '', type: 'family', parentId: '' })
 const roleRegionId = ref('')
 const newRoleLabel = ref('')
+const duplicateLoading = ref(false)
+const duplicateError = ref('')
+const duplicateMessage = ref('')
+const duplicateGroups = ref([])
+const selectedKeepByGroup = reactive({})
 
+const isGeneralAdmin = computed(() => props.session.level === 'general')
 const nationalGenealogy = computed(() => props.genealogies.find((genealogy) => genealogy.type === 'national') || null)
 const manageableRegions = computed(() =>
   props.genealogies.filter((genealogy) =>
@@ -208,6 +264,59 @@ function removeRole(roleId) {
       cooptageRoleId: roleRegion.value.cooptageRoleId === roleId ? 'tva' : roleRegion.value.cooptageRoleId,
     },
   })
+}
+
+async function scanDuplicates() {
+  duplicateLoading.value = true
+  duplicateError.value = ''
+  duplicateMessage.value = ''
+
+  try {
+    const result = await scanPersonDuplicates(props.csrfToken)
+    duplicateGroups.value = result.groups || []
+    Object.keys(selectedKeepByGroup).forEach((key) => delete selectedKeepByGroup[key])
+    duplicateGroups.value.forEach((group) => {
+      selectedKeepByGroup[group.key] = group.people?.[0]?.id || ''
+    })
+    duplicateMessage.value = duplicateGroups.value.length ? '' : 'Aucun doublon détecté.'
+  } catch (error) {
+    duplicateError.value = error.message || 'Vérification impossible.'
+  } finally {
+    duplicateLoading.value = false
+  }
+}
+
+async function mergeGroup(group) {
+  const keepPersonId = selectedKeepByGroup[group.key] || group.people?.[0]?.id || ''
+  const mergePersonIds = (group.people || []).map((person) => person.id).filter((id) => id && id !== keepPersonId)
+  if (!keepPersonId || mergePersonIds.length === 0) return
+
+  const summary = [
+    `Fiche conservée : ${labelForDuplicatePerson(group.people.find((person) => person.id === keepPersonId))}`,
+    `Fiche(s) fusionnée(s) : ${mergePersonIds.length}`,
+    'Les relations seront fusionnées et les anciennes références seront remplacées.',
+  ].join('\n')
+
+  if (!window.confirm(`${summary}\n\nConfirmer la fusion ?`)) return
+
+  duplicateLoading.value = true
+  duplicateError.value = ''
+  duplicateMessage.value = ''
+  try {
+    const result = await mergePersonDuplicates({ keepPersonId, mergePersonIds }, props.csrfToken)
+    duplicateGroups.value = result.groups || []
+    emit('duplicates-merged', result.state)
+    duplicateMessage.value = 'Fusion effectuée.'
+  } catch (error) {
+    duplicateError.value = error.message || 'Fusion impossible.'
+  } finally {
+    duplicateLoading.value = false
+  }
+}
+
+function labelForDuplicatePerson(person) {
+  if (!person) return 'fiche inconnue'
+  return `${person.name || 'Sans nom'}${person.nickname ? ` (${person.nickname})` : ''}`
 }
 
 function readFileAsDataUrl(file) {

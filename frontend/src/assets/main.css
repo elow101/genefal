@@ -63,6 +63,52 @@ p {
   box-shadow: var(--shadow);
 }
 
+.session-actions {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.session-actions h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.session-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.session-action-list {
+  display: grid;
+  gap: 8px;
+}
+
+.session-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+  padding: 10px;
+}
+
+.session-action span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-action div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .toolbar {
   min-height: 78px;
   position: relative;
@@ -129,6 +175,13 @@ p {
   border-radius: 8px;
   background: var(--field);
   padding: 7px 10px;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.genealogy-trigger:hover,
+.genealogy-menu summary:focus-visible .genealogy-trigger {
+  border-color: rgba(112, 215, 223, 0.42);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .genealogy-trigger h1 {
@@ -162,6 +215,7 @@ p {
   place-items: center;
   border-radius: 50%;
   background: var(--accent);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .genealogy-menu[open] .genealogy-trigger-chevron {
@@ -184,9 +238,72 @@ p {
   width: min(380px, calc(100vw - 36px));
   left: 0;
   top: calc(100% + 10px);
+  overscroll-behavior: contain;
+  contain: layout paint;
+  transform-origin: top left;
+  animation: genealogy-popover-enter 0.2s cubic-bezier(0.2, 0.9, 0.25, 1.08) both;
+}
+
+.genealogy-popover::after {
+  content: '';
+  position: sticky;
+  display: block;
+  left: 0;
+  right: 0;
+  bottom: -10px;
+  height: 38px;
+  margin: -38px -10px 0;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(to bottom, rgba(36, 40, 38, 0), var(--paper) 82%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.genealogy-popover.is-scrollable.is-not-at-bottom::after {
+  opacity: 1;
+}
+
+@keyframes genealogy-popover-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(1px) scale(1.005);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .genealogy-popover,
+  .genealogy-trigger,
+  .genealogy-trigger-chevron,
+  .genealogy-region-chevron,
+  .genealogy-popover::after,
+  .genealogy-accordion-enter-active,
+  .genealogy-accordion-leave-active,
+  .graph-pan-content.is-recentering,
+  .graph-node,
+  .graph-node rect,
+  .graph-panel line,
+  .node-card,
+  .zoom-controls button {
+    animation: none;
+    transition: none;
+  }
 }
 
 .genealogy-list {
+  display: grid;
+  gap: 8px;
+}
+
+.genealogy-region-group {
   display: grid;
   gap: 6px;
 }
@@ -203,12 +320,104 @@ p {
   gap: 12px;
   padding: 9px;
   text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
 }
 
 .genealogy-option:hover,
-.genealogy-option.is-active {
+.genealogy-option:focus-visible,
+.genealogy-option.is-active,
+.genealogy-region-group.is-expanded > .genealogy-option--region {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.genealogy-option:active {
+  transform: scale(0.99);
+}
+
+.genealogy-option--region {
+  min-height: 58px;
+  font-weight: 900;
+}
+
+.genealogy-option--national {
+  min-height: 60px;
+  border-color: rgba(112, 215, 223, 0.34);
+  background: rgba(112, 215, 223, 0.08);
+  font-weight: 900;
+}
+
+.genealogy-option--national .genealogy-option-main img {
+  border-color: rgba(112, 215, 223, 0.5);
+}
+
+.genealogy-region-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 72px;
+}
+
+.genealogy-region-chevron {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--accent-dark);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.genealogy-region-group.is-expanded .genealogy-region-chevron {
+  transform: rotate(180deg);
+}
+
+.genealogy-family-panel {
+  display: grid;
+  gap: 6px;
+  overflow: hidden;
+  padding-left: 18px;
+}
+
+.genealogy-option--family {
+  min-height: 54px;
+  border-color: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.025);
+  font-weight: 700;
+}
+
+.genealogy-option--family .genealogy-option-main img {
+  width: 30px;
+  height: 30px;
+}
+
+.genealogy-family-empty {
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 10px 12px;
+}
+
+.genealogy-accordion-enter-active,
+.genealogy-accordion-leave-active {
+  transition: max-height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease, transform 0.18s ease;
+}
+
+.genealogy-accordion-enter-from,
+.genealogy-accordion-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.genealogy-accordion-enter-to,
+.genealogy-accordion-leave-from {
+  max-height: 520px;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .genealogy-option-main {
@@ -559,6 +768,8 @@ textarea {
 
 .graph-stage-wrap {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow: visible;
   padding: 14px;
   position: relative;
@@ -597,6 +808,137 @@ textarea {
   line-height: 1.45;
 }
 
+.graph-layout-controls {
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+  margin: 0 0 10px;
+  border: 1px solid rgba(112, 215, 223, 0.2);
+  border-radius: 12px;
+  background: rgba(36, 40, 38, 0.72);
+  padding: 10px;
+}
+
+.graph-layout-controls > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.graph-layout-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.graph-layout-options button {
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0 12px;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.graph-layout-options button:hover,
+.graph-layout-options button:focus-visible,
+.graph-layout-options button.is-active {
+  border-color: var(--accent);
+  background: #25312f;
+  box-shadow: 0 0 0 3px rgba(112, 215, 223, 0.08);
+}
+
+.graph-layout-options button:active {
+  transform: scale(0.98);
+}
+
+.network-halo-controls {
+  display: grid;
+  gap: 10px;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  margin: 10px 0 0;
+  border: 1px solid rgba(112, 215, 223, 0.2);
+  border-radius: 12px;
+  background: rgba(36, 40, 38, 0.76);
+  padding: 10px;
+}
+
+.network-halo-controls__header {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.network-halo-controls__header strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.network-halo-controls__header span,
+.network-halo-group > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.network-halo-controls__groups {
+  display: grid;
+  gap: 10px;
+}
+
+.network-halo-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.network-halo-options {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 1px 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.network-halo-options::-webkit-scrollbar {
+  display: none;
+}
+
+.network-halo-options button {
+  flex: 0 0 auto;
+  min-width: 48px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0 8px;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.network-halo-options button:hover,
+.network-halo-options button:focus-visible,
+.network-halo-options button.is-active {
+  border-color: var(--accent);
+  background: #25312f;
+  box-shadow: 0 0 0 3px rgba(112, 215, 223, 0.08);
+}
+
+.network-halo-options button:active {
+  transform: scale(0.98);
+}
+
 .home-panel {
   display: grid;
   gap: 18px;
@@ -621,16 +963,61 @@ textarea {
   color: var(--ink);
   cursor: pointer;
   font-weight: 800;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .home-actions button.primary {
+  border-color: rgba(112, 215, 223, 0.46);
+  background: var(--field);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(112, 215, 223, 0.08);
+}
+
+.home-actions button:hover,
+.home-actions button:focus-visible {
   border-color: var(--accent);
-  background: var(--accent);
-  color: #071311;
+  background: #25312f;
+  color: var(--ink);
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(112, 215, 223, 0.08);
+}
+
+.home-actions button:active {
+  transform: translateY(0);
 }
 
 .tutorial-launch {
   border-color: rgba(112, 215, 223, 0.38);
+}
+
+.tutorial-home-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  padding: 14px;
+}
+
+.tutorial-home-card h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.tutorial-home-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.tutorial-home-card .tutorial-launch {
+  min-height: 46px;
+  border: 1px solid rgba(112, 215, 223, 0.38);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
 }
 
 .home-summary {
@@ -807,6 +1194,8 @@ textarea {
   stroke-width: 1.15;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+  opacity: 0.78;
+  transition: opacity 0.18s ease, stroke-width 0.18s ease, filter 0.18s ease;
 }
 
 .graph-panel line.heart {
@@ -836,9 +1225,20 @@ textarea {
   stroke-width: 1.8;
 }
 
+.graph-panel line.is-direct {
+  stroke-width: 2.4;
+  opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(112, 215, 223, 0.5));
+}
+
+.graph-panel line.is-dimmed {
+  opacity: 0.26;
+}
+
 .graph-node {
   cursor: pointer;
   outline: none;
+  transition: filter 0.18s ease, transform 0.18s ease;
 }
 
 .graph-node circle {
@@ -851,6 +1251,7 @@ textarea {
   fill: var(--paper);
   stroke: var(--accent);
   stroke-width: 2;
+  transition: fill 0.18s ease, stroke 0.18s ease, stroke-width 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
 }
 
 .graph-node .network-filiere-strip {
@@ -881,20 +1282,48 @@ textarea {
   opacity: 1;
 }
 
+.graph-node--network:hover .network-card-base,
+.graph-node--network:focus-visible .network-card-base {
+  stroke: rgba(112, 215, 223, 0.72);
+  filter: drop-shadow(0 0 8px rgba(112, 215, 223, 0.16));
+}
+
 .graph-node.selected rect:not(.network-filiere-strip),
 .graph-node.selected circle {
   fill: #25312f;
   stroke: var(--accent-dark);
   stroke-width: 2.5;
+  filter: drop-shadow(0 0 12px rgba(112, 215, 223, 0.34));
 }
 
 .graph-node--network.selected .network-card-base {
   fill: #25312f;
   opacity: 1;
+  stroke: var(--accent);
 }
 
 .graph-node--network.selected .network-filiere-strip:not(.network-filiere-strip--expanded) {
   opacity: 1;
+}
+
+.graph-node.is-related .network-card-base {
+  stroke: rgba(112, 215, 223, 0.72);
+  stroke-width: 1.35;
+  filter: drop-shadow(0 0 8px rgba(112, 215, 223, 0.18));
+}
+
+.graph-node.is-ancestor .network-card-base {
+  stroke: rgba(139, 92, 246, 0.72);
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.18));
+}
+
+.graph-node.is-descendant .network-card-base {
+  stroke: rgba(72, 187, 120, 0.72);
+  filter: drop-shadow(0 0 8px rgba(72, 187, 120, 0.18));
+}
+
+.graph-panel.has-relation-focus .graph-node.is-dimmed {
+  opacity: 0.5;
 }
 
 .graph-node text {
@@ -946,6 +1375,44 @@ textarea {
   text-anchor: start;
 }
 
+.network-generation-badge {
+  pointer-events: none;
+}
+
+.network-generation-badge rect {
+  fill: rgba(36, 40, 38, 0.94);
+  stroke: rgba(112, 215, 223, 0.42);
+  stroke-width: 1;
+}
+
+.network-generation-badge text {
+  fill: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.network-generation-badge--ancestor rect {
+  stroke: rgba(139, 92, 246, 0.56);
+}
+
+.network-generation-badge--ancestor text {
+  fill: #c4b5fd;
+}
+
+.network-generation-badge--descendant rect {
+  stroke: rgba(72, 187, 120, 0.56);
+}
+
+.network-generation-badge--descendant text {
+  fill: #8ff0b0;
+}
+
+.network-generation-badge--self rect {
+  fill: #25312f;
+  stroke: var(--accent);
+}
+
 
 .zoom-controls {
   position: fixed;
@@ -953,8 +1420,10 @@ textarea {
   bottom: 18px;
   z-index: 90;
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 6px;
   width: max-content;
+  max-width: calc(100vw - 36px);
   border: 1px solid rgba(112, 215, 223, 0.28);
   border-radius: 999px;
   background: rgba(36, 40, 38, 0.92);
@@ -971,6 +1440,26 @@ textarea {
   border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+
+.zoom-controls button:hover,
+.zoom-controls button:focus-visible {
+  border-color: var(--accent);
+  background: #25312f;
+  transform: translateY(-1px);
+}
+
+.zoom-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
+.zoom-controls__selected {
+  min-width: min(220px, calc(100vw - 178px));
+  padding-inline: 12px;
+  white-space: normal;
 }
 
 .graph-legend {
@@ -1036,6 +1525,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #1d2220;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
   padding: 24px 18px;
 }
 
@@ -1044,6 +1534,12 @@ textarea {
   display: grid;
   justify-items: center;
   gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.tree-generation--raised {
+  z-index: 40;
 }
 
 .tree-generation h3 {
@@ -1071,6 +1567,8 @@ textarea {
   width: min(180px, 100%);
   min-height: 62px;
   position: relative;
+  z-index: 1;
+  opacity: 1;
   border: 1px solid var(--line);
   border-left-width: 7px;
   border-left-color: transparent;
@@ -1079,6 +1577,7 @@ textarea {
   color: var(--ink);
   padding: 10px;
   text-align: center;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .node-card::before {
@@ -1110,10 +1609,52 @@ textarea {
 }
 
 .node-card.focus {
+  z-index: 20;
   border-top-color: var(--accent);
   border-right-color: var(--accent);
   border-bottom-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(30, 152, 163, 0.16);
+  background: #25312f;
+  box-shadow: 0 0 0 4px rgba(30, 152, 163, 0.16), 0 0 18px rgba(112, 215, 223, 0.2);
+  transform: translateY(-1px);
+}
+
+.node-card:hover:not(.node-card--empty),
+.node-card:focus-visible:not(.node-card--empty) {
+  z-index: 50;
+  opacity: 1;
+  border-top-color: rgba(112, 215, 223, 0.72);
+  border-right-color: rgba(112, 215, 223, 0.72);
+  border-bottom-color: rgba(112, 215, 223, 0.72);
+  box-shadow: 0 0 0 3px rgba(112, 215, 223, 0.08);
+  transform: translateY(-1px);
+}
+
+.node-card.is-related {
+  z-index: 10;
+  border-top-color: rgba(112, 215, 223, 0.7);
+  border-right-color: rgba(112, 215, 223, 0.7);
+  border-bottom-color: rgba(112, 215, 223, 0.7);
+  box-shadow: 0 0 0 3px rgba(112, 215, 223, 0.09);
+}
+
+/* Relation dimming is selection-only. Hover/focus feedback must never drive card opacity. */
+.graph-panel.has-relation-focus .node-card.is-dimmed {
+  opacity: 0.56;
+}
+
+.graph-panel:not(.has-relation-focus) .node-card,
+.graph-panel:not(.has-relation-focus) .graph-node {
+  opacity: 1;
+}
+
+.graph-panel--tree .node-card:hover,
+.graph-panel--tree .node-card:focus-visible {
+  opacity: 1;
+}
+
+.graph-panel.graph-panel--tree.has-relation-focus .node-card.is-dimmed:hover,
+.graph-panel.graph-panel--tree.has-relation-focus .node-card.is-dimmed:focus-visible {
+  opacity: 1;
 }
 
 .node-card--empty {
@@ -1127,25 +1668,25 @@ textarea {
   position: absolute;
   left: 50%;
   top: calc(100% + 8px);
-  z-index: 10;
-  display: grid;
+  z-index: 60;
+  display: none;
   gap: 7px;
   border: 1px solid var(--line);
   border-left: 7px solid var(--filiere-strip, var(--line));
   border-radius: 10px;
   background: var(--paper);
   box-shadow: var(--shadow);
-  opacity: 0;
+  opacity: 1;
   padding: 11px 12px;
   pointer-events: none;
   text-align: left;
   transform: translate(-50%, -4px);
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition: transform 0.16s ease;
 }
 
 .node-card:hover .node-info,
 .node-card:focus-visible .node-info {
-  opacity: 1;
+  display: grid;
   transform: translate(-50%, 0);
 }
 
@@ -2000,6 +2541,78 @@ textarea {
   box-sizing: border-box;
 }
 
+.switch-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+  padding: 12px;
+  cursor: pointer;
+}
+
+.switch-field span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.switch-field strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.switch-field small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.switch-field input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch-field i {
+  width: 48px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.switch-field i::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.switch-field input:checked + i {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.switch-field input:checked + i::after {
+  transform: translateX(20px);
+  background: var(--accent);
+}
+
+.switch-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .upcoming-filters label {
   display: grid;
   gap: 6px;
@@ -2048,54 +2661,201 @@ textarea {
 
 .upcoming-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .upcoming-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 12px;
+  animation: soft-enter 0.22s ease both;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.upcoming-card:hover,
+.upcoming-card:focus-within {
+  border-color: rgba(112, 215, 223, 0.42);
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.upcoming-card-date {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  width: 64px;
+  min-height: 78px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+.upcoming-card-date strong {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.upcoming-card-date span,
+.upcoming-card-date small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .upcoming-card-main {
   display: grid;
-  gap: 5px;
+  gap: 9px;
   min-width: 0;
 }
 
 .upcoming-card-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  gap: 3px;
 }
 
-.upcoming-card-title span {
+.upcoming-card-title strong {
+  font-size: 1.04rem;
+  overflow-wrap: anywhere;
+}
+
+.upcoming-card-title p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.badge-row,
+.quick-filter-strip {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.badge-row::-webkit-scrollbar,
+.quick-filter-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.event-badge,
+.mode-badge,
+.filter-chip,
+.inline-status,
+.request-status {
   border: 1px solid var(--line);
   border-radius: 999px;
-  color: var(--accent-dark);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
   font-size: 0.75rem;
   font-weight: 800;
-  padding: 4px 8px;
+  line-height: 1;
+  padding: 7px 9px;
+  white-space: nowrap;
 }
 
-.upcoming-card-main p,
-.upcoming-card-main small {
+.event-badge--type {
+  color: var(--accent-dark);
+}
+
+.event-badge--success,
+.request-card--accepted .request-status {
+  border-color: rgba(72, 187, 120, 0.48);
+  color: #8ff0b0;
+}
+
+.event-badge--private,
+.request-card--rejected .request-status {
+  border-color: rgba(245, 101, 101, 0.42);
+  color: #ffb4b4;
+}
+
+.event-badge--public {
+  border-color: rgba(112, 215, 223, 0.32);
+}
+
+.event-badge--time,
+.event-badge--new,
+.request-card--pending .request-status {
+  border-color: rgba(246, 173, 85, 0.45);
+  color: #ffd18d;
+}
+
+.filter-chip {
+  min-height: 42px;
+  cursor: pointer;
+}
+
+.filter-chip.is-active,
+.filter-chip:hover,
+.filter-chip:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.event-meta {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.event-meta div {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.event-meta dt {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.event-meta dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.event-message {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.event-request-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
 }
 
 .upcoming-card-actions,
 .upcoming-card-check {
   display: grid;
-  justify-items: end;
-  gap: 6px;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+  gap: 8px;
   color: var(--muted);
   font-size: 0.78rem;
 }
 
 .upcoming-card-actions button {
-  min-height: 40px;
+  min-height: 46px;
 }
 
 .upcoming-card-check input {
@@ -2111,12 +2871,12 @@ textarea {
 
 .request-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .request-group {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .request-group h4 {
@@ -2126,11 +2886,105 @@ textarea {
 
 .request-list article {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--field);
-  padding: 10px;
+  padding: 12px;
+  animation: soft-enter 0.2s ease both;
+}
+
+.request-card-head,
+.form-title-row,
+.upcoming-form-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.request-card-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.request-card p,
+.request-card small {
+  margin: 0;
+  color: var(--muted);
+}
+
+.upcoming-form,
+.attendance-form {
+  animation: soft-enter 0.2s ease both;
+}
+
+.upcoming-form-block,
+.manager-options,
+.delete-confirmation,
+.upcoming-help {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 12px;
+}
+
+.upcoming-form-block h4,
+.manager-options h4 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.upcoming-help summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.upcoming-help p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.quick-actions button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.field-hint--warning {
+  color: #ffd18d;
+}
+
+.danger-button {
+  border-color: rgba(245, 101, 101, 0.48);
+  background: rgba(245, 101, 101, 0.12);
+  color: #ffb4b4;
+}
+
+@keyframes soft-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .graph-scroll-top {
@@ -2294,9 +3148,70 @@ textarea {
 }
 
 .admin-role-tools,
-.admin-role-list {
+.admin-role-list,
+.admin-duplicate-tools,
+.duplicate-group-list {
   display: grid;
   gap: 10px;
+}
+
+.compact-heading {
+  align-items: start;
+  gap: 12px;
+}
+
+.duplicate-group {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+  padding: 12px;
+}
+
+.duplicate-group__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.duplicate-group__header small,
+.duplicate-card small {
+  display: block;
+  color: var(--muted);
+}
+
+.duplicate-keep-choice {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.duplicate-keep-choice label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.duplicate-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.duplicate-card {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .admin-role-add,
@@ -2795,10 +3710,11 @@ summary {
     max-width: none;
     left: 50%;
     transform: translateX(-50%);
-    max-height: min(70vh, 560px);
+    max-height: min(calc(100dvh - max(12px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)) - 18px), 560px);
     overflow-y: auto;
     overflow-x: hidden;
     padding: 10px;
+    padding-bottom: max(34px, calc(env(safe-area-inset-bottom) + 22px));
   }
 
   .genealogy-option {
@@ -2806,7 +3722,23 @@ summary {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    padding: 10px;
+    padding: 12px 10px;
+  }
+
+  .genealogy-option--region {
+    min-height: 64px;
+  }
+
+  .genealogy-option--national {
+    min-height: 64px;
+  }
+
+  .genealogy-option--family {
+    min-height: 58px;
+  }
+
+  .genealogy-family-panel {
+    padding-left: 14px;
   }
 
   .genealogy-option.genealogy-depth-1,
@@ -2835,6 +3767,11 @@ summary {
   .genealogy-option-main img {
     width: 40px;
     height: 40px;
+  }
+
+  .genealogy-option--family .genealogy-option-main img {
+    width: 34px;
+    height: 34px;
   }
 
   .genealogy-option small {
@@ -3046,8 +3983,10 @@ summary {
     right: 12px;
     width: auto;
     max-width: none;
-    max-height: min(72vh, 620px);
+    max-height: min(calc(100dvh - max(12px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)) - 18px), 620px);
     transform: none;
+    transform-origin: top center;
+    padding-bottom: max(34px, calc(env(safe-area-inset-bottom) + 22px));
   }
 
   .genealogy-option {
@@ -3160,9 +4099,18 @@ summary {
   transform-style: preserve-3d;
 }
 
+.graph-pan-content.is-recentering {
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (max-width: 640px) {
   .graph-pan-content {
-    min-width: 300vw;
+    min-width: 100%;
+  }
+
+  .zoom-controls__selected {
+    flex-basis: 100%;
+    min-width: 0;
   }
 }
 
@@ -3178,22 +4126,33 @@ summary {
   border-radius: 0;
 }
 
-.graph-legend--viewport {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 85;
-  max-width: min(620px, calc(100% - 24px));
-  max-height: min(34vh, 210px);
-  overflow: auto;
-  margin: 0;
-  padding: 8px 10px;
+.graph-viewport .graph-legend {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-pan-content.is-recentering,
+  .graph-node,
+  .graph-node rect,
+  .graph-panel line,
+  .node-card,
+  .zoom-controls button {
+    animation: none;
+    transition: none;
+  }
+}
+
+.graph-legend--below {
+  position: static !important;
+  z-index: auto;
+  max-width: 100%;
+  margin: 10px 0 0;
+  padding: 10px 12px;
   border: 1px solid rgba(112, 215, 223, 0.24);
   border-radius: 10px;
-  background: rgba(36, 40, 38, 0.9);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
-  pointer-events: none;
-  backdrop-filter: blur(8px);
+  background: rgba(36, 40, 38, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  pointer-events: auto;
 }
 
 .graph-viewport .tree-generation__people {
@@ -3212,13 +4171,23 @@ summary {
     min-height: 360px;
   }
 
-  .graph-legend--viewport {
-    top: 10px;
-    left: 10px;
-    max-width: calc(100% - 20px);
-    max-height: 150px;
+  .graph-legend--below {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     gap: 8px;
+    padding: 9px 10px;
     font-size: 0.76rem;
+  }
+
+  .graph-legend--below::-webkit-scrollbar {
+    display: none;
+  }
+
+  .graph-legend--below span {
+    flex: 0 0 auto;
   }
 
   .workspace {
@@ -3318,4 +4287,48 @@ summary {
   min-height: 0;
   height: auto;
   align-self: start;
+}
+
+.upcoming .upcoming-card {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.upcoming .upcoming-card-actions {
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+}
+
+@media (min-width: 720px) {
+  .upcoming .upcoming-card {
+    grid-template-columns: auto minmax(0, 1fr) minmax(170px, auto);
+  }
+
+  .upcoming .upcoming-card-actions {
+    grid-column: 3;
+    align-self: center;
+    justify-items: end;
+  }
+
+  .upcoming .upcoming-card-actions button {
+    width: auto;
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 640px) {
+  .request-card-head,
+  .form-title-row,
+  .upcoming-form-head {
+    display: grid;
+  }
+
+  .event-meta div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .switch-field {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }

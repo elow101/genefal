@@ -15,6 +15,18 @@ describe('buildGraphModel', () => {
     expect(bob.y).toBeGreaterThan(alice.y)
   })
 
+  it('deduplicates descendants reached by multiple paths in the same view', () => {
+    const graph = buildGraphModel([
+      { id: 'a', name: 'Alice', sponsorIds: [] },
+      { id: 'b', name: 'Bob', sponsorIds: ['a'] },
+      { id: 'c', name: 'Camille', sponsorIds: ['a'] },
+      { id: 'd', name: 'Dana', sponsorIds: ['b', 'c'] },
+    ], { focusId: 'a', mode: 'tree' })
+
+    expect(graph.nodes.filter((node) => node.id === 'd')).toHaveLength(1)
+    expect(graph.edges.filter((edge) => edge.to === 'd').map((edge) => edge.from).sort()).toEqual(['b', 'c'])
+  })
+
   it('draws adoption and confirmation edges in the network', () => {
     const graph = buildGraphModel([
       { id: 'a', name: 'Alice', sponsorIds: [] },

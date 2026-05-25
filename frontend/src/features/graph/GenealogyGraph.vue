@@ -1,5 +1,8 @@
 <template>
-  <section class="graph-panel">
+  <section
+    class="graph-panel"
+    :class="[`graph-panel--${mode}`, { 'has-relation-focus': hasRelationFocus }]"
+  >
     <div v-if="showLegend && graph.legend" class="graph-legend">
       <span><i class="legend-line"></i>Parrain / marraine</span>
       <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
@@ -18,7 +21,13 @@
       :style="{ transform: `scale(${zoom})`, transformOrigin: 'top center' }"
     >
       <template v-for="(row, index) in graph.rows" :key="`${row.label}-${index}`">
-        <section class="tree-generation" :class="`tree-generation--${row.relation}`">
+        <section
+          class="tree-generation"
+          :class="[
+            `tree-generation--${row.relation}`,
+            { 'tree-generation--raised': row.people.some((person) => person.id === hoveredTreeNodeId) },
+          ]"
+        >
           <h3>{{ row.label }}</h3>
           <div class="tree-generation__people">
             <div v-if="row.people.length === 0" class="node-card node-card--empty">
@@ -30,9 +39,15 @@
               :key="person.id"
               type="button"
               class="node-card"
-              :class="{ focus: person.id === selectedPersonId }"
+              :class="personRelationClass(person.id)"
+              :data-person-id="person.id"
               :style="filiereStyle(person)"
-              @click="$emit('select', person.id)"
+              @mouseenter="hoveredTreeNodeId = person.id"
+              @mouseleave="hoveredTreeNodeId = ''"
+              @focus="hoveredTreeNodeId = person.id"
+              @blur="hoveredTreeNodeId = ''"
+              @pointerdown.stop
+              @click.stop="$emit('select', person.id)"
             >
               <strong>{{ networkMainName(person) }}</strong>
               <small>{{ networkNickname(person) }}</small>
@@ -82,7 +97,7 @@
       <line
         v-for="edge in graph.edges"
         :key="`${edge.from}-${edge.to}-${edge.kind || 'sponsor'}-${edge.eventId || ''}`"
-        :class="edge.kind || 'sponsor'"
+        :class="[edge.kind || 'sponsor', edgeRelationClass(edge)]"
         :x1="node(edge.from)?.x"
         :y1="edgeStartY(edge.from)"
         :x2="node(edge.to)?.x"
@@ -90,18 +105,24 @@
         :marker-end="arrowMarker(edge.kind)"
       />
       <g
-        v-for="entry in graph.nodes"
+        v-for="entry in networkNodes"
         :key="entry.id"
         class="graph-node graph-node--network"
-        :class="{ selected: entry.id === selectedPersonId }"
+        :class="personRelationClass(entry.id)"
+        :data-person-id="entry.id"
         tabindex="0"
         @mouseenter="hoveredNetworkNodeId = entry.id"
         @mouseleave="hoveredNetworkNodeId = ''"
         @focus="hoveredNetworkNodeId = entry.id"
         @blur="hoveredNetworkNodeId = ''"
-        @click="$emit('select', entry.id)"
+        @pointerdown.stop
+        @click.stop="$emit('select', entry.id)"
       >
         <rect class="network-card-base" :x="entry.x - 82" :y="entry.y - 34" width="164" :height="networkBaseCardHeight(entry)" rx="10" />
+        <g v-if="generationBadge(entry.id)" class="network-generation-badge" :class="generationBadgeClass(entry.id)">
+          <rect :x="entry.x + 48" :y="entry.y - 48" width="42" height="22" rx="11" />
+          <text :x="entry.x + 69" :y="entry.y - 33">{{ generationBadge(entry.id) }}</text>
+        </g>
         <rect
           class="network-filiere-strip"
           :x="entry.x - 82"
@@ -178,17 +199,116 @@ const props = defineProps({
   mode: { type: String, default: 'tree' },
   roleOptions: { type: Array, default: () => [] },
   showLegend: { type: Boolean, default: true },
+  haloAncestorDepth: { type: [Number, String], default: 1 },
+  haloDescendantDepth: { type: [Number, String], default: 1 },
 })
 
 defineEmits(['select'])
 
 const hoveredNetworkNodeId = ref('')
+const hoveredTreeNodeId = ref('')
 
 const isEmpty = computed(() => (props.mode === 'tree' ? props.graph.rows.length === 0 : props.graph.nodes.length === 0))
 const nodeById = computed(() => new Map(props.graph.nodes.map((entry) => [entry.id, entry])))
 const hoveredNetworkNode = computed(() => nodeById.value.get(hoveredNetworkNodeId.value) || null)
+const networkNodes = computed(() => orderedNodesForStacking(props.graph.nodes, hoveredNetworkNodeId.value, props.selectedPersonId))
+const hasRelationFocus = computed(() => Boolean(props.selectedPersonId))
+const generationById = computed(() => generationMapForFocus(props.graph.edges, props.selectedPersonId, {
+  ancestorDepth: props.haloAncestorDepth,
+  descendantDepth: props.haloDescendantDepth,
+}))
+const selectedDirectIds = computed(() => {
+  if (!props.selectedPersonId) return new Set()
+  return new Set(generationById.value.keys())
+})
 function node(id) {
   return nodeById.value.get(id)
+}
+function personRelationClass(id) {
+  const generation = generationById.value.get(id)
+  return {
+    focus: id === props.selectedPersonId,
+    selected: id === props.selectedPersonId,
+    'is-related': hasRelationFocus.value && id !== props.selectedPersonId && selectedDirectIds.value.has(id),
+    'is-dimmed': hasRelationFocus.value && !selectedDirectIds.value.has(id),
+    'is-ancestor': hasRelationFocus.value && generation < 0,
+    'is-descendant': hasRelationFocus.value && generation > 0,
+  }
+}
+function edgeRelationClass(edge) {
+  if (!props.selectedPersonId) return ''
+  return generationById.value.has(edge.from) && generationById.value.has(edge.to) ? 'is-direct' : 'is-dimmed'
+}
+function orderedNodesForStacking(nodes, hoveredId, selectedId) {
+  return [...nodes].sort((left, right) => nodeStackRank(left.id, hoveredId, selectedId) - nodeStackRank(right.id, hoveredId, selectedId))
+}
+function nodeStackRank(id, hoveredId, selectedId) {
+  if (id === hoveredId) return 3
+  if (id === selectedId) return 2
+  if (selectedDirectIds.value.has(id)) return 1
+  return 0
+}
+function generationMapForFocus(edges, focusId, { ancestorDepth, descendantDepth }) {
+  if (!focusId) return new Map()
+  const parentsById = new Map()
+  const childrenById = new Map()
+  edges
+    .filter((edge) => edge.kind !== 'cross')
+    .forEach((edge) => {
+      if (!parentsById.has(edge.to)) parentsById.set(edge.to, [])
+      if (!childrenById.has(edge.from)) childrenById.set(edge.from, [])
+      parentsById.get(edge.to).push(edge.from)
+      childrenById.get(edge.from).push(edge.to)
+    })
+
+  const generations = new Map([[focusId, 0]])
+  collectGenerations(focusId, parentsById, normalizeHaloDepth(ancestorDepth), -1, generations)
+  collectGenerations(focusId, childrenById, normalizeHaloDepth(descendantDepth), 1, generations)
+  return generations
+}
+function collectGenerations(rootId, relationMap, maxDepth, direction, generations) {
+  const seen = new Set([rootId])
+  let frontier = [rootId]
+  let depth = 1
+
+  while (frontier.length && depth <= maxDepth) {
+    const next = []
+    frontier.forEach((id) => {
+      ;(relationMap.get(id) || []).forEach((linkedId) => {
+        if (seen.has(linkedId)) return
+        seen.add(linkedId)
+        setGeneration(generations, linkedId, depth * direction)
+        next.push(linkedId)
+      })
+    })
+    frontier = next
+    depth += 1
+  }
+}
+function setGeneration(generations, id, generation) {
+  const current = generations.get(id)
+  if (!Number.isFinite(current) || Math.abs(generation) < Math.abs(current)) {
+    generations.set(id, generation)
+  }
+}
+function normalizeHaloDepth(value) {
+  if (value === 'all') return Number.POSITIVE_INFINITY
+  const depth = Number(value)
+  return Number.isFinite(depth) ? Math.max(0, depth) : 1
+}
+function generationBadge(id) {
+  if (props.mode !== 'network' || !hasRelationFocus.value || !generationById.value.has(id)) return ''
+  const generation = generationById.value.get(id)
+  if (generation === 0) return 'G0'
+  return `G${generation > 0 ? '+' : ''}${generation}`
+}
+function generationBadgeClass(id) {
+  const generation = generationById.value.get(id)
+  return {
+    'network-generation-badge--self': generation === 0,
+    'network-generation-badge--ancestor': generation < 0,
+    'network-generation-badge--descendant': generation > 0,
+  }
 }
 function filiereStripStyle(entry) {
   return { fill: filiereAccent(entry.filiere) || '#4a4f4d' }

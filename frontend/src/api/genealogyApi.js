@@ -31,3 +31,34 @@ export function saveGenealogyState(payload, csrfToken) {
     body: JSON.stringify(migrateGenealogyState(payload)),
   })
 }
+
+export function scanPersonDuplicates(csrfToken) {
+  return requestJson('/api/genealogy.php', {
+    method: 'POST',
+    headers: jsonHeaders(csrfToken),
+    body: JSON.stringify({ action: 'scanPersonDuplicates' }),
+  })
+}
+
+export function mergePersonDuplicates({ keepPersonId, mergePersonIds }, csrfToken) {
+  return requestJson('/api/genealogy.php', {
+    method: 'POST',
+    headers: jsonHeaders(csrfToken),
+    body: JSON.stringify({
+      action: 'mergePersonDuplicates',
+      keepPersonId,
+      mergePersonIds,
+    }),
+  })
+}
+
+export function undoPublicSessionAction(actionId, csrfToken) {
+  return requestJson('/api/genealogy.php', {
+    method: 'POST',
+    headers: jsonHeaders(csrfToken),
+    body: JSON.stringify({
+      action: 'undoPublicSessionAction',
+      actionId,
+    }),
+  })
+}

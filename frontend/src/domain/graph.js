@@ -373,9 +373,14 @@ function groupsByDepth(rootId, maxDepth, nextPeople) {
   let frontier = [rootId]
 
   for (let depth = 0; depth < maxDepth; depth += 1) {
-    const next = frontier
+    const nextById = new Map()
+    frontier
       .flatMap((id) => nextPeople(id))
-      .filter((person) => person && !seen.has(person.id))
+      .forEach((person) => {
+        if (!person || seen.has(person.id) || nextById.has(person.id)) return
+        nextById.set(person.id, person)
+      })
+    const next = [...nextById.values()]
     next.forEach((person) => seen.add(person.id))
     if (!next.length) break
     groups.push(sortPeople(next))

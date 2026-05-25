@@ -32,6 +32,9 @@ if ($action === 'request_participation') {
 if ($action === 'manage_request') {
     upcoming_manage_request($body);
 }
+if ($action === 'update_event') {
+    upcoming_update_event($body);
+}
 if ($action === 'delete_event') {
     upcoming_delete_event($body);
 }
@@ -69,6 +72,7 @@ function upcoming_create_event(array $body): void
         'regionId' => $regionId,
         'title' => $title,
         'eventType' => $eventType,
+        'allowParticipation' => upcoming_normalise_allow_participation($eventType, $body['allowParticipation'] ?? false),
         'sponsorIds' => id_array($body['sponsorIds'] ?? []),
         'fillotIds' => id_array($body['fillotIds'] ?? []),
         'baptizedNames' => name_array($body['baptizedNames'] ?? []),
@@ -76,7 +80,7 @@ function upcoming_create_event(array $body): void
         'place' => api_safe_text($body['place'] ?? '', 160),
         'message' => api_safe_text($body['message'] ?? '', 1200),
         'creatorName' => api_safe_text($body['creatorName'] ?? '', 120),
-        'visibility' => api_safe_id($body['visibility'] ?? 'public', 40) ?: 'public',
+        'visibility' => upcoming_normalise_visibility($body['visibility'] ?? 'public'),
         'createdAt' => gmdate('c'),
         'requests' => [],
     ];
@@ -128,7 +132,7 @@ function upcoming_request_participation(array $body): void
         api_respond(['error' => 'Evenement introuvable.'], 404);
     }
     $event = $state['upcomingBaptisms'][$eventIndex];
-    if (!upcoming_requires_participation($event['eventType'] ?? '')) {
+    if (!upcoming_can_request_participation($event)) {
         api_respond(['error' => 'Cet evenement ne gere pas les demandes de participation.'], 400);
     }
 
@@ -210,6 +214,37 @@ function upcoming_manage_request(array $body): void
     }
 
     api_respond(['ok' => true, 'state' => $state]);
+}
+
+function upcoming_update_event(array $body): void
+{
+    $eventId = api_safe_id($body['eventId'] ?? '', 100);
+    upcoming_require_creator_password($eventId, (string) ($body['password'] ?? ''));
+
+    $state = current_genealogy_payload();
+    $eventIndex = upcoming_event_index($state, $eventId);
+    if ($eventIndex < 0) {
+        api_respond(['error' => 'Evenement introuvable.'], 404);
+    }
+
+    $eventType = normalise_upcoming_event_type($state['upcomingBaptisms'][$eventIndex]['eventType'] ?? 'autre');
+    $state['upcomingBaptisms'][$eventIndex]['allowParticipation'] = upcoming_normalise_allow_participation(
+        $eventType,
+        $body['allowParticipation'] ?? false
+    );
+    $state['upcomingBaptisms'][$eventIndex]['visibility'] = upcoming_normalise_visibility(
+        $body['visibility'] ?? ($state['upcomingBaptisms'][$eventIndex]['visibility'] ?? 'public')
+    );
+    $state['upcomingBaptisms'] = public_upcoming_baptisms($state['upcomingBaptisms']);
+    $updatedEvent = $state['upcomingBaptisms'][upcoming_event_index($state, $eventId)] ?? null;
+    upcoming_write_state($state);
+    if (is_array($updatedEvent)) {
+        upcoming_sql_mirror(static function () use ($updatedEvent): void {
+            upcoming_sql_upsert_event($updatedEvent);
+        });
+    }
+
+    api_respond(['ok' => true, 'event' => $updatedEvent, 'state' => $state]);
 }
 
 function upcoming_delete_event(array $body): void
@@ -346,6 +381,24 @@ function upcoming_region_exists(array $state, string $regionId): bool
 function upcoming_requires_participation(string $eventType): bool
 {
     return in_array(normalise_upcoming_event_type($eventType), ['bapteme', 'adoption', 'confirmation'], true);
+}
+
+function upcoming_can_request_participation(array $event): bool
+{
+    $eventType = normalise_upcoming_event_type($event['eventType'] ?? '');
+    return upcoming_requires_participation($eventType)
+        || ($eventType === 'autre' && ($event['allowParticipation'] ?? false) === true);
+}
+
+function upcoming_normalise_allow_participation(string $eventType, $allowParticipation): bool
+{
+    return normalise_upcoming_event_type($eventType) === 'autre' && $allowParticipation === true;
+}
+
+function upcoming_normalise_visibility($visibility): string
+{
+    $value = api_safe_id($visibility ?? 'public', 40);
+    return in_array($value, ['public', 'private', 'family'], true) ? $value : 'public';
 }
 
 function upcoming_read_json(string $path): array

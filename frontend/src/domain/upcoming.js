@@ -35,6 +35,18 @@ export function formatUpcomingDateTime(value) {
   }).format(date)
 }
 
+export function formatUpcomingDateParts(value) {
+  if (!value) return { day: '--', month: 'Date', time: '' }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { day: '--', month: value, time: '' }
+
+  return {
+    day: new Intl.DateTimeFormat('fr-FR', { day: '2-digit' }).format(date),
+    month: new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(date).replace('.', ''),
+    time: new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(date),
+  }
+}
+
 export function eventTypeLabel(value) {
   switch (normaliseUpcomingEventType(value)) {
     case 'bapteme':
@@ -50,8 +62,64 @@ export function eventTypeLabel(value) {
   }
 }
 
+export function normaliseUpcomingVisibility(value) {
+  const visibility = String(value || '').trim().toLowerCase()
+  return ['public', 'private', 'family'].includes(visibility) ? visibility : 'public'
+}
+
+export function visibilityLabel(value) {
+  switch (normaliseUpcomingVisibility(value)) {
+    case 'private':
+      return 'Privé'
+    case 'family':
+      return 'Fillots/famille'
+    default:
+      return 'Public régional'
+  }
+}
+
 export function eventRequiresParticipation(value) {
   return ['bapteme', 'adoption', 'confirmation'].includes(normaliseUpcomingEventType(value))
+}
+
+export function eventBadges(event) {
+  const badges = [{ label: eventTypeLabel(event?.eventType), tone: 'type' }]
+  const visibility = normaliseUpcomingVisibility(event?.visibility)
+  badges.push({ label: visibilityLabel(visibility), tone: visibility === 'public' ? 'public' : 'private' })
+
+  if (canRequestParticipation(event)) badges.push({ label: 'Participation ouverte', tone: 'success' })
+  if (isTonight(event?.dateTime)) badges.push({ label: 'Ce soir', tone: 'time' })
+  if (isNewUpcomingEvent(event)) badges.push({ label: 'Nouveau', tone: 'new' })
+
+  return badges
+}
+
+export function isTonight(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  const now = new Date()
+  return date.toDateString() === now.toDateString() && date.getHours() >= 18
+}
+
+export function isThisWeek(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  const now = new Date()
+  const weekEnd = new Date(now)
+  weekEnd.setDate(now.getDate() + 7)
+  weekEnd.setHours(23, 59, 59, 999)
+  return date >= now && date <= weekEnd
+}
+
+export function isNewUpcomingEvent(event) {
+  const created = new Date(event?.createdAt || '')
+  if (Number.isNaN(created.getTime())) return false
+  return Date.now() - created.getTime() < 1000 * 60 * 60 * 48
+}
+
+export function canRequestParticipation(event) {
+  const type = normaliseUpcomingEventType(event?.eventType)
+  return eventRequiresParticipation(type) || (type === 'autre' && event?.allowParticipation === true)
 }
 
 export function requestStatusLabel(value) {
@@ -72,12 +140,15 @@ export function createUpcomingEvent({
   message = '',
   creatorName = '',
   visibility = 'public',
+  allowParticipation = false,
 }) {
+  const normalisedEventType = normaliseUpcomingEventType(eventType)
   return {
-    id: fallbackId(normaliseUpcomingEventType(eventType)),
+    id: fallbackId(normalisedEventType),
     regionId,
     title: String(title || '').trim(),
-    eventType: normaliseUpcomingEventType(eventType),
+    eventType: normalisedEventType,
+    allowParticipation: normalisedEventType === 'autre' && allowParticipation === true,
     sponsorIds: [...new Set(sponsorIds || [])],
     fillotIds: [...new Set(fillotIds)],
     baptizedNames: [...new Set(baptizedNames)],
@@ -85,7 +156,7 @@ export function createUpcomingEvent({
     place: String(place || '').trim(),
     message: String(message || '').trim(),
     creatorName: String(creatorName || '').trim(),
-    visibility,
+    visibility: normaliseUpcomingVisibility(visibility),
     createdAt: new Date().toISOString(),
     requests: [],
   }

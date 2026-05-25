@@ -1,5 +1,5 @@
 import { onMounted, ref } from 'vue'
-import { fetchAuthState, fetchGenealogyState, saveGenealogyState } from '../api/genealogyApi.js'
+import { fetchAuthState, fetchGenealogyState, saveGenealogyState, undoPublicSessionAction } from '../api/genealogyApi.js'
 import {
   appendGenealogy,
   createGenealogy,
@@ -17,6 +17,8 @@ export function useGenealogyData() {
   const csrfToken = ref('')
   const saving = ref(false)
   const data = ref(null)
+  const sessionActions = ref([])
+  const lastSavedSnapshot = ref('')
   const selection = useGenealogySelection(data)
   const peopleMutations = usePeopleMutations({
     data,
@@ -44,8 +46,27 @@ export function useGenealogyData() {
     data.value = updateGenealogy(data.value, genealogyId, patch)
   }
 
+  function replaceState(nextState) {
+    data.value = nextState
+    markStateAsSaved()
+    selection.initialiseSelection()
+  }
+
+  function stateSnapshot() {
+    return JSON.stringify(data.value || null)
+  }
+
+  function markStateAsSaved() {
+    lastSavedSnapshot.value = stateSnapshot()
+  }
+
   async function save() {
     if (!data.value) return false
+
+    const snapshot = stateSnapshot()
+    if (snapshot === lastSavedSnapshot.value) {
+      return true
+    }
 
     saving.value = true
     error.value = ''
@@ -56,6 +77,29 @@ export function useGenealogyData() {
       if (result.state) {
         data.value = result.state
       }
+      markStateAsSaved()
+      sessionActions.value = result.sessionActions || []
+      return true
+    } catch (err) {
+      error.value = err.message
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function undoSessionAction(actionId) {
+    saving.value = true
+    error.value = ''
+
+    try {
+      const result = await undoPublicSessionAction(actionId, csrfToken.value)
+      if (result.state) {
+        data.value = result.state
+        selection.initialiseSelection()
+      }
+      markStateAsSaved()
+      sessionActions.value = result.sessionActions || []
       return true
     } catch (err) {
       error.value = err.message
@@ -79,6 +123,7 @@ export function useGenealogyData() {
 
       if (stateResult.status === 'rejected') throw stateResult.reason
       data.value = stateResult.value
+      markStateAsSaved()
       selection.initialiseSelection()
     } catch (err) {
       error.value = err.message
@@ -95,12 +140,15 @@ export function useGenealogyData() {
     loginUrl,
     csrfToken,
     data,
+    sessionActions,
     ...selection,
     ...peopleMutations,
     upcoming,
     addGenealogy,
     deleteGenealogy,
     patchGenealogy,
+    replaceState,
     save,
+    undoSessionAction,
   }
 }

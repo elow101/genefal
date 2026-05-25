@@ -7,6 +7,7 @@ import {
   requestUpcomingParticipation,
   subscribeUpcomingRegion,
   unsubscribeUpcomingRegion,
+  updateUpcomingEvent,
 } from '../api/upcomingApi.js'
 import {
   appendUpcomingEvent,
@@ -39,6 +40,7 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
       message: draft.message,
       creatorName: draft.creatorName,
       visibility: draft.visibility,
+      allowParticipation: draft.allowParticipation,
     })
 
     const result = await createUpcomingEventApi({
@@ -92,6 +94,12 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
     return true
   }
 
+  async function updateEvent(payload) {
+    const result = await updateUpcomingEvent(payload, csrfToken.value)
+    if (result.state) data.value = result.state
+    return result.event || true
+  }
+
   async function deleteEventAsCreator(payload) {
     const result = await deleteUpcomingEvent(payload, csrfToken.value)
     if (result.state) data.value = result.state
@@ -112,6 +120,7 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
     unsubscribeRegion,
     creatorAccess,
     setRequestStatus,
+    updateEvent,
     deleteEventAsCreator,
   }
 }

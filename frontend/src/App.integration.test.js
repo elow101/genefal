@@ -39,7 +39,7 @@ describe('App integration', () => {
 
     await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
     await wrapper.get('input[required]').setValue('Bérénice')
-    await wrapper.get('form').trigger('submit.prevent')
+    await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
 
     const saveRequest = requests.find((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')
@@ -47,6 +47,41 @@ describe('App integration', () => {
     expect(body.schemaVersion).toBe(1)
     expect(body.genealogies.some((genealogy) => genealogy.people.some((person) => person.name === 'Bérénice'))).toBe(true)
     expect(wrapper.text()).toContain('La fiche a bien')
+  })
+
+  it('allows public duplicate person creation while admin duplicate tooling handles review', async () => {
+    const requests = installFetchMock({
+      initialState: {
+        ...baseState,
+        genealogies: [
+          {
+            ...baseState.genealogies[0],
+            people: [
+              {
+                id: 'leo',
+                name: 'Léo  Dupont',
+                nickname: 'Herbizéeébi',
+                sponsorIds: [],
+                heartSponsorIds: [],
+              },
+            ],
+          },
+        ],
+      },
+    })
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
+    await flushPromises()
+    const inputs = wrapper.findAll('.person-form input')
+    await inputs[0].setValue('  leo dupont  ')
+    await inputs[1].setValue('herbizeeebi')
+    await wrapper.get('.person-form form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Une fiche avec le même nom, prénom et surnom existe déjà.')
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(1)
   })
 
   it('explains when a public edit is refused by the server', async () => {
@@ -60,7 +95,7 @@ describe('App integration', () => {
 
     await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')
     await wrapper.get('input[required]').setValue('Alice modifiée')
-    await wrapper.get('form').trigger('submit.prevent')
+    await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
 
     expect(wrapper.text()).toContain("Cette fiche n'est modifiable qu'en mode admin")
@@ -107,17 +142,43 @@ describe('App integration', () => {
     expect(wrapper.text()).toContain('Mot de passe admin')
     expect(wrapper.text()).not.toContain('Admin régional')
   })
+
+  it('persists person deletion when an admin confirms it', async () => {
+    const requests = installFetchMock({
+      admin: { authenticated: true, level: 'general' },
+    })
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Admin')).trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('Supprimer cette personne')).trigger('click')
+    await flushPromises()
+
+    const saveRequests = requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')
+    const lastBody = JSON.parse(saveRequests.at(-1).options.body)
+    expect(lastBody.genealogies[0].people).toHaveLength(0)
+    expect(wrapper.text()).toContain('La fiche a été supprimée.')
+  })
+
 })
 
 function installFetchMock(config = {}) {
   const requests = []
-  let currentState = structuredClone(baseState)
+  let currentState = structuredClone(config.initialState || baseState)
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, options = {}) => {
       requests.push({ url, options })
 
       if (url === '/api/auth.php') return json({ authenticated: true, csrfToken: 'csrf' })
+      if (url === '/api/admin.php') {
+        return json({
+          admin: config.admin || { authenticated: false },
+        })
+      }
       if (url === '/api/genealogy.php' && options.method === 'POST') {
         const incomingState = JSON.parse(options.body)
         currentState =

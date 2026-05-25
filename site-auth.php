@@ -846,6 +846,11 @@ function auth_region_exists(string $regionId): bool
 
 function auth_regional_regions(): array
 {
+    $sqlRegions = auth_sql_regional_regions();
+    if ($sqlRegions) {
+        return $sqlRegions;
+    }
+
     if (!is_file(AUTH_GENEALOGY_DATA_FILE)) {
         return [];
     }
@@ -853,6 +858,19 @@ function auth_regional_regions(): array
     $raw = file_get_contents(AUTH_GENEALOGY_DATA_FILE);
     $data = json_decode($raw ?: '{}', true);
     $genealogies = is_array($data['genealogies'] ?? null) ? $data['genealogies'] : [];
+    return array_values(array_filter($genealogies, 'auth_is_regional_genealogy'));
+}
+
+function auth_sql_regional_regions(): array
+{
+    require_once __DIR__ . '/api/database.php';
+    if (!database_genealogy_read_enabled()) {
+        return [];
+    }
+
+    require_once __DIR__ . '/api/genealogy_sql.php';
+    $payload = genealogy_sql_read_payload();
+    $genealogies = is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : [];
     return array_values(array_filter($genealogies, 'auth_is_regional_genealogy'));
 }
 

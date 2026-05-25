@@ -9,8 +9,11 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
 
 require __DIR__ . '/config.php';
 require_once __DIR__ . '/upcoming_sql.php';
+require_once __DIR__ . '/genealogy_sql.php';
 
 const PUBLIC_EDITABLE_PEOPLE_SESSION_KEY = 'faluche_public_editable_people';
+const PUBLIC_CREATED_PEOPLE_SESSION_KEY = 'faluche_public_created_people';
+const PUBLIC_SESSION_ACTIONS_SESSION_KEY = 'faluche_public_session_actions';
 const MAX_JSON_BODY_BYTES = 8388608;
 const MAX_GENEALOGIES = 300;
 const MAX_PEOPLE_PER_GENEALOGY = 5000;
@@ -27,19 +30,15 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     header('Content-Type: application/json; charset=utf-8');
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        if (!is_file(GENEALOGY_DATA_FILE)) {
+        if (!is_file(GENEALOGY_DATA_FILE) && !database_genealogy_read_enabled()) {
             api_respond(empty_genealogy_payload());
         }
 
-        $raw = read_genealogy_file();
-        $data = json_decode($raw ?: '[]', true);
-        if (!is_array($data) && trim($raw) !== '') {
-            api_respond(['error' => 'Donnees temporairement indisponibles.'], 503);
-        }
-        $payload = genealogy_payload_with_optional_sql_events(migrate_genealogy_payload(is_array($data) ? $data : []));
+        [$payload, $data] = genealogy_payload_for_read();
         if ($payload !== $data) {
             write_genealogy_payload($payload);
         }
+        clear_public_session_permissions();
         api_respond($payload + ['people' => []]);
     }
 
@@ -48,6 +47,35 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         $body = api_read_json_body(MAX_JSON_BODY_BYTES);
         if (!is_array($body)) {
             api_respond(['error' => 'Requete invalide.'], 400);
+        }
+
+        $action = is_string($body['action'] ?? null) ? (string) $body['action'] : '';
+        if ($action === 'undoPublicSessionAction') {
+            require_csrf_token();
+            $result = undo_public_session_action($body);
+            api_respond($result);
+        }
+        if ($action === 'scanPersonDuplicates') {
+            require_general_admin_auth();
+            api_respond(['groups' => find_duplicate_person_groups(current_genealogy_payload())]);
+        }
+        if ($action === 'mergePersonDuplicates') {
+            require_general_admin_auth();
+            $currentBeforeWrite = current_genealogy_payload();
+            $mergeResult = merge_duplicate_people_payload($currentBeforeWrite, $body);
+            if (!write_genealogy_payload($mergeResult)) {
+                api_respond(['error' => 'Impossible de sauvegarder la genealogie.'], 500);
+            }
+            auth_record_admin_audit_event([
+                'summary' => 'Fusion de fiches doublons',
+                'actorLabel' => 'Admin general',
+                'scopeRegionIds' => genealogy_audit_region_ids($mergeResult),
+            ]);
+            api_respond([
+                'ok' => true,
+                'state' => $mergeResult,
+                'groups' => find_duplicate_person_groups($mergeResult),
+            ]);
         }
 
         $hasGenealogies = isset($body['genealogies']) && is_array($body['genealogies']);
@@ -76,8 +104,16 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         }
 
         genealogy_record_audit_event($currentBeforeWrite, $payload, $body, $adminSession);
+        if ($adminSession === null) {
+            record_public_session_action($currentBeforeWrite, $payload, $body);
+        }
 
-        api_respond(['ok' => true, 'count' => $hasGenealogies ? count($body['genealogies']) : count($body['people']), 'state' => is_array($payload) && isset($payload['genealogies']) ? $payload : null]);
+        api_respond([
+            'ok' => true,
+            'count' => $hasGenealogies ? count($body['genealogies']) : count($body['people']),
+            'state' => is_array($payload) && isset($payload['genealogies']) ? $payload : null,
+            'sessionActions' => public_session_actions_for_response(),
+        ]);
     }
 
     api_respond(['error' => 'Methode non autorisee.'], 405);
@@ -86,9 +122,27 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
 
 function write_genealogy_payload($payload): bool
 {
+    if (!is_array($payload)) {
+        return false;
+    }
+
     $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     if ($json === false) {
         return false;
+    }
+
+    $sqlWriteEnabled = database_genealogy_write_enabled();
+    $jsonWriteEnabled = database_genealogy_json_write_enabled();
+    $sqlWritten = false;
+    if ($sqlWriteEnabled) {
+        $sqlWritten = genealogy_sql_write_payload($payload);
+        if (!$sqlWritten) {
+            return false;
+        }
+    }
+
+    if (!$jsonWriteEnabled) {
+        return $sqlWriteEnabled && $sqlWritten;
     }
 
     $directory = dirname(GENEALOGY_DATA_FILE);
@@ -122,6 +176,31 @@ function read_genealogy_file(): string
     } finally {
         fclose($handle);
     }
+}
+
+function genealogy_payload_for_read(): array
+{
+    $raw = read_genealogy_file();
+    $data = json_decode($raw ?: '[]', true);
+    if (!is_array($data) && trim($raw) !== '') {
+        api_respond(['error' => 'Donnees temporairement indisponibles.'], 503);
+    }
+
+    $jsonPayload = migrate_genealogy_payload(is_array($data) ? $data : []);
+    $payload = $jsonPayload;
+    if (database_genealogy_read_enabled()) {
+        $sqlPayload = genealogy_sql_read_payload();
+        if (is_array($sqlPayload)) {
+            $payload = migrate_genealogy_payload(array_replace($jsonPayload, [
+                'activeGenealogyId' => $sqlPayload['activeGenealogyId'] ?: ($jsonPayload['activeGenealogyId'] ?? ''),
+                'roleResetVersion' => $sqlPayload['roleResetVersion'] ?? ($jsonPayload['roleResetVersion'] ?? null),
+                'genealogies' => $sqlPayload['genealogies'],
+                'upcomingBaptisms' => $jsonPayload['upcomingBaptisms'] ?? [],
+            ]));
+        }
+    }
+
+    return [genealogy_payload_with_optional_sql_events($payload), $data];
 }
 
 function role_reset_version_from($data): ?int
@@ -445,6 +524,292 @@ function normalise_people_for_storage(array $people): array
     return $normalised;
 }
 
+function person_duplicate_key(array $person): string
+{
+    return implode('|', [
+        normalise_text($person['name'] ?? ''),
+        normalise_text($person['nickname'] ?? (($person['nicknames'][0] ?? '') ?: '')),
+    ]);
+}
+
+function find_duplicate_person_groups(array $payload): array
+{
+    $groups = [];
+    foreach (is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : [] as $genealogy) {
+        if (!is_array($genealogy) || !is_array($genealogy['people'] ?? null)) {
+            continue;
+        }
+        foreach ($genealogy['people'] as $person) {
+            if (!is_array($person)) {
+                continue;
+            }
+            $key = person_duplicate_key($person);
+            $id = api_safe_id($person['id'] ?? '', 100);
+            if ($key === '|' || $id === '') {
+                continue;
+            }
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'key' => $key,
+                    'label' => duplicate_person_label($person),
+                    'peopleById' => [],
+                ];
+            }
+            if (!isset($groups[$key]['peopleById'][$id])) {
+                $groups[$key]['peopleById'][$id] = duplicate_person_summary($person);
+            }
+            $groups[$key]['peopleById'][$id]['genealogies'][] = api_safe_text($genealogy['name'] ?? $genealogy['id'] ?? '', 140);
+        }
+    }
+
+    $duplicates = [];
+    foreach ($groups as $group) {
+        if (count($group['peopleById']) < 2) {
+            continue;
+        }
+        $people = array_values(array_map(static function (array $person): array {
+            $person['genealogies'] = array_values(array_unique($person['genealogies']));
+            return $person;
+        }, $group['peopleById']));
+        $duplicates[] = [
+            'key' => $group['key'],
+            'label' => $group['label'],
+            'people' => add_duplicate_differences($people),
+        ];
+    }
+
+    return $duplicates;
+}
+
+function duplicate_person_label(array $person): string
+{
+    $name = api_safe_text($person['name'] ?? '', 140);
+    $nickname = api_safe_text($person['nickname'] ?? (($person['nicknames'][0] ?? '') ?: ''), 120);
+    return trim($name . ($nickname !== '' ? ' / ' . $nickname : ''));
+}
+
+function duplicate_person_summary(array $person): array
+{
+    return [
+        'id' => api_safe_id($person['id'] ?? '', 100),
+        'name' => api_safe_text($person['name'] ?? '', 140),
+        'nickname' => api_safe_text($person['nickname'] ?? (($person['nicknames'][0] ?? '') ?: ''), 120),
+        'baptismDate' => normalise_date($person['baptismDate'] ?? ''),
+        'baptismCity' => api_safe_text($person['baptismCity'] ?? '', 120),
+        'filiere' => normalise_filiere_id($person['filiere'] ?? ''),
+        'roles' => role_id_array($person['roles'] ?? []),
+        'genealogies' => [],
+    ];
+}
+
+function add_duplicate_differences(array $people): array
+{
+    $fields = [
+        'baptismDate' => 'date de baptême',
+        'baptismCity' => 'ville de baptême',
+        'filiere' => 'filière',
+        'roles' => 'rôles',
+    ];
+    $differing = [];
+    foreach ($fields as $field => $label) {
+        $values = array_map(static fn(array $person) => json_encode($person[$field] ?? null), $people);
+        if (count(array_unique($values)) > 1) {
+            $differing[] = $label;
+        }
+    }
+
+    return array_map(static function (array $person) use ($differing): array {
+        $person['differences'] = $differing;
+        return $person;
+    }, $people);
+}
+
+function merge_duplicate_people_payload(array $payload, array $body): array
+{
+    $keepPersonId = api_safe_id($body['keepPersonId'] ?? '', 100);
+    $mergePersonIds = array_values(array_unique(array_filter(
+        array_map(static fn($id): string => api_safe_id($id, 100), is_array($body['mergePersonIds'] ?? null) ? $body['mergePersonIds'] : []),
+        static fn(string $id): bool => $id !== ''
+    )));
+    if ($keepPersonId === '' || count($mergePersonIds) === 0 || in_array($keepPersonId, $mergePersonIds, true)) {
+        api_respond(['error' => 'Fusion de doublons invalide.'], 400);
+    }
+
+    $allMergeIds = array_values(array_unique(array_merge([$keepPersonId], $mergePersonIds)));
+    $peopleToMerge = duplicate_merge_people_by_id($payload, $allMergeIds);
+    if (!isset($peopleToMerge[$keepPersonId]) || count($peopleToMerge) < 2) {
+        api_respond(['error' => 'Fiches doublons introuvables.'], 404);
+    }
+
+    $keys = array_values(array_unique(array_map(static fn(array $person): string => person_duplicate_key($person), $peopleToMerge)));
+    if (count($keys) !== 1 || ($keys[0] ?? '|') === '|') {
+        api_respond(['error' => 'Ces fiches ne correspondent pas au même doublon.'], 400);
+    }
+
+    $mergedPerson = replace_person_references(
+        merge_duplicate_person_records($peopleToMerge[$keepPersonId], $peopleToMerge),
+        $keepPersonId,
+        $mergePersonIds
+    );
+    $affectedGenealogyIds = duplicate_merge_affected_genealogy_ids($payload, $allMergeIds);
+    $payload['genealogies'] = array_map(
+        static fn($genealogy) => merge_duplicate_people_in_genealogy($genealogy, $mergedPerson, $keepPersonId, $mergePersonIds, $affectedGenealogyIds),
+        is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : []
+    );
+
+    return $payload;
+}
+
+function duplicate_merge_people_by_id(array $payload, array $ids): array
+{
+    $wanted = array_flip($ids);
+    $people = [];
+    foreach (is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : [] as $genealogy) {
+        if (!is_array($genealogy) || !is_array($genealogy['people'] ?? null)) {
+            continue;
+        }
+        foreach ($genealogy['people'] as $person) {
+            if (!is_array($person)) {
+                continue;
+            }
+            $id = api_safe_id($person['id'] ?? '', 100);
+            if ($id !== '' && isset($wanted[$id]) && !isset($people[$id])) {
+                $people[$id] = $person;
+            }
+        }
+    }
+    return $people;
+}
+
+function duplicate_merge_affected_genealogy_ids(array $payload, array $ids): array
+{
+    $wanted = array_flip($ids);
+    $affected = [];
+    foreach (is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : [] as $genealogy) {
+        if (!is_array($genealogy) || !is_array($genealogy['people'] ?? null)) {
+            continue;
+        }
+        foreach ($genealogy['people'] as $person) {
+            $id = is_array($person) ? api_safe_id($person['id'] ?? '', 100) : '';
+            if ($id !== '' && isset($wanted[$id])) {
+                $affected[] = api_safe_id($genealogy['id'] ?? '', 100);
+                break;
+            }
+        }
+    }
+    return array_values(array_unique($affected));
+}
+
+function merge_duplicate_people_in_genealogy($genealogy, array $mergedPerson, string $keepPersonId, array $mergePersonIds, array $affectedGenealogyIds)
+{
+    if (!is_array($genealogy) || !is_array($genealogy['people'] ?? null)) {
+        return $genealogy;
+    }
+
+    $genealogyId = api_safe_id($genealogy['id'] ?? '', 100);
+    $removeIds = array_flip($mergePersonIds);
+    $allMergeIds = array_flip(array_merge([$keepPersonId], $mergePersonIds));
+    $people = [];
+    foreach ($genealogy['people'] as $person) {
+        if (!is_array($person)) {
+            continue;
+        }
+        $person = replace_person_references($person, $keepPersonId, $mergePersonIds);
+        $id = api_safe_id($person['id'] ?? '', 100);
+        if (isset($allMergeIds[$id])) {
+            continue;
+        }
+        $people[] = $person;
+    }
+
+    if (in_array($genealogyId, $affectedGenealogyIds, true)) {
+        $people[] = $mergedPerson;
+    }
+
+    $genealogy['people'] = $people;
+    return $genealogy;
+}
+
+function replace_person_references(array $person, string $keepPersonId, array $mergePersonIds): array
+{
+    $person['sponsorIds'] = replace_id_list($person['sponsorIds'] ?? [], $keepPersonId, $mergePersonIds);
+    $person['heartSponsorIds'] = replace_id_list($person['heartSponsorIds'] ?? [], $keepPersonId, $mergePersonIds);
+    $person['ceremonyEvents'] = array_map(
+        static function ($event) use ($keepPersonId, $mergePersonIds) {
+            if (!is_array($event)) {
+                return $event;
+            }
+            $event['sponsorIds'] = replace_id_list($event['sponsorIds'] ?? [], $keepPersonId, $mergePersonIds);
+            $event['heartSponsorIds'] = replace_id_list($event['heartSponsorIds'] ?? [], $keepPersonId, $mergePersonIds);
+            return $event;
+        },
+        is_array($person['ceremonyEvents'] ?? null) ? $person['ceremonyEvents'] : []
+    );
+    return $person;
+}
+
+function replace_id_list($ids, string $keepPersonId, array $mergePersonIds): array
+{
+    $remove = array_flip($mergePersonIds);
+    $next = [];
+    foreach (id_array($ids) as $id) {
+        $next[] = isset($remove[$id]) ? $keepPersonId : $id;
+    }
+    return array_values(array_unique(array_filter($next, static fn(string $id): bool => $id !== '')));
+}
+
+function merge_duplicate_person_records(array $keepPerson, array $peopleById): array
+{
+    $merged = $keepPerson;
+    foreach ($peopleById as $person) {
+        foreach (['name', 'nickname', 'baptismDate', 'baptismCity', 'baptismStatus', 'song', 'filiere', 'createdAt', 'crossGroupId'] as $field) {
+            if (($merged[$field] ?? '') === '' && ($person[$field] ?? '') !== '') {
+                $merged[$field] = $person[$field];
+            }
+        }
+        if ((int) ($merged['crossGroupSize'] ?? 0) === 0 && (int) ($person['crossGroupSize'] ?? 0) > 0) {
+            $merged['crossGroupSize'] = (int) $person['crossGroupSize'];
+        }
+        $merged['nicknames'] = normalise_text_list(
+            array_merge(
+                [$merged['nickname'] ?? ''],
+                is_array($merged['nicknames'] ?? null) ? $merged['nicknames'] : [],
+                [$person['nickname'] ?? ''],
+                is_array($person['nicknames'] ?? null) ? $person['nicknames'] : []
+            ),
+            120,
+            3
+        );
+        $merged['roles'] = merge_id_lists($merged['roles'] ?? [], $person['roles'] ?? []);
+        $merged['sponsorIds'] = merge_id_lists($merged['sponsorIds'] ?? [], $person['sponsorIds'] ?? []);
+        $merged['heartSponsorIds'] = merge_id_lists($merged['heartSponsorIds'] ?? [], $person['heartSponsorIds'] ?? []);
+        $merged['ceremonyEvents'] = merge_ceremony_event_lists($merged['ceremonyEvents'] ?? [], $person['ceremonyEvents'] ?? []);
+    }
+    return normalise_person_for_storage($merged);
+}
+
+function merge_id_lists($left, $right): array
+{
+    return array_values(array_unique(array_merge(id_array($left), id_array($right))));
+}
+
+function merge_ceremony_event_lists($left, $right): array
+{
+    $events = [];
+    foreach (array_merge(is_array($left) ? $left : [], is_array($right) ? $right : []) as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        $normalised = normalise_ceremony_events([$event])[0] ?? null;
+        if (!is_array($normalised)) {
+            continue;
+        }
+        $key = hash('sha256', json_encode($normalised, JSON_UNESCAPED_UNICODE) ?: '');
+        $events[$key] = $normalised;
+    }
+    return array_values($events);
+}
+
 function normalise_person_for_storage($person): array
 {
     $person = is_array($person) ? $person : [];
@@ -715,6 +1080,7 @@ function public_upcoming_baptisms(array $events): array
             'regionId' => $regionId,
             'title' => $title,
             'eventType' => $eventType,
+            'allowParticipation' => $eventType === 'autre' && ($event['allowParticipation'] ?? false) === true,
             'sponsorIds' => $sponsorIds,
             'fillotIds' => $fillotIds,
             'baptizedNames' => $baptizedNames,
@@ -722,7 +1088,7 @@ function public_upcoming_baptisms(array $events): array
             'place' => api_safe_text($event['place'] ?? '', 160),
             'message' => api_safe_text($event['message'] ?? ($event['description'] ?? ''), 1200),
             'creatorName' => api_safe_text($event['creatorName'] ?? ($event['creator'] ?? ''), 120),
-            'visibility' => api_safe_id($event['visibility'] ?? 'public', 40) ?: 'public',
+            'visibility' => normalise_upcoming_visibility($event['visibility'] ?? 'public'),
             'createdAt' => normalise_created_at($event['createdAt'] ?? gmdate('c')),
             'requests' => public_upcoming_requests(is_array($event['requests'] ?? null) ? $event['requests'] : (is_array($event['responses'] ?? null) ? $event['responses'] : [])),
         ];
@@ -878,6 +1244,12 @@ function normalise_upcoming_event_type($value): string
     return 'autre';
 }
 
+function normalise_upcoming_visibility($value): string
+{
+    $visibility = api_safe_id($value ?? 'public', 40);
+    return in_array($visibility, ['public', 'private', 'family'], true) ? $visibility : 'public';
+}
+
 function normalise_request_status($value): string
 {
     $status = normalise_text($value);
@@ -906,6 +1278,66 @@ function normalise_text($value): string
         return '';
     }
     $value = (string) $value;
+    $value = strtr($value, [
+        'À' => 'A',
+        'Á' => 'A',
+        'Â' => 'A',
+        'Ã' => 'A',
+        'Ä' => 'A',
+        'Å' => 'A',
+        'Æ' => 'AE',
+        'Ç' => 'C',
+        'È' => 'E',
+        'É' => 'E',
+        'Ê' => 'E',
+        'Ë' => 'E',
+        'Ì' => 'I',
+        'Í' => 'I',
+        'Î' => 'I',
+        'Ï' => 'I',
+        'Ñ' => 'N',
+        'Ò' => 'O',
+        'Ó' => 'O',
+        'Ô' => 'O',
+        'Õ' => 'O',
+        'Ö' => 'O',
+        'Œ' => 'OE',
+        'Ù' => 'U',
+        'Ú' => 'U',
+        'Û' => 'U',
+        'Ü' => 'U',
+        'Ý' => 'Y',
+        'Ÿ' => 'Y',
+        'à' => 'a',
+        'á' => 'a',
+        'â' => 'a',
+        'ã' => 'a',
+        'ä' => 'a',
+        'å' => 'a',
+        'æ' => 'ae',
+        'ç' => 'c',
+        'è' => 'e',
+        'é' => 'e',
+        'ê' => 'e',
+        'ë' => 'e',
+        'ì' => 'i',
+        'í' => 'i',
+        'î' => 'i',
+        'ï' => 'i',
+        'ñ' => 'n',
+        'ò' => 'o',
+        'ó' => 'o',
+        'ô' => 'o',
+        'õ' => 'o',
+        'ö' => 'o',
+        'œ' => 'oe',
+        'ù' => 'u',
+        'ú' => 'u',
+        'û' => 'u',
+        'ü' => 'u',
+        'ý' => 'y',
+        'ÿ' => 'y',
+    ]);
     $value = strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) ?: $value);
     $value = preg_replace('/[^a-z0-9]+/', ' ', $value);
     return trim((string) preg_replace('/\s+/', ' ', $value));
@@ -1044,13 +1476,7 @@ function people_payload_for_write(array $people, ?array $adminSession)
 
 function current_genealogy_payload()
 {
-    if (!is_file(GENEALOGY_DATA_FILE)) {
-        return empty_genealogy_payload();
-    }
-
-    $raw = read_genealogy_file();
-    $data = json_decode($raw ?: '[]', true);
-    return genealogy_payload_with_optional_sql_events(migrate_genealogy_payload(is_array($data) ? $data : []));
+    return genealogy_payload_for_read()[0];
 }
 
 function genealogy_payload_with_optional_sql_events(array $payload): array
@@ -1392,11 +1818,6 @@ function public_person_with_allowed_updates(array $currentPerson, array $incomin
     ];
 }
 
-function public_person_with_appended_ceremonies(array $currentPerson, array $incomingPerson): array
-{
-    return public_person_with_allowed_updates($currentPerson, $incomingPerson);
-}
-
 function ceremony_event_key(array $event): string
 {
     $sponsorIds = id_array($event['sponsorIds'] ?? []);
@@ -1435,13 +1856,357 @@ function mark_public_payload_people_editable(array $payload): void
     }
 }
 
+function record_public_session_action(array $before, array $after, array $body): void
+{
+    if (genealogy_audit_hash($before) === genealogy_audit_hash($after)) {
+        return;
+    }
+
+    $action = public_session_action_from_payload($before, $after, $body);
+    if (($action['type'] ?? '') === 'create_person') {
+        foreach (is_array($action['createdPersonIds'] ?? null) ? $action['createdPersonIds'] : [] as $personId) {
+            mark_public_created_person((string) $personId);
+        }
+    }
+    if (($action['personId'] ?? '') === '' || (($action['type'] ?? '') === 'update_person' && empty($action['changedFields']))) {
+        return;
+    }
+
+    site_auth_start();
+    $actions = is_array($_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY] ?? null)
+        ? $_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY]
+        : [];
+    $actions[] = $action;
+    $_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY] = array_slice($actions, -20);
+}
+
+function public_session_action_from_payload(array $before, array $after, array $body): array
+{
+    $beforePeople = public_people_by_id($before);
+    $afterPeople = public_people_by_id($after);
+    $createdIds = array_values(array_diff(array_keys($afterPeople), array_keys($beforePeople)));
+    $changedIds = public_changed_person_ids($before, $after);
+    $personId = $createdIds[0] ?? ($changedIds[0] ?? '');
+    $type = $createdIds ? 'create_person' : 'update_person';
+    $beforePerson = is_array($beforePeople[$personId] ?? null) ? $beforePeople[$personId] : [];
+    $afterPerson = is_array($afterPeople[$personId] ?? null) ? $afterPeople[$personId] : [];
+
+    return [
+        'id' => bin2hex(random_bytes(12)),
+        'type' => $type,
+        'personId' => $personId,
+        'label' => public_session_action_label($type, $personId, $after),
+        'createdAt' => gmdate('c'),
+        'beforePerson' => $beforePerson,
+        'afterPerson' => $afterPerson,
+        'changedFields' => public_person_changed_fields($beforePerson, $afterPerson),
+        'createdPersonIds' => $createdIds,
+    ];
+}
+
+function public_session_action_label(string $type, string $personId, array $payload): string
+{
+    $person = public_people_by_id($payload)[$personId] ?? null;
+    $name = is_array($person) ? api_safe_text($person['name'] ?? '', 140) : '';
+    if ($name === '') {
+        $name = 'fiche';
+    }
+    if ($type === 'create_person') {
+        return 'Fiche créée : ' . $name;
+    }
+    return 'Modification de fiche : ' . $name;
+}
+
+function public_changed_person_ids(array $before, array $after): array
+{
+    $beforePeople = public_people_by_id($before);
+    $afterPeople = public_people_by_id($after);
+    $changed = [];
+    foreach ($afterPeople as $id => $person) {
+        if (!isset($beforePeople[$id])) {
+            continue;
+        }
+        if (genealogy_audit_hash($beforePeople[$id]) !== genealogy_audit_hash($person)) {
+            $changed[] = $id;
+        }
+    }
+    return $changed;
+}
+
+function public_person_changed_fields(array $beforePerson, array $afterPerson): array
+{
+    $fields = array_values(array_unique(array_merge(array_keys($beforePerson), array_keys($afterPerson))));
+    return array_values(array_filter($fields, static function (string $field) use ($beforePerson, $afterPerson): bool {
+        if (in_array($field, ['genealogyId', 'genealogyName', 'genealogyType'], true)) {
+            return false;
+        }
+        return public_normalised_field_value($beforePerson[$field] ?? null) !== public_normalised_field_value($afterPerson[$field] ?? null);
+    }));
+}
+
+function public_normalised_field_value($value): string
+{
+    if (is_array($value)) {
+        $normalised = $value;
+        if (public_array_is_list($normalised)) {
+            $encodedItems = array_map('public_normalised_field_value', $normalised);
+            sort($encodedItems);
+            return json_encode($encodedItems, JSON_UNESCAPED_UNICODE) ?: '';
+        }
+        ksort($normalised);
+        return json_encode(array_map('public_normalised_field_value', $normalised), JSON_UNESCAPED_UNICODE) ?: '';
+    }
+    return json_encode($value, JSON_UNESCAPED_UNICODE) ?: '';
+}
+
+function public_array_is_list(array $value): bool
+{
+    return array_keys($value) === range(0, count($value) - 1);
+}
+
+function public_people_by_id(array $payload): array
+{
+    $people = [];
+    foreach (is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : [] as $genealogy) {
+        if (!is_array($genealogy) || !is_array($genealogy['people'] ?? null)) {
+            continue;
+        }
+        foreach ($genealogy['people'] as $person) {
+            if (!is_array($person)) {
+                continue;
+            }
+            $id = api_safe_id($person['id'] ?? '', 100);
+            if ($id !== '' && !isset($people[$id])) {
+                $people[$id] = $person;
+            }
+        }
+    }
+    return $people;
+}
+
+function public_session_actions_for_response(): array
+{
+    site_auth_start();
+    $actions = is_array($_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY] ?? null)
+        ? $_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY]
+        : [];
+    return array_values(array_map(static fn(array $action): array => [
+        'id' => is_string($action['id'] ?? null) ? $action['id'] : '',
+        'type' => is_string($action['type'] ?? null) ? $action['type'] : '',
+        'personId' => is_string($action['personId'] ?? null) ? $action['personId'] : '',
+        'label' => is_string($action['label'] ?? null) ? $action['label'] : 'Modification récente',
+        'createdAt' => is_string($action['createdAt'] ?? null) ? $action['createdAt'] : '',
+        'canEdit' => ($action['type'] ?? '') === 'create_person',
+    ], array_filter($actions, static fn($action): bool => is_array($action))));
+}
+
+function clear_public_session_permissions(): void
+{
+    site_auth_start();
+    unset($_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY]);
+    unset($_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY]);
+    unset($_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY]);
+}
+
+function undo_public_session_action(array $body): array
+{
+    $actionId = is_string($body['actionId'] ?? null) ? (string) $body['actionId'] : '';
+    if ($actionId === '') {
+        api_respond(['error' => 'Action récente invalide.'], 400);
+    }
+
+    site_auth_start();
+    $actions = is_array($_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY] ?? null)
+        ? $_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY]
+        : [];
+    $index = null;
+    foreach ($actions as $candidateIndex => $candidate) {
+        if (is_array($candidate) && ($candidate['id'] ?? '') === $actionId) {
+            $index = $candidateIndex;
+            break;
+        }
+    }
+    if ($index === null || !is_array($actions[$index] ?? null)) {
+        api_respond(['error' => 'Action récente introuvable dans cette session.'], 404);
+    }
+
+    $action = $actions[$index];
+    $current = current_genealogy_payload();
+    $next = undo_public_action_on_payload($current, $action);
+    if (!write_genealogy_payload($next)) {
+        api_respond(['error' => 'Impossible de sauvegarder l’annulation.'], 500);
+    }
+
+    foreach (is_array($action['createdPersonIds'] ?? null) ? $action['createdPersonIds'] : [] as $personId) {
+        unmark_public_person_editable((string) $personId);
+    }
+    array_splice($actions, $index);
+    $_SESSION[PUBLIC_SESSION_ACTIONS_SESSION_KEY] = array_values($actions);
+
+    return [
+        'ok' => true,
+        'state' => $next,
+        'sessionActions' => public_session_actions_for_response(),
+    ];
+}
+
+function undo_public_action_on_payload(array $current, array $action): array
+{
+    $type = is_string($action['type'] ?? null) ? (string) $action['type'] : '';
+    if ($type === 'create_person') {
+        return undo_public_created_person($current, $action);
+    }
+    if ($type === 'update_person') {
+        return undo_public_person_update($current, $action);
+    }
+    api_respond(['error' => 'Type d’action non annulable.'], 400);
+}
+
+function undo_public_created_person(array $current, array $action): array
+{
+    $createdIds = array_values(array_filter(
+        array_map(static fn($id): string => api_safe_id($id, 100), is_array($action['createdPersonIds'] ?? null) ? $action['createdPersonIds'] : []),
+        static fn(string $id): bool => $id !== ''
+    ));
+    if (!$createdIds) {
+        api_respond(['error' => 'Fiche créée introuvable pour cette action.'], 409);
+    }
+
+    $remove = array_flip($createdIds);
+    $current['genealogies'] = array_map(static function ($genealogy) use ($remove): array {
+        $genealogy = is_array($genealogy) ? $genealogy : [];
+        $people = is_array($genealogy['people'] ?? null) ? $genealogy['people'] : [];
+        $genealogy['people'] = array_values(array_map(
+            static function (array $person) use ($remove): array {
+                foreach (array_keys($remove) as $removedId) {
+                    $person = cleanPersonRelations($person, $removedId);
+                }
+                return $person;
+            },
+            array_filter($people, static function ($person) use ($remove): bool {
+                $id = is_array($person) ? api_safe_id($person['id'] ?? '', 100) : '';
+                return $id === '' || !isset($remove[$id]);
+            })
+        ));
+        return $genealogy;
+    }, is_array($current['genealogies'] ?? null) ? $current['genealogies'] : []);
+
+    return $current;
+}
+
+function cleanPersonRelations(array $person, string $personId): array
+{
+    $person['sponsorIds'] = array_values(array_filter(
+        id_array($person['sponsorIds'] ?? []),
+        static fn(string $id): bool => $id !== $personId
+    ));
+    $person['heartSponsorIds'] = array_values(array_filter(
+        id_array($person['heartSponsorIds'] ?? []),
+        static fn(string $id): bool => $id !== $personId
+    ));
+    $person['ceremonyEvents'] = array_map(
+        static function ($event) use ($personId): array {
+            $event = is_array($event) ? $event : [];
+            $event['sponsorIds'] = array_values(array_filter(
+                id_array($event['sponsorIds'] ?? []),
+                static fn(string $id): bool => $id !== $personId
+            ));
+            $event['heartSponsorIds'] = array_values(array_filter(
+                id_array($event['heartSponsorIds'] ?? []),
+                static fn(string $id): bool => $id !== $personId
+            ));
+            return $event;
+        },
+        is_array($person['ceremonyEvents'] ?? null) ? $person['ceremonyEvents'] : []
+    );
+    return $person;
+}
+
+function undo_public_person_update(array $current, array $action): array
+{
+    $personId = api_safe_id($action['personId'] ?? '', 100);
+    $beforePerson = is_array($action['beforePerson'] ?? null) ? $action['beforePerson'] : [];
+    $afterPerson = is_array($action['afterPerson'] ?? null) ? $action['afterPerson'] : [];
+    $changedFields = array_values(array_filter(
+        array_map('strval', is_array($action['changedFields'] ?? null) ? $action['changedFields'] : []),
+        static fn(string $field): bool => $field !== ''
+    ));
+    if ($personId === '' || !$changedFields) {
+        api_respond(['error' => 'Modification récente invalide.'], 409);
+    }
+
+    $found = false;
+    $current['genealogies'] = array_map(
+        static function ($genealogy) use ($personId, $beforePerson, $afterPerson, $changedFields, &$found): array {
+            $genealogy = is_array($genealogy) ? $genealogy : [];
+            $genealogy['people'] = array_map(
+                static function ($person) use ($personId, $beforePerson, $afterPerson, $changedFields, &$found) {
+                    if (!is_array($person) || api_safe_id($person['id'] ?? '', 100) !== $personId) {
+                        return $person;
+                    }
+                    $found = true;
+                    foreach ($changedFields as $field) {
+                        $currentValue = public_normalised_field_value($person[$field] ?? null);
+                        $expectedValue = public_normalised_field_value($afterPerson[$field] ?? null);
+                        if ($currentValue !== $expectedValue) {
+                            api_respond(['error' => 'Annulation impossible : la fiche ciblée a été modifiée depuis cette action.'], 409);
+                        }
+                    }
+                    foreach ($changedFields as $field) {
+                        if (array_key_exists($field, $beforePerson)) {
+                            $person[$field] = $beforePerson[$field];
+                        } else {
+                            unset($person[$field]);
+                        }
+                    }
+                    return normalise_person_for_storage($person);
+                },
+                is_array($genealogy['people'] ?? null) ? $genealogy['people'] : []
+            );
+            return $genealogy;
+        },
+        is_array($current['genealogies'] ?? null) ? $current['genealogies'] : []
+    );
+    if (!$found) {
+        api_respond(['error' => 'Fiche ciblée introuvable.'], 409);
+    }
+
+    return $current;
+}
+
 function public_person_is_editable(string $genealogyId, string $personId): bool
 {
+    if (public_created_person_is_editable($personId)) {
+        return true;
+    }
+
     site_auth_start();
     $editable = is_array($_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY] ?? null)
         ? $_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY]
         : [];
     return isset($editable[public_editable_person_key($genealogyId, $personId)]);
+}
+
+function public_created_person_is_editable(string $personId): bool
+{
+    site_auth_start();
+    $created = is_array($_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY] ?? null)
+        ? $_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY]
+        : [];
+    return isset($created[$personId]);
+}
+
+function mark_public_created_person(string $personId): void
+{
+    $personId = api_safe_id($personId, 100);
+    if ($personId === '') {
+        return;
+    }
+    site_auth_start();
+    if (!isset($_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY]) || !is_array($_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY])) {
+        $_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY] = [];
+    }
+    $_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY][$personId] = time();
 }
 
 function mark_public_person_editable(string $genealogyId, string $personId): void
@@ -1453,7 +2218,24 @@ function mark_public_person_editable(string $genealogyId, string $personId): voi
     $_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY][public_editable_person_key($genealogyId, $personId)] = time();
 }
 
+function unmark_public_person_editable(string $personId): void
+{
+    site_auth_start();
+    if (is_array($_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY] ?? null)) {
+        unset($_SESSION[PUBLIC_CREATED_PEOPLE_SESSION_KEY][$personId]);
+    }
+    if (!is_array($_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY] ?? null)) {
+        return;
+    }
+    foreach (array_keys($_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY]) as $key) {
+        $suffix = ':' . $personId;
+        if (substr((string) $key, -strlen($suffix)) === $suffix) {
+            unset($_SESSION[PUBLIC_EDITABLE_PEOPLE_SESSION_KEY][$key]);
+        }
+    }
+}
+
 function public_editable_person_key(string $genealogyId, string $personId): string
 {
-    return hash('sha256', $genealogyId . ':' . $personId);
+    return hash('sha256', $genealogyId . ':' . $personId) . ':' . $personId;
 }
