@@ -1,6 +1,5 @@
 import {
   appendPersonToGenealogy,
-  createEmptyPerson,
   removePersonEverywhere,
   replaceGenealogy,
   updatePersonEverywhere,
@@ -11,18 +10,17 @@ export function usePeopleMutations({ data, selectedGenealogy, selectedPersonId }
     data.value = updatePersonEverywhere(data.value, updatedPerson)
   }
 
-  function createPerson(targetGenealogyId = '') {
-    if (!selectedGenealogy.value) return
+  function insertPerson(person, targetGenealogyId = '') {
+    if (!person?.id || !data.value) return null
 
     const genealogy =
-      (targetGenealogyId && data.value
+      (targetGenealogyId
         ? (data.value.genealogies || []).find((candidate) => candidate.id === targetGenealogyId)
         : null) ||
       (selectedGenealogy.value?.type !== 'national' ? selectedGenealogy.value : null) ||
       (data.value?.genealogies || []).find((candidate) => candidate.type !== 'national')
-    if (!genealogy || genealogy.type === 'national') return
+    if (!genealogy || genealogy.type === 'national') return null
 
-    const person = createEmptyPerson()
     const nextGenealogy = appendPersonToGenealogy(genealogy, person)
     data.value = replaceGenealogy(data.value, nextGenealogy)
     selectedPersonId.value = person.id
@@ -39,7 +37,7 @@ export function usePeopleMutations({ data, selectedGenealogy, selectedPersonId }
 
   return {
     updatePerson,
-    createPerson,
+    insertPerson,
     deletePerson,
   }
 }

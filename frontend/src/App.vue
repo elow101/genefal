@@ -315,20 +315,22 @@
 
         <aside v-if="!editorHidden" ref="editorPanel" class="panel editor" aria-label="Fiche faluchard">
           <PersonForm
-            :person="selectedPerson"
+            :person="personFormPerson"
             :people="people"
             :genealogy-options="personCreationGenealogyOptions"
-            :selected-genealogy-id="selectedPersonSourceGenealogy?.id || selectedGenealogyId"
-            :can-select-genealogy="selectedPersonId === newPersonId"
+            :selected-genealogy-id="personFormGenealogyId"
+            :can-select-genealogy="isCreatingPerson"
             :role-options="roleOptions"
             :can-manage-ceremony-events="Boolean(adminSession)"
+            :is-creating="isCreatingPerson"
             @save="handlePersonFormSave"
             @new="beginPersonCreation"
+            @cancel="cancelPersonCreation"
             @change-genealogy="handleNewPersonGenealogyChange"
             @editing="markEditing"
           />
-          <PersonDetails :person="selectedPerson" :role-options="roleOptions" />
-          <section v-if="canMoveSelectedPerson" class="person-move">
+          <PersonDetails v-if="!isCreatingPerson" :person="selectedPerson" :role-options="roleOptions" />
+          <section v-if="!isCreatingPerson && canMoveSelectedPerson" class="person-move">
             <h3>Déplacer la fiche</h3>
             <p>
               Arbre actuel :
@@ -362,7 +364,7 @@
             />
           </details>
           <button
-            v-if="selectedPerson && adminSession"
+            v-if="selectedPerson && adminSession && !isCreatingPerson"
             type="button"
             class="text-button danger-text editor-delete"
             @click="handlePersonDelete(selectedPerson.id)"
@@ -448,7 +450,7 @@ import { useAdmin } from './composables/useAdmin.js'
 import { useDebouncedValue } from './composables/useDebouncedValue.js'
 import { useDoleances } from './composables/useDoleances.js'
 import { useGenealogyData } from './composables/useGenealogyData.js'
-import { getPersonSourceGenealogy, movePersonToGenealogy } from './domain/genealogy.js'
+import { createEmptyPerson, getPersonSourceGenealogy, movePersonToGenealogy } from './domain/genealogy.js'
 import { buildGraphModel } from './domain/graph.js'
 import { cooptageRoleForRegion, roleOptionsForGenealogy } from './domain/roles.js'
 import { normalizeSearchText, personMatchesSearch } from './domain/search.js'
@@ -514,7 +516,8 @@ const feedbackMessage = ref('')
 const feedbackKind = ref('success')
 const tutorialEnabled = ref(readTutorialPreference())
 const tutorialOpen = ref(false)
-const newPersonId = ref('')
+const creationDraftPerson = ref(null)
+const creationDraftGenealogyId = ref('')
 let feedbackTimeout = 0
 let autosaveTimeout = 0
 let editingTimeout = 0
@@ -555,7 +558,7 @@ const {
   selectGenealogy,
   selectPerson,
   updatePerson,
-  createPerson,
+  insertPerson,
   deletePerson,
   upcoming,
   addGenealogy,
@@ -624,6 +627,13 @@ const cooptageRole = computed(() => cooptageRoleForRegion(upcomingRegion.value))
 const selectedPersonSourceGenealogy = computed(() =>
   selectedPerson.value ? getPersonSourceGenealogy(data.value, selectedPerson.value.id) : null,
 )
+const isCreatingPerson = computed(() => Boolean(creationDraftPerson.value))
+const personFormPerson = computed(() => creationDraftPerson.value || selectedPerson.value)
+const personFormGenealogyId = computed(() =>
+  isCreatingPerson.value
+    ? creationDraftGenealogyId.value || selectedGenealogyId.value
+    : selectedPersonSourceGenealogy.value?.id || selectedGenealogyId.value,
+)
 const adminManageableGenealogyIds = computed(() => {
   const session = adminSession.value
   if (!session) return []
@@ -683,6 +693,7 @@ const focusTitle = computed(() => {
   if (activeView.value === 'overview') return "Vue d'ensemble"
   if (activeView.value === 'stats') return 'Statistiques'
   if (activeView.value === 'upcoming') return 'Événements à venir'
+  if (isCreatingPerson.value) return 'Nouvelle personne'
   return selectedPerson.value?.name || 'Aucun faluchard sélectionné'
 })
 const focusSubtitle = computed(() => {
@@ -698,6 +709,7 @@ const focusSubtitle = computed(() => {
   }
   if (activeView.value === 'tree') {
     const layout = graphLayoutMode.value === 'network' ? 'Mode Réseau' : 'Mode Hiérarchie'
+    if (isCreatingPerson.value) return `${layout} · Brouillon local non enregistré.`
     if (!selectedPerson.value) return `${layout} · Ajoute une personne pour commencer.`
     const nickname = selectedPerson.value.nickname ? ` — ${selectedPerson.value.nickname}` : ''
     return `${layout} · ${selectedGenealogy.value?.name || 'Généalogie active'}${nickname}`
@@ -738,6 +750,39 @@ async function handleDoleanceSubmit(payload) {
 
 async function handlePersonFormSave(updatedPerson) {
   const personId = updatedPerson?.id || ''
+  if (isCreatingPerson.value) {
+    const targetGenealogyId = creationDraftGenealogyId.value || selectedGenealogyId.value
+    const finalPerson = {
+      ...updatedPerson,
+      id: `person-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    }
+    const previousState = data.value
+    const inserted = insertPerson(finalPerson, targetGenealogyId)
+
+    if (!inserted) {
+      showFeedback("La fiche n'a pas pu être créée dans cet arbre.", 'warning')
+      return
+    }
+
+    const saved = await save()
+    if (!saved) {
+      data.value = previousState
+      creationDraftPerson.value = updatedPerson
+      showFeedback("La fiche n'a pas pu être enregistrée pour le moment.", 'warning')
+      return
+    }
+
+    creationDraftPerson.value = null
+    creationDraftGenealogyId.value = ''
+    selectGenealogy(targetGenealogyId)
+    await nextTick()
+    selectPerson(finalPerson.id)
+    graphFocusPersonId.value = finalPerson.id
+    showFeedback('La fiche a bien été créée.', 'success')
+    return
+  }
+
   updatePerson(updatedPerson)
   const saved = await save()
 
@@ -748,7 +793,6 @@ async function handlePersonFormSave(updatedPerson) {
 
   const savedPerson = people.value.find((person) => person.id === personId)
   if (personUpdateWasApplied(updatedPerson, savedPerson)) {
-    if (newPersonId.value === personId) newPersonId.value = ''
     showFeedback('La fiche a bien été modifiée.', 'success')
     return
   }
@@ -807,30 +851,31 @@ function resetZoom() {
 function beginPersonCreation() {
   if (editorHidden.value || activeView.value === 'home') activeView.value = 'tree'
   if (activeView.value === 'tree') setGraphLayoutMode('network')
-  const person = createPerson()
-  newPersonId.value = person?.id || ''
-  const source = person?.id ? getPersonSourceGenealogy(data.value, person.id) : null
-  if (source && source.id !== selectedGenealogyId.value) {
-    selectGenealogy(source.id)
-    selectPerson(person.id)
-  }
+  const targetGenealogyId =
+    (selectedGenealogy.value?.type !== 'national' ? selectedGenealogyId.value : '') ||
+    personCreationGenealogyOptions.value[0]?.id ||
+    ''
+  const draft = createEmptyPerson(`draft-person-${Date.now()}`)
+  creationDraftPerson.value = draft
+  creationDraftGenealogyId.value = targetGenealogyId
+  selectPerson('')
+  graphFocusPersonId.value = ''
   nextTick(() => {
     editorPanel.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
   })
 }
 
 function handleNewPersonGenealogyChange(targetGenealogyId) {
-  const personId = selectedPerson.value?.id || ''
-  if (!personId || personId !== newPersonId.value || !targetGenealogyId) return
+  if (isCreatingPerson.value) {
+    creationDraftGenealogyId.value = targetGenealogyId
+    return
+  }
+}
 
-  const previousState = data.value
-  data.value = movePersonToGenealogy(data.value, personId, targetGenealogyId)
-  if (data.value === previousState) return
-
-  selectGenealogy(targetGenealogyId)
-  nextTick(() => {
-    selectPerson(personId)
-  })
+function cancelPersonCreation() {
+  creationDraftPerson.value = null
+  creationDraftGenealogyId.value = ''
+  showFeedback('Création abandonnée.', 'success')
 }
 
 function scrollToTop() {

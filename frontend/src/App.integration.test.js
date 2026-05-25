@@ -38,6 +38,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
     await wrapper.get('input[required]').setValue('Bérénice')
     await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
@@ -47,6 +48,20 @@ describe('App integration', () => {
     expect(body.schemaVersion).toBe(1)
     expect(body.genealogies.some((genealogy) => genealogy.people.some((person) => person.name === 'Bérénice'))).toBe(true)
     expect(wrapper.text()).toContain('La fiche a bien')
+  })
+
+  it('abandons a temporary new person without saving it', async () => {
+    const requests = installFetchMock()
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
+    await wrapper.get('input[required]').setValue('Fiche temporaire')
+    await wrapper.findAll('.person-form button').find((button) => button.text() === 'Annuler').trigger('click')
+    await flushPromises()
+
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('Fiche temporaire')
   })
 
   it('allows public duplicate person creation while admin duplicate tooling handles review', async () => {

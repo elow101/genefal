@@ -19,6 +19,8 @@ export function useGenealogyData() {
   const data = ref(null)
   const sessionActions = ref([])
   const lastSavedSnapshot = ref('')
+  let activeSavePromise = null
+  let saveQueuedDuringFlight = false
   const selection = useGenealogySelection(data)
   const peopleMutations = usePeopleMutations({
     data,
@@ -63,28 +65,57 @@ export function useGenealogyData() {
   async function save() {
     if (!data.value) return false
 
+    if (activeSavePromise) {
+      saveQueuedDuringFlight = true
+      return activeSavePromise
+    }
+
+    activeSavePromise = runSaveQueue()
+    try {
+      return await activeSavePromise
+    } finally {
+      activeSavePromise = null
+    }
+  }
+
+  async function runSaveQueue() {
+    saving.value = true
+    error.value = ''
+    let saved = true
+
+    try {
+      do {
+        saveQueuedDuringFlight = false
+        const result = await saveCurrentState()
+        saved = saved && result
+        if (!result) return false
+      } while (saveQueuedDuringFlight && stateSnapshot() !== lastSavedSnapshot.value)
+
+      return saved
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function saveCurrentState() {
     const snapshot = stateSnapshot()
     if (snapshot === lastSavedSnapshot.value) {
       return true
     }
 
-    saving.value = true
-    error.value = ''
-
     try {
       const result = await saveGenealogyState(data.value, csrfToken.value)
+      const hasLocalChangesSinceRequest = stateSnapshot() !== snapshot
 
-      if (result.state) {
+      if (result.state && !hasLocalChangesSinceRequest) {
         data.value = result.state
       }
-      markStateAsSaved()
+      lastSavedSnapshot.value = hasLocalChangesSinceRequest ? snapshot : stateSnapshot()
       sessionActions.value = result.sessionActions || []
       return true
     } catch (err) {
       error.value = err.message
       return false
-    } finally {
-      saving.value = false
     }
   }
 

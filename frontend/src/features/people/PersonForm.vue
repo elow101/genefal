@@ -95,38 +95,47 @@
             </button>
           </div>
           <CeremonyEventEditor
+            v-if="!isCreating"
             :person="person"
             :people="people"
             :can-delete="canManageCeremonyEvents"
             @update="$emit('save', $event)"
           />
+          <p v-else class="field-hint">
+            Les adoptions, confirmations et liens avancés seront disponibles après l'enregistrement de la fiche.
+          </p>
         </div>
       </details>
 
       <details ref="sponsorshipSection" class="form-section">
         <summary>Famille</summary>
         <div class="form-section-body relation-editors">
-          <SponsorEditor
-            title="Parrains / Marraines"
-            field="sponsorIds"
-            :person="person"
-            :people="people"
-            @update="$emit('save', $event)"
-          />
-          <SponsorEditor
-            title="Parrains / Marraines de cœur"
-            field="heartSponsorIds"
-            :person="person"
-            :people="people"
-            @update="$emit('save', $event)"
-          />
-          <SponsorEditor
-            title="Fillots"
-            field="fillotIds"
-            :person="person"
-            :people="people"
-            @update="$emit('save', $event)"
-          />
+          <template v-if="!isCreating">
+            <SponsorEditor
+              title="Parrains / Marraines"
+              field="sponsorIds"
+              :person="person"
+              :people="people"
+              @update="$emit('save', $event)"
+            />
+            <SponsorEditor
+              title="Parrains / Marraines de cœur"
+              field="heartSponsorIds"
+              :person="person"
+              :people="people"
+              @update="$emit('save', $event)"
+            />
+            <SponsorEditor
+              title="Fillots"
+              field="fillotIds"
+              :person="person"
+              :people="people"
+              @update="$emit('save', $event)"
+            />
+          </template>
+          <p v-else class="field-hint">
+            Enregistre d'abord la fiche pour créer des liens parent/fillot sans fiche fantôme.
+          </p>
         </div>
       </details>
 
@@ -151,6 +160,7 @@
 
       <div class="form-actions">
         <button class="primary" type="submit">Enregistrer</button>
+        <button v-if="isCreating" class="text-button" type="button" @click="$emit('cancel')">Annuler</button>
       </div>
     </form>
   </section>
@@ -170,9 +180,10 @@ const props = defineProps({
   canSelectGenealogy: { type: Boolean, default: false },
   roleOptions: { type: Array, default: () => [] },
   canManageCeremonyEvents: { type: Boolean, default: false },
+  isCreating: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['save', 'new', 'editing', 'change-genealogy'])
+const emit = defineEmits(['save', 'new', 'editing', 'change-genealogy', 'cancel'])
 const activeSection = ref('identity')
 const identityAnchor = ref(null)
 const advancedSection = ref(null)
