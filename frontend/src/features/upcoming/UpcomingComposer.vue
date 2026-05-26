@@ -10,6 +10,14 @@
           <h3>Créer un événement</h3>
           <p>Prépare une annonce claire, adaptée aux écrans mobiles.</p>
         </div>
+        <button
+          type="button"
+          class="help-icon help-icon--inline"
+          aria-label="Aide pour créer un événement"
+          @click="$emit('help', 'event_create')"
+        >
+          ?
+        </button>
         <span v-if="draftStatus" class="inline-status">{{ draftStatus }}</span>
       </div>
 
@@ -164,7 +172,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['create'])
+const emit = defineEmits(['create', 'help'])
 const draft = reactive(defaultDraft())
 const draftStatus = ref('')
 const showHelp = ref(true)

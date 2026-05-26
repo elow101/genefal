@@ -2,7 +2,12 @@
   <section class="person-form">
     <div class="form-head">
       <h2>Fiche faluchard</h2>
-      <button class="text-button" type="button" @click="$emit('new')">Nouveau</button>
+      <div class="help-row">
+        <button class="help-icon help-icon--inline" type="button" aria-label="Aide pour créer une fiche" @click="$emit('help', 'faluchard_create')">
+          ?
+        </button>
+        <button class="text-button" type="button" @click="$emit('new')">Nouveau</button>
+      </div>
     </div>
 
     <p v-if="!person" class="empty">Sélectionne une personne à modifier.</p>
@@ -183,7 +188,7 @@ const props = defineProps({
   isCreating: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['save', 'new', 'editing', 'change-genealogy', 'cancel'])
+const emit = defineEmits(['save', 'new', 'help', 'editing', 'change-genealogy', 'cancel'])
 const activeSection = ref('identity')
 const identityAnchor = ref(null)
 const advancedSection = ref(null)

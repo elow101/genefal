@@ -37,7 +37,8 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await flushPromises()
     expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
     await wrapper.get('input[required]').setValue('Bérénice')
     await wrapper.get('.person-form form').trigger('submit.prevent')
@@ -55,13 +56,33 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await flushPromises()
     await wrapper.get('input[required]').setValue('Fiche temporaire')
     await wrapper.findAll('.person-form button').find((button) => button.text() === 'Annuler').trigger('click')
     await flushPromises()
 
     expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Fiche temporaire')
+  })
+
+  it('opens the tree editor before starting a home-page person creation', async () => {
+    const requests = installFetchMock()
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Mode Réseau')
+    expect(wrapper.text()).toContain('Brouillon local non enregistré')
+    expect(wrapper.find('.person-form form').exists()).toBe(true)
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
+
+    await wrapper.findAll('.person-form button').find((button) => button.text() === 'Annuler').trigger('click')
+    await flushPromises()
+
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
   })
 
   it('allows public duplicate person creation while admin duplicate tooling handles review', async () => {
@@ -87,7 +108,8 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Nouveau').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await flushPromises()
     await flushPromises()
     const inputs = wrapper.findAll('.person-form input')
     await inputs[0].setValue('  leo dupont  ')
@@ -108,6 +130,8 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await wrapper.findAll('button').find((button) => button.text() === 'Explorer l\'arbre').trigger('click')
+    await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')
     await wrapper.get('input[required]').setValue('Alice modifiée')
     await wrapper.get('.person-form form').trigger('submit.prevent')
@@ -166,6 +190,8 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await wrapper.findAll('button').find((button) => button.text() === 'Explorer l\'arbre').trigger('click')
+    await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Admin')).trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')

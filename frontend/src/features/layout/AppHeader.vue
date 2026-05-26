@@ -105,6 +105,7 @@
       <span class="server-status" :class="{ 'is-offline': error, 'is-online': !error }">
         {{ statusLabel }}
       </span>
+      <AppButton @click="$emit('open-help')">Aide</AppButton>
       <AppButton @click="$emit('export')">Exporter</AppButton>
       <AppButton @click="$emit('open-doleances')">Doléances</AppButton>
       <AppButton @click="$emit('open-admin')">Admin</AppButton>
@@ -125,7 +126,7 @@ const props = defineProps({
   error: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-genealogy', 'go-home', 'export', 'open-doleances', 'open-admin'])
+const emit = defineEmits(['select-genealogy', 'go-home', 'open-help', 'export', 'open-doleances', 'open-admin'])
 const genealogyMenu = ref(null)
 const genealogyPopover = ref(null)
 const isGenealogyListScrollable = ref(false)

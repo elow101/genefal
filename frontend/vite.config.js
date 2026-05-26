@@ -27,6 +27,15 @@ export default defineConfig({
   // donc leurs URLs publiques doivent pointer vers ce dossier explicite.
   base: '/frontend/dist/',
   plugins: [vue(), process.env.NODE_ENV === 'production' ? null : vueDevTools()].filter(Boolean),
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/vue')) return 'vue'
+        },
+      },
+    },
+  },
 
   server: {
     host: '127.0.0.1',

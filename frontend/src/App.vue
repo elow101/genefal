@@ -8,6 +8,7 @@
       :error="error"
       @select-genealogy="handleGenealogySelect"
       @go-home="activeView = 'home'"
+      @open-help="openHelpCenter"
       @export="activeOverlay = 'exports'"
       @open-doleances="activeOverlay = 'doleances'"
       @open-admin="openAdmin"
@@ -26,14 +27,6 @@
           :results="searchResults"
           @select="selectSearchResult"
         />
-
-        <AppField label="Ascendants visibles">
-          <input v-model.number="ancestorDepth" type="number" min="0" max="20" />
-        </AppField>
-
-        <AppField label="Descendants visibles">
-          <input v-model.number="descendantDepth" type="number" min="0" max="20" />
-        </AppField>
 
         <button class="add-sheet-button" type="button" @click="beginPersonCreation">
           Fiche d'ajout
@@ -94,7 +87,17 @@
             }"
           >
             <section v-if="activeView === 'tree'" class="graph-layout-controls" aria-label="Mode d'affichage de l'arbre">
-              <span>Mode d'affichage</span>
+              <div class="help-row">
+                <span>Mode d'affichage</span>
+                <button
+                  type="button"
+                  class="help-icon"
+                  aria-label="Aide sur la lecture des liens et des croisements"
+                  @click="openTutorialById('crossed_baptism')"
+                >
+                  ?
+                </button>
+              </div>
               <div class="graph-layout-options" role="group" aria-label="Mode d'affichage de l'arbre">
                 <button
                   type="button"
@@ -173,6 +176,14 @@
               <div class="network-halo-controls__header">
                 <strong>Portée du halo</strong>
                 <span>{{ graphFocusPersonId ? 'Appliquée au profil sélectionné' : 'Sélectionne une fiche' }}</span>
+                <button
+                  type="button"
+                  class="help-icon help-icon--inline"
+                  aria-label="Aide sur le halo et la compréhension des croisements"
+                  @click="openTutorialById('crossed_baptism')"
+                >
+                  ?
+                </button>
               </div>
               <div class="network-halo-controls__groups">
                 <div class="network-halo-group" role="group" aria-label="Générations ascendantes surlignées">
@@ -241,7 +252,7 @@
                 <div class="home-actions" aria-label="Actions principales">
                   <button type="button" class="primary" @click="openMainTreeView">Explorer l'arbre</button>
                   <button type="button" @click="activeView = 'upcoming'">Voir les prochains events</button>
-                  <button type="button" @click="beginPersonCreation">Ajouter une fiche</button>
+                  <button type="button" @click="openTreeAndBeginPersonCreation">Ajouter une fiche</button>
                 </div>
                 <section class="tutorial-home-card" aria-label="Tutoriels">
                   <div>
@@ -286,6 +297,7 @@
                   :enabled="Boolean(upcomingRegion)"
                   :cooptage-role="cooptageRole"
                   @create="handleUpcomingCreate"
+                  @help="openTutorialById"
                 />
                 <section v-if="upcomingCreatorPassword" class="notice upcoming-secret">
                   <strong>Mot de passe créateur</strong>
@@ -313,7 +325,7 @@
           </div>
         </section>
 
-        <aside v-if="!editorHidden" ref="editorPanel" class="panel editor" aria-label="Fiche faluchard">
+        <aside v-if="editorVisible" ref="editorPanel" class="panel editor" aria-label="Fiche faluchard">
           <PersonForm
             :person="personFormPerson"
             :people="people"
@@ -325,6 +337,7 @@
             :is-creating="isCreatingPerson"
             @save="handlePersonFormSave"
             @new="beginPersonCreation"
+            @help="openTutorialById"
             @cancel="cancelPersonCreation"
             @change-genealogy="handleNewPersonGenealogyChange"
             @editing="markEditing"
@@ -432,9 +445,20 @@
     </p>
 
     <TutorialOverlay
-      v-if="tutorialEnabled && tutorialOpen"
+      v-if="tutorialOpen"
+      :initial-tutorial-id="tutorialInitialId"
+      :allow-admin-tutorial="activeOverlay === 'admin'"
       @finish="completeTutorial"
       @skip="completeTutorial"
+    />
+
+    <TutorialHint
+      v-if="tutorialEnabled && activeHint && !tutorialOpen"
+      :title="activeHint.title"
+      :text="activeHint.text"
+      :show-open="Boolean(activeHint.suggestedTutorialId)"
+      @open="openTutorialFromHint"
+      @dismiss="dismissActiveHint"
     />
 
     <footer class="app-footer">
@@ -444,8 +468,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import AppField from './components/ui/AppField.vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAdmin } from './composables/useAdmin.js'
 import { useDebouncedValue } from './composables/useDebouncedValue.js'
 import { useDoleances } from './composables/useDoleances.js'
@@ -464,15 +487,27 @@ import PersonDetails from './features/people/PersonDetails.vue'
 import PersonForm from './features/people/PersonForm.vue'
 import PersonSearch from './features/search/PersonSearch.vue'
 import TutorialOverlay from './features/tutorial/TutorialOverlay.vue'
+import TutorialHint from './features/tutorial/TutorialHint.vue'
+import { contextualHintsFr } from './features/tutorial/tutorials.fr.js'
 
-const AdminPanel = defineAsyncComponent(() => import('./features/admin/AdminPanel.vue'))
-const GenealogyAdmin = defineAsyncComponent(() => import('./features/admin/GenealogyAdmin.vue'))
-const AdminDoleanceList = defineAsyncComponent(() => import('./features/doleances/AdminDoleanceList.vue'))
-const DoleancePanel = defineAsyncComponent(() => import('./features/doleances/DoleancePanel.vue'))
-const ExportPanel = defineAsyncComponent(() => import('./features/exports/ExportPanel.vue'))
-const StatsDashboard = defineAsyncComponent(() => import('./features/stats/StatsDashboard.vue'))
-const UpcomingComposer = defineAsyncComponent(() => import('./features/upcoming/UpcomingComposer.vue'))
-const UpcomingView = defineAsyncComponent(() => import('./features/upcoming/UpcomingView.vue'))
+const secondaryComponentLoaders = {
+  adminPanel: () => import('./features/admin/AdminPanel.vue'),
+  genealogyAdmin: () => import('./features/admin/GenealogyAdmin.vue'),
+  adminDoleanceList: () => import('./features/doleances/AdminDoleanceList.vue'),
+  doleancePanel: () => import('./features/doleances/DoleancePanel.vue'),
+  exportPanel: () => import('./features/exports/ExportPanel.vue'),
+  statsDashboard: () => import('./features/stats/StatsDashboard.vue'),
+  upcomingComposer: () => import('./features/upcoming/UpcomingComposer.vue'),
+  upcomingView: () => import('./features/upcoming/UpcomingView.vue'),
+}
+const AdminPanel = defineAsyncComponent(secondaryComponentLoaders.adminPanel)
+const GenealogyAdmin = defineAsyncComponent(secondaryComponentLoaders.genealogyAdmin)
+const AdminDoleanceList = defineAsyncComponent(secondaryComponentLoaders.adminDoleanceList)
+const DoleancePanel = defineAsyncComponent(secondaryComponentLoaders.doleancePanel)
+const ExportPanel = defineAsyncComponent(secondaryComponentLoaders.exportPanel)
+const StatsDashboard = defineAsyncComponent(secondaryComponentLoaders.statsDashboard)
+const UpcomingComposer = defineAsyncComponent(secondaryComponentLoaders.upcomingComposer)
+const UpcomingView = defineAsyncComponent(secondaryComponentLoaders.upcomingView)
 
 const views = [
   { id: 'home', label: 'Accueil' },
@@ -516,6 +551,8 @@ const feedbackMessage = ref('')
 const feedbackKind = ref('success')
 const tutorialEnabled = ref(readTutorialPreference())
 const tutorialOpen = ref(false)
+const tutorialInitialId = ref('')
+const dismissedHintKeys = ref(new Set())
 const creationDraftPerson = ref(null)
 const creationDraftGenealogyId = ref('')
 let feedbackTimeout = 0
@@ -622,6 +659,13 @@ const graphContentSize = computed(() => {
 const upcomingEvents = computed(() => upcoming.events.value)
 const upcomingRegion = computed(() => upcoming.region.value)
 const editorHidden = computed(() => ['stats', 'upcoming'].includes(activeView.value))
+const editorVisible = computed(() => {
+  if (editorHidden.value) return false
+  // Sur l’accueil, le panneau d’ajout doit rester fermé par défaut.
+  // On l’affiche uniquement quand on crée une nouvelle fiche.
+  if (activeView.value === 'home') return Boolean(isCreatingPerson.value)
+  return true
+})
 const roleOptions = computed(() => roleOptionsForGenealogy(genealogies.value, selectedGenealogy.value))
 const cooptageRole = computed(() => cooptageRoleForRegion(upcomingRegion.value))
 const selectedPersonSourceGenealogy = computed(() =>
@@ -849,8 +893,30 @@ function resetZoom() {
 }
 
 function beginPersonCreation() {
-  if (editorHidden.value || activeView.value === 'home') activeView.value = 'tree'
-  if (activeView.value === 'tree') setGraphLayoutMode('network')
+  // Si l’éditeur n’est pas visible (stats/upcoming) ou si on est sur l’accueil,
+  // on bascule en vue arbre pour que le formulaire s’ouvre correctement.
+  if (editorHidden.value || activeView.value === 'home') {
+    activeView.value = 'tree'
+    setGraphLayoutMode('network')
+  } else if (activeView.value === 'tree') {
+    setGraphLayoutMode('network')
+  }
+  startPersonCreationDraft()
+  nextTick(() => {
+    editorPanel.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  })
+}
+
+async function openTreeAndBeginPersonCreation() {
+  activeView.value = 'tree'
+  setGraphLayoutMode('network')
+  await nextTick()
+  startPersonCreationDraft()
+  await nextTick()
+  editorPanel.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+}
+
+function startPersonCreationDraft() {
   const targetGenealogyId =
     (selectedGenealogy.value?.type !== 'national' ? selectedGenealogyId.value : '') ||
     personCreationGenealogyOptions.value[0]?.id ||
@@ -860,9 +926,6 @@ function beginPersonCreation() {
   creationDraftGenealogyId.value = targetGenealogyId
   selectPerson('')
   graphFocusPersonId.value = ''
-  nextTick(() => {
-    editorPanel.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
-  })
 }
 
 function handleNewPersonGenealogyChange(targetGenealogyId) {
@@ -1386,12 +1449,59 @@ function setNetworkHaloDepth(direction, value) {
 
 function openTutorial() {
   if (!tutorialEnabled.value || activeView.value !== 'home') return
+  tutorialInitialId.value = ''
   tutorialOpen.value = true
 }
 
 function completeTutorial() {
   tutorialOpen.value = false
+  tutorialInitialId.value = ''
 }
+
+function openHelpCenter() {
+  tutorialInitialId.value = ''
+  tutorialOpen.value = true
+}
+
+function openTutorialById(id) {
+  tutorialInitialId.value = id || ''
+  tutorialOpen.value = true
+}
+
+function openTutorialFromHint() {
+  const id = activeHint.value?.suggestedTutorialId || ''
+  tutorialInitialId.value = id
+  tutorialOpen.value = true
+}
+
+function dismissActiveHint() {
+  const key = activeHintKey.value
+  if (!key) return
+  dismissedHintKeys.value = new Set([...dismissedHintKeys.value, key])
+}
+
+const activeHintKey = computed(() => {
+  if (!tutorialEnabled.value) return ''
+  if (activeOverlay.value === 'admin') return 'admin'
+  if (activeView.value === 'upcoming') return 'upcoming'
+  if (activeView.value === 'tree' && isCreatingPerson.value) return 'creatingPerson'
+  if (activeView.value === 'tree') return 'tree'
+  if (activeView.value === 'home') return 'home'
+  return ''
+})
+
+const activeHint = computed(() => {
+  const key = activeHintKey.value
+  if (!key) return null
+  if (dismissedHintKeys.value.has(key)) return null
+  return contextualHintsFr[key] || null
+})
+
+watch(activeHintKey, (key) => {
+  if (!key) return
+  // Reset dismissed hints when user explicitly re-opens help center.
+  // (We keep this lightweight: no storage, session-only.)
+})
 
 function markEditing() {
   editing.value = true
@@ -1410,6 +1520,21 @@ function scheduleAutosave(delay = 1400) {
     }
     await save()
   }, delay)
+}
+
+function scheduleSecondaryChunkPreload() {
+  const preload = () => {
+    Object.values(secondaryComponentLoaders).forEach((load) => {
+      load().catch(() => {})
+    })
+  }
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(preload, { timeout: 5000 })
+    return
+  }
+
+  window.setTimeout(preload, 2500)
 }
 
 function selectSearchResult(personId) {
@@ -1500,6 +1625,10 @@ watch(
   },
   { immediate: true },
 )
+
+onMounted(() => {
+  scheduleSecondaryChunkPreload()
+})
 
 onBeforeUnmount(() => {
   window.clearTimeout(feedbackTimeout)
