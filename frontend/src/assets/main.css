@@ -602,14 +602,12 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   overflow: hidden;
+  transition: grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .workspace--editor-hidden {
-  grid-template-columns: minmax(360px, 1fr);
-}
-
-.workspace--document-flow {
-  overflow: visible;
+  grid-template-columns: 1fr;
+  max-width: 100%;
 }
 
 .graph-area {
@@ -791,13 +789,14 @@ textarea {
   touch-action: auto;
 }
 
-.workspace--document-flow,
-.graph-area--document-flow {
+.workspace--document-flow {
+  overflow: visible;
   align-items: start;
 }
 
 .graph-area--document-flow {
   align-content: start;
+  align-items: start;
 }
 
 .graph-help {
@@ -941,14 +940,27 @@ textarea {
 
 .home-panel {
   display: grid;
-  gap: 18px;
+  gap: 24px;
+  max-width: 100%;
+  animation: home-panel-fade-in 0.25s ease-out;
+}
+
+@keyframes home-panel-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .home-actions,
 .home-summary,
 .profile-filters {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .home-actions {
@@ -956,19 +968,20 @@ textarea {
 }
 
 .home-actions button {
-  min-height: 48px;
+  min-height: 52px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--field);
   color: var(--ink);
   cursor: pointer;
   font-weight: 800;
+  font-size: 0.95rem;
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .home-actions button.primary {
   border-color: rgba(112, 215, 223, 0.46);
-  background: var(--field);
+  background: linear-gradient(135deg, rgba(112, 215, 223, 0.12) 0%, rgba(30, 152, 163, 0.08) 100%);
   color: var(--ink);
   box-shadow: inset 0 0 0 1px rgba(112, 215, 223, 0.08);
 }
@@ -992,36 +1005,46 @@ textarea {
 
 .tutorial-home-card {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--paper);
-  padding: 14px;
+  padding: 18px;
 }
 
 .tutorial-home-card h3 {
   margin: 0 0 4px;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  color: var(--ink);
 }
 
 .tutorial-home-card p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .tutorial-home-card .tutorial-launch {
-  min-height: 46px;
+  min-height: 48px;
   border: 1px solid rgba(112, 215, 223, 0.38);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--field);
   color: var(--ink);
   cursor: pointer;
   font-weight: 800;
+  font-size: 0.92rem;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tutorial-home-card .tutorial-launch:hover,
+.tutorial-home-card .tutorial-launch:focus-visible {
+  border-color: var(--accent);
+  background: #25312f;
+  box-shadow: 0 0 0 3px rgba(112, 215, 223, 0.08);
 }
 
 .home-summary {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .home-summary article {
@@ -3711,7 +3734,7 @@ summary {
   }
 
   .workspace--editor-hidden {
-    grid-template-columns: minmax(360px, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .workspace--document-flow {
