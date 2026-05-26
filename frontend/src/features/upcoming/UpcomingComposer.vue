@@ -21,17 +21,6 @@
         <span v-if="draftStatus" class="inline-status">{{ draftStatus }}</span>
       </div>
 
-      <details v-if="showHelp" class="upcoming-help" open>
-        <summary>
-          Aide rapide
-          <button type="button" class="text-button" @click.prevent="dismissHelp">Masquer</button>
-        </summary>
-        <p>
-          Baptême, adoption et confirmation ouvrent toujours les demandes. Cooptage ne les ouvre jamais.
-          Pour un événement autre, active l’option dédiée. Le créateur reçoit un mot de passe pour gérer l’annonce.
-        </p>
-      </details>
-
       <section class="upcoming-form-block">
         <h4>Informations</h4>
         <div class="upcoming-fields">
@@ -161,8 +150,6 @@ import { eventRequiresParticipation } from '../../domain/upcoming.js'
 import PersonMultiPicker from '../people/PersonMultiPicker.vue'
 
 const DRAFT_KEY = 'genefaluche-upcoming-event-draft'
-const HELP_KEY = 'genefaluche-upcoming-help-dismissed'
-
 const props = defineProps({
   people: { type: Array, required: true },
   enabled: { type: Boolean, default: true },
@@ -175,7 +162,6 @@ const props = defineProps({
 const emit = defineEmits(['create', 'help'])
 const draft = reactive(defaultDraft())
 const draftStatus = ref('')
-const showHelp = ref(true)
 let draftStatusTimeout = 0
 let restoringDraft = false
 
@@ -250,7 +236,6 @@ watch(
 )
 
 onMounted(() => {
-  showHelp.value = window.localStorage?.getItem(HELP_KEY) !== '1'
   const saved = window.localStorage?.getItem(DRAFT_KEY)
   if (!saved) return
   try {
@@ -352,8 +337,4 @@ function toDateInputValue(date) {
   return `${year}-${month}-${day}`
 }
 
-function dismissHelp() {
-  showHelp.value = false
-  window.localStorage?.setItem(HELP_KEY, '1')
-}
 </script>

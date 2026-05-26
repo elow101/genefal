@@ -61,7 +61,7 @@
       <section
         class="workspace"
         :class="{
-          'workspace--editor-hidden': editorHidden,
+          'workspace--editor-hidden': !editorVisible,
           'workspace--document-flow': !graphIsPannable,
         }"
       >

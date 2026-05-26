@@ -101,11 +101,18 @@
     </div>
 
     <div class="actions">
-      <button class="home-shortcut" type="button" aria-label="Accueil" title="Accueil" @click="$emit('go-home')">⌂</button>
-      <span class="server-status" :class="{ 'is-offline': error, 'is-online': !error }">
-        {{ statusLabel }}
-      </span>
-      <AppButton @click="$emit('open-help')">Aide</AppButton>
+      <button
+        class="home-shortcut"
+        :class="`home-shortcut--${homeStatusKind}`"
+        type="button"
+        :aria-label="homeStatusLabel"
+        :title="homeStatusLabel"
+        @click="$emit('go-home')"
+      >
+        <span aria-hidden="true">⌂</span>
+        <small>{{ statusLabel }}</small>
+      </button>
+      <button class="toolbar-help" type="button" aria-label="Ouvrir l’aide" title="Ouvrir l’aide" @click="$emit('open-help')">?</button>
       <AppButton @click="$emit('export')">Exporter</AppButton>
       <AppButton @click="$emit('open-doleances')">Doléances</AppButton>
       <AppButton @click="$emit('open-admin')">Admin</AppButton>
@@ -137,6 +144,17 @@ let scrollHintRaf = 0
 const selectedPhoto = computed(
   () => props.genealogies.find((genealogy) => genealogy.id === props.selectedGenealogyId)?.photoData || brandMark,
 )
+const homeStatusKind = computed(() => {
+  if (props.error) return 'error'
+  const status = props.statusLabel.toLowerCase()
+  if (status.includes('synchronisation') || status.includes('sauvegarde')) return 'saving'
+  return 'online'
+})
+const homeStatusLabel = computed(() => {
+  if (homeStatusKind.value === 'error') return `Accueil — erreur de sauvegarde : ${props.statusLabel}`
+  if (homeStatusKind.value === 'saving') return `Accueil — ${props.statusLabel}`
+  return `Accueil — ${props.statusLabel}`
+})
 const nationalGenealogy = computed(() => props.genealogies.find((genealogy) => genealogy.type === 'national') || null)
 const regionGroups = computed(() => {
   const regions = props.genealogies.filter((genealogy) => genealogy.type === 'region')
