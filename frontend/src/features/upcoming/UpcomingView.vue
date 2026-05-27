@@ -6,9 +6,10 @@
         <p v-if="region">
           {{ filteredEvents.length }} événement(s) visible(s) dans {{ region.name }}.
         </p>
-
-        <p v-else>Ouvre une faluche de région ou une famille pour voir les événements.
+        <p v-else-if="filteredEvents.length">
+          {{ filteredEvents.length }} événement(s) national(aux) à venir.
         </p>
+        <p v-else>Aucun événement national. Ouvre une région ou une famille pour voir plus d’annonces.</p>
       </div>
 
       <div class="upcoming-region-actions">
@@ -39,7 +40,7 @@
       </div>
     </form>
 
-    <div v-if="region" class="quick-filter-strip" aria-label="Filtres rapides">
+    <div class="quick-filter-strip" aria-label="Filtres rapides">
       <button
         v-for="filter in quickFilters"
         :key="filter.id"
@@ -52,7 +53,7 @@
       </button>
     </div>
 
-    <div v-if="region" class="upcoming-filters">
+    <div class="upcoming-filters">
       <label>
         Type
         <select v-model="typeFilter">
@@ -71,8 +72,7 @@
       </label>
     </div>
 
-    <p v-if="!region" class="empty">Aucune région active pour les événements à venir.</p>
-    <p v-else-if="filteredEvents.length === 0" class="empty">Aucun événement trouvé.</p>
+    <p v-if="filteredEvents.length === 0" class="empty">Aucun événement trouvé.</p>
 
     <div v-else class="upcoming-list">
       <UpcomingCard
@@ -80,7 +80,7 @@
         :key="event.id"
         :event="event"
         :people="people"
-        :region-name="region.name"
+        :region-name="region?.name || ''"
         :cooptage-role-label="cooptageRoleLabel"
         :can-delete="canDelete"
         :participation-status="participationByEvent[event.id] || ''"

@@ -22,21 +22,24 @@
 
     <template v-else>
       <section class="options-bar" aria-label="Options d'affichage">
-        <PersonSearch
-          v-model="searchQuery"
-          :results="searchResults"
-          @select="selectSearchResult"
-        />
+        <PersonSearch v-model="searchQuery" :results="searchResults" @select="selectSearchResult" />
 
         <button class="add-sheet-button" type="button" @click="beginPersonCreation">
           Fiche d'ajout
         </button>
       </section>
 
-      <section v-if="sessionActions.length && !adminSession" class="session-actions panel" aria-label="Modifications récentes">
+      <section
+        v-if="sessionActions.length && !adminSession"
+        class="session-actions panel"
+        aria-label="Modifications récentes"
+      >
         <div>
           <h2>Actions de cette session</h2>
-          <p>Ces annulations restent disponibles tant que les données n'ont pas été modifiées ailleurs.</p>
+          <p>
+            Ces annulations restent disponibles tant que les données n'ont pas été modifiées
+            ailleurs.
+          </p>
         </div>
         <div class="session-action-list">
           <article v-for="action in sessionActions" :key="action.id" class="session-action">
@@ -50,7 +53,12 @@
               >
                 Modifier
               </button>
-              <button type="button" class="text-button danger-text" :disabled="saving" @click="undoRecentAction(action)">
+              <button
+                type="button"
+                class="text-button danger-text"
+                :disabled="saving"
+                @click="undoRecentAction(action)"
+              >
                 Annuler
               </button>
             </div>
@@ -86,7 +94,11 @@
               'graph-stage-wrap--document-flow': !graphIsPannable,
             }"
           >
-            <section v-if="activeView === 'tree'" class="graph-layout-controls" aria-label="Mode d'affichage de l'arbre">
+            <section
+              v-if="activeView === 'tree'"
+              class="graph-layout-controls"
+              aria-label="Mode d'affichage de l'arbre"
+            >
               <div class="help-row">
                 <span>Mode d'affichage</span>
                 <button
@@ -98,7 +110,11 @@
                   ?
                 </button>
               </div>
-              <div class="graph-layout-options" role="group" aria-label="Mode d'affichage de l'arbre">
+              <div
+                class="graph-layout-options"
+                role="group"
+                aria-label="Mode d'affichage de l'arbre"
+              >
                 <button
                   type="button"
                   :class="{ 'is-active': graphLayoutMode === 'network' }"
@@ -120,11 +136,30 @@
               class="zoom-controls graph-stage-zoom"
               aria-label="Zoom de l'arbre"
             >
-              <button type="button" title="Zoom arrière" aria-label="Zoom arrière" @click="adjustZoom(-0.1)">−</button>
-              <button type="button" title="Réinitialiser le zoom" aria-label="Réinitialiser le zoom" @click="resetZoom">
+              <button
+                type="button"
+                title="Zoom arrière"
+                aria-label="Zoom arrière"
+                @click="adjustZoom(-0.1)"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                title="Réinitialiser le zoom"
+                aria-label="Réinitialiser le zoom"
+                @click="resetZoom"
+              >
                 {{ Math.round(graphZoom * 100) }}%
               </button>
-              <button type="button" title="Zoom avant" aria-label="Zoom avant" @click="adjustZoom(0.1)">+</button>
+              <button
+                type="button"
+                title="Zoom avant"
+                aria-label="Zoom avant"
+                @click="adjustZoom(0.1)"
+              >
+                +
+              </button>
               <button
                 type="button"
                 class="zoom-controls__selected"
@@ -175,7 +210,9 @@
             >
               <div class="network-halo-controls__header">
                 <strong>Portée du halo</strong>
-                <span>{{ graphFocusPersonId ? 'Appliquée au profil sélectionné' : 'Sélectionne une fiche' }}</span>
+                <span>{{
+                  graphFocusPersonId ? 'Appliquée au profil sélectionné' : 'Sélectionne une fiche'
+                }}</span>
                 <button
                   type="button"
                   class="help-icon help-icon--inline"
@@ -186,7 +223,11 @@
                 </button>
               </div>
               <div class="network-halo-controls__groups">
-                <div class="network-halo-group" role="group" aria-label="Générations ascendantes surlignées">
+                <div
+                  class="network-halo-group"
+                  role="group"
+                  aria-label="Générations ascendantes surlignées"
+                >
                   <span>Ascendance</span>
                   <div class="network-halo-options">
                     <button
@@ -200,7 +241,11 @@
                     </button>
                   </div>
                 </div>
-                <div class="network-halo-group" role="group" aria-label="Générations descendantes surlignées">
+                <div
+                  class="network-halo-group"
+                  role="group"
+                  aria-label="Générations descendantes surlignées"
+                >
                   <span>Descendance</span>
                   <div class="network-halo-options">
                     <button
@@ -230,7 +275,8 @@
               <span><i class="legend-line cross"></i>Baptême croisé</span>
             </div>
             <p v-if="activeView === 'tree'" class="graph-help">
-              Glisse dans une zone vide pour déplacer le graphe. Touche une fiche pour éclairer sa branche selon la portée choisie.
+              Glisse dans une zone vide pour déplacer le graphe. Touche une fiche pour éclairer sa
+              branche selon la portée choisie.
             </p>
             <button
               v-if="activeView === 'tree'"
@@ -246,23 +292,49 @@
               :people="people"
               @select="handlePersonFocus"
             />
-            <StatsDashboard v-else-if="activeView === 'stats'" :stats="stats" :people="people" @select="handlePersonFocus" />
+            <StatsDashboard
+              v-else-if="activeView === 'stats'"
+              :stats="stats"
+              :people="people"
+              @select="handlePersonFocus"
+            />
             <template v-else>
               <section v-if="activeView === 'home'" class="home-panel">
                 <div class="home-actions" aria-label="Actions principales">
-                  <button type="button" class="home-action-card home-action-card--main" @click="openMainTreeView">
+                  <button
+                    type="button"
+                    class="home-action-card home-action-card--main"
+                    @click="openMainTreeView"
+                  >
                     <span class="home-action-icon home-action-icon--tree" aria-hidden="true">
-                      <svg viewBox="0 0 24 24"><path d="M12 5v14M6 9h12M8 15h8" /><circle cx="12" cy="5" r="2" /><circle cx="6" cy="9" r="2" /><circle cx="18" cy="9" r="2" /><circle cx="8" cy="15" r="2" /><circle cx="16" cy="15" r="2" /></svg>
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 5v14M6 9h12M8 15h8" />
+                        <circle cx="12" cy="5" r="2" />
+                        <circle cx="6" cy="9" r="2" />
+                        <circle cx="18" cy="9" r="2" />
+                        <circle cx="8" cy="15" r="2" />
+                        <circle cx="16" cy="15" r="2" />
+                      </svg>
                     </span>
                     <span class="home-action-copy">
                       <strong>Explorer l'arbre</strong>
-                      <small>Visualise les filiations, les promos et les liens entre faluchards.</small>
+                      <small
+                        >Visualise les filiations, les promos et les liens entre faluchards.</small
+                      >
                     </span>
                     <span class="home-action-badge">Action principale</span>
                   </button>
-                  <button type="button" class="home-action-card" @click="openTreeAndBeginPersonCreation">
+                  <button
+                    type="button"
+                    class="home-action-card"
+                    @click="openTreeAndBeginPersonCreation"
+                  >
                     <span class="home-action-icon home-action-icon--person" aria-hidden="true">
-                      <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
+                      <svg viewBox="0 0 24 24">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M19 8v6M22 11h-6" />
+                      </svg>
                     </span>
                     <span class="home-action-copy">
                       <strong>Ajouter une fiche</strong>
@@ -271,7 +343,11 @@
                   </button>
                   <button type="button" class="home-action-card" @click="activeView = 'upcoming'">
                     <span class="home-action-icon home-action-icon--events" aria-hidden="true">
-                      <svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg>
+                      <svg viewBox="0 0 24 24">
+                        <path d="M8 2v4M16 2v4M3 10h18" />
+                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                        <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
+                      </svg>
                     </span>
                     <span class="home-action-copy">
                       <strong>Voir les prochains events</strong>
@@ -293,7 +369,11 @@
                   <div class="home-summary" aria-label="Résumé">
                     <article>
                       <span class="home-stat-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                        <svg viewBox="0 0 24 24">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
                       </span>
                       <strong>{{ people.length }}</strong>
                       <span>Fiches</span>
@@ -301,7 +381,12 @@
                     </article>
                     <article>
                       <span class="home-stat-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="M12 5v14M6 9h12M8 15h8" /><circle cx="12" cy="5" r="2" /><circle cx="6" cy="9" r="2" /><circle cx="18" cy="9" r="2" /></svg>
+                        <svg viewBox="0 0 24 24">
+                          <path d="M12 5v14M6 9h12M8 15h8" />
+                          <circle cx="12" cy="5" r="2" />
+                          <circle cx="6" cy="9" r="2" />
+                          <circle cx="18" cy="9" r="2" />
+                        </svg>
                       </span>
                       <strong>{{ genealogies.length }}</strong>
                       <span>Arbres</span>
@@ -309,7 +394,10 @@
                     </article>
                     <article>
                       <span class="home-stat-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 14v-3Z" /><path d="M11.6 16.8A3 3 0 1 1 8 14" /></svg>
+                        <svg viewBox="0 0 24 24">
+                          <path d="m3 11 18-5v12L3 14v-3Z" />
+                          <path d="M11.6 16.8A3 3 0 1 1 8 14" />
+                        </svg>
                       </span>
                       <strong>{{ upcomingEvents.length }}</strong>
                       <span>Annonces</span>
@@ -319,19 +407,6 @@
                 </section>
               </section>
               <template v-else>
-                <UpcomingComposer
-                  :people="people"
-                  :enabled="Boolean(upcomingRegion)"
-                  :cooptage-role="cooptageRole"
-                  @create="handleUpcomingCreate"
-                  @help="openTutorialById"
-                />
-                <section v-if="upcomingCreatorPassword" class="notice upcoming-secret">
-                  <strong>Mot de passe créateur</strong>
-                  <p>Note-le maintenant, il ne sera plus affiché ensuite.</p>
-                  <code>{{ upcomingCreatorPassword }}</code>
-                  <button type="button" class="text-button" @click="copyUpcomingPassword">Copier</button>
-                </section>
                 <UpcomingView
                   :events="upcomingEvents"
                   :people="people"
@@ -348,12 +423,33 @@
                   @creator-delete="handleUpcomingCreatorDelete"
                   @help="openTutorialById"
                 />
+                <UpcomingComposer
+                  :people="people"
+                  :enabled="true"
+                  :selected-genealogy="selectedGenealogy"
+                  :cooptage-role="cooptageRole"
+                  @create="handleUpcomingCreate"
+                  @help="openTutorialById"
+                />
+                <section v-if="upcomingCreatorPassword" class="notice upcoming-secret">
+                  <strong>Mot de passe créateur</strong>
+                  <p>Note-le maintenant, il ne sera plus affiché ensuite.</p>
+                  <code>{{ upcomingCreatorPassword }}</code>
+                  <button type="button" class="text-button" @click="copyUpcomingPassword">
+                    Copier
+                  </button>
+                </section>
               </template>
             </template>
           </div>
         </section>
 
-        <aside v-if="editorVisible" ref="editorPanel" class="panel editor" aria-label="Fiche faluchard">
+        <aside
+          v-if="editorVisible"
+          ref="editorPanel"
+          class="panel editor"
+          aria-label="Fiche faluchard"
+        >
           <PersonForm
             :person="personFormPerson"
             :people="people"
@@ -370,7 +466,11 @@
             @change-genealogy="handleNewPersonGenealogyChange"
             @editing="markEditing"
           />
-          <PersonDetails v-if="!isCreatingPerson" :person="selectedPerson" :role-options="roleOptions" />
+          <PersonDetails
+            v-if="!isCreatingPerson"
+            :person="selectedPerson"
+            :role-options="roleOptions"
+          />
           <section v-if="!isCreatingPerson && canMoveSelectedPerson" class="person-move">
             <h3>Déplacer la fiche</h3>
             <p>
@@ -389,9 +489,7 @@
                 </option>
               </select>
             </label>
-            <button class="primary" type="button" @click="moveSelectedPerson">
-              Déplacer
-            </button>
+            <button class="primary" type="button" @click="moveSelectedPerson">Déplacer</button>
           </section>
           <details class="editor-directory">
             <summary>
@@ -425,7 +523,9 @@
       @keydown="handleOverlayKeydown"
     >
       <div ref="overlayPanel" class="legacy-overlay__panel" tabindex="-1">
-        <button ref="overlayClose" class="overlay-close" type="button" @click="activeOverlay = ''">Fermer</button>
+        <button ref="overlayClose" class="overlay-close" type="button" @click="activeOverlay = ''">
+          Fermer
+        </button>
 
         <template v-if="activeOverlay === 'doleances'">
           <DoleancePanel v-if="!adminSession" @submit="handleDoleanceSubmit" />
@@ -452,7 +552,9 @@
             :error="adminError"
             @login="admin.login"
             @logout="handleAdminLogout"
-            @change-password="({ regionId, password }) => admin.updateRegionPassword(regionId, password)"
+            @change-password="
+              ({ regionId, password }) => admin.updateRegionPassword(regionId, password)
+            "
           />
           <GenealogyAdmin
             v-if="adminSession"
@@ -468,7 +570,12 @@
       </div>
     </section>
 
-    <p v-if="feedbackMessage" class="feedback-toast" :class="`feedback-toast--${feedbackKind}`" role="status">
+    <p
+      v-if="feedbackMessage"
+      class="feedback-toast"
+      :class="`feedback-toast--${feedbackKind}`"
+      role="status"
+    >
       {{ feedbackMessage }}
     </p>
 
@@ -496,12 +603,24 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
 import { useAdmin } from './composables/useAdmin.js'
 import { useDebouncedValue } from './composables/useDebouncedValue.js'
 import { useDoleances } from './composables/useDoleances.js'
 import { useGenealogyData } from './composables/useGenealogyData.js'
-import { createEmptyPerson, getPersonSourceGenealogy, movePersonToGenealogy } from './domain/genealogy.js'
+import {
+  createEmptyPerson,
+  getPersonSourceGenealogy,
+  movePersonToGenealogy,
+} from './domain/genealogy.js'
 import { buildGraphModel } from './domain/graph.js'
 import { cooptageRoleForRegion, roleOptionsForGenealogy } from './domain/roles.js'
 import { normalizeSearchText, personMatchesSearch } from './domain/search.js'
@@ -651,7 +770,10 @@ const graph = computed(() =>
     mode: graphLayoutMode.value,
     ancestorDepth: ancestorDepth.value,
     descendantDepth: descendantDepth.value,
-    includeAllNetwork: activeView.value === 'tree' && graphLayoutMode.value === 'network' && selectedGenealogy.value?.type === 'national',
+    includeAllNetwork:
+      activeView.value === 'tree' &&
+      graphLayoutMode.value === 'network' &&
+      selectedGenealogy.value?.type === 'national',
   }),
 )
 const graphIsPannable = computed(() => activeView.value === 'tree')
@@ -662,8 +784,12 @@ const graphRenderZoom = computed(() => graphZoom.value * GRAPH_RENDER_SCALE)
 const graphContentSize = computed(() => {
   if (graphLayoutMode.value === 'network') {
     return {
-      width: Math.max(graph.value.width || 0, 960, ...graph.value.nodes.map((entry) => entry.x + 170)) * graphRenderZoom.value,
-      height: Math.max(graph.value.height || 0, 540, ...graph.value.nodes.map((entry) => entry.y + 190)) * graphRenderZoom.value,
+      width:
+        Math.max(graph.value.width || 0, 960, ...graph.value.nodes.map((entry) => entry.x + 170)) *
+        graphRenderZoom.value,
+      height:
+        Math.max(graph.value.height || 0, 540, ...graph.value.nodes.map((entry) => entry.y + 190)) *
+        graphRenderZoom.value,
     }
   }
 
@@ -674,15 +800,22 @@ const graphContentSize = computed(() => {
   const rowGap = 86
   const maxCardsInVisualRow = Math.min(
     maxCardsPerLine,
-    Math.max(1, ...graph.value.rows.map((row) => Math.min(maxCardsPerLine, Math.max(1, row.people.length)))),
+    Math.max(
+      1,
+      ...graph.value.rows.map((row) => Math.min(maxCardsPerLine, Math.max(1, row.people.length))),
+    ),
   )
   const visualRows = graph.value.rows.reduce(
     (total, row) => total + Math.max(1, Math.ceil(row.people.length / maxCardsPerLine)),
     0,
   )
   return {
-    width: (maxCardsInVisualRow * cardWidth + (maxCardsInVisualRow - 1) * gap + 80) * graphRenderZoom.value,
-    height: Math.max(540, visualRows * cardHeight + Math.max(0, visualRows - 1) * rowGap + 140) * graphRenderZoom.value,
+    width:
+      (maxCardsInVisualRow * cardWidth + (maxCardsInVisualRow - 1) * gap + 80) *
+      graphRenderZoom.value,
+    height:
+      Math.max(540, visualRows * cardHeight + Math.max(0, visualRows - 1) * rowGap + 140) *
+      graphRenderZoom.value,
   }
 })
 const upcomingEvents = computed(() => upcoming.events.value)
@@ -695,7 +828,9 @@ const editorVisible = computed(() => {
   if (activeView.value === 'home') return Boolean(isCreatingPerson.value)
   return true
 })
-const roleOptions = computed(() => roleOptionsForGenealogy(genealogies.value, selectedGenealogy.value))
+const roleOptions = computed(() =>
+  roleOptionsForGenealogy(genealogies.value, selectedGenealogy.value),
+)
 const cooptageRole = computed(() => cooptageRoleForRegion(upcomingRegion.value))
 const selectedPersonSourceGenealogy = computed(() =>
   selectedPerson.value ? getPersonSourceGenealogy(data.value, selectedPerson.value.id) : null,
@@ -716,7 +851,9 @@ const adminManageableGenealogyIds = computed(() => {
   if (session.level !== 'region' || !session.regionId) return []
 
   return genealogies.value
-    .filter((genealogy) => genealogy.id === session.regionId || genealogy.parentId === session.regionId)
+    .filter(
+      (genealogy) => genealogy.id === session.regionId || genealogy.parentId === session.regionId,
+    )
     .map((genealogy) => genealogy.id)
 })
 const movableGenealogyOptions = computed(() => {
@@ -741,7 +878,8 @@ const personCreationGenealogyOptions = computed(() =>
       id: genealogy.id,
       name: genealogy.name,
       type: genealogy.type || '',
-      parentName: genealogies.value.find((candidate) => candidate.id === genealogy.parentId)?.name || '',
+      parentName:
+        genealogies.value.find((candidate) => candidate.id === genealogy.parentId)?.name || '',
     }))
     .sort((left, right) => genealogySortLabel(left).localeCompare(genealogySortLabel(right), 'fr')),
 )
@@ -771,14 +909,19 @@ const focusTitle = computed(() => {
 })
 const focusSubtitle = computed(() => {
   if (activeView.value === 'home') return 'Choisis une action pour commencer.'
-  if (activeView.value === 'overview') return `${people.value.length} faluchard(s), triés par filière`
+  if (activeView.value === 'overview')
+    return `${people.value.length} faluchard(s), triés par filière`
   if (activeView.value === 'stats') {
     return `${stats.value.peopleCount} fiche(s), ${stats.value.baptizedCount} baptisé(s), ${stats.value.unbaptizedCount} non baptisé(s)`
   }
   if (activeView.value === 'upcoming') {
-    return upcomingRegion.value
-      ? `${upcomingEvents.value.length} annonce(s) visible(s) dans ${upcomingRegion.value.name}`
-      : 'Ouvre une faluche de région ou une famille pour voir les annonces.'
+    if (upcomingRegion.value) {
+      return `${upcomingEvents.value.length} annonce(s) visible(s) dans ${upcomingRegion.value.name}`
+    }
+    if (upcomingEvents.value.length) {
+      return `${upcomingEvents.value.length} événement(s) national(aux) à venir.`
+    }
+    return 'Ouvre une faluche de région ou une famille pour voir les annonces.'
   }
   if (activeView.value === 'tree') {
     const layout = graphLayoutMode.value === 'network' ? 'Mode Réseau' : 'Mode Hiérarchie'
@@ -814,7 +957,9 @@ async function handleAdminLogout() {
 async function handleDoleanceSubmit(payload) {
   try {
     const result = await doleances.submitPublicDoleance(payload)
-    const remaining = Number.isFinite(result?.remaining) ? ` Il reste ${result.remaining} envoi(s) pour cette session.` : ''
+    const remaining = Number.isFinite(result?.remaining)
+      ? ` Il reste ${result.remaining} envoi(s) pour cette session.`
+      : ''
     showFeedback(`Doléance envoyée.${remaining}`, 'success')
   } catch (error) {
     showFeedback(error.message || 'Impossible d’envoyer la doléance.', 'warning')
@@ -1002,7 +1147,8 @@ function moveGraphPan(event) {
 
   const deltaX = event.clientX - pan.startX
   const deltaY = event.clientY - pan.startY
-  const movedEnough = Math.abs(deltaX) > GRAPH_PAN_CLICK_THRESHOLD || Math.abs(deltaY) > GRAPH_PAN_CLICK_THRESHOLD
+  const movedEnough =
+    Math.abs(deltaX) > GRAPH_PAN_CLICK_THRESHOLD || Math.abs(deltaY) > GRAPH_PAN_CLICK_THRESHOLD
   if (!movedEnough && !pan.moved) return
 
   event.preventDefault()
@@ -1148,8 +1294,12 @@ function graphNodeCenter(nodeElement) {
   const nodeRect = nodeElement.getBoundingClientRect()
   if (!viewportRect) return null
   return {
-    x: (nodeRect.left + nodeRect.width / 2 - viewportRect.left - graphPan.value.x) / graphRenderZoom.value,
-    y: (nodeRect.top + nodeRect.height / 2 - viewportRect.top - graphPan.value.y) / graphRenderZoom.value,
+    x:
+      (nodeRect.left + nodeRect.width / 2 - viewportRect.left - graphPan.value.x) /
+      graphRenderZoom.value,
+    y:
+      (nodeRect.top + nodeRect.height / 2 - viewportRect.top - graphPan.value.y) /
+      graphRenderZoom.value,
   }
 }
 
@@ -1251,7 +1401,10 @@ async function handleUpcomingCreatorUpdate(payload, done) {
 async function handleUpcomingRequestStatus(payload, done) {
   try {
     await upcoming.setRequestStatus(payload)
-    showFeedback(payload.status === 'accepted' ? 'Demande acceptée.' : 'Demande refusée.', 'success')
+    showFeedback(
+      payload.status === 'accepted' ? 'Demande acceptée.' : 'Demande refusée.',
+      'success',
+    )
     done(true)
   } catch (err) {
     showFeedback(err.message || 'Mise à jour impossible.', 'warning')
@@ -1300,7 +1453,12 @@ function handleDuplicateMerge(nextState) {
 
 async function handlePersonDelete(personId) {
   if (!personId || !adminSession.value) return
-  if (!window.confirm('Supprimer cette fiche ? Cette action retirera aussi ses références dans les relations.')) return
+  if (
+    !window.confirm(
+      'Supprimer cette fiche ? Cette action retirera aussi ses références dans les relations.',
+    )
+  )
+    return
 
   const previousState = data.value
   deletePerson(personId)
@@ -1333,15 +1491,17 @@ function selectSessionPerson(personId) {
 
 async function moveSelectedPerson() {
   const personId = selectedPerson.value?.id || ''
-  const targetGenealogyId = moveTargetGenealogyId.value || movableGenealogyOptions.value[0]?.id || ''
+  const targetGenealogyId =
+    moveTargetGenealogyId.value || movableGenealogyOptions.value[0]?.id || ''
   if (!personId || !targetGenealogyId) return
 
-  const allowedIds = adminSession.value?.level === 'region' ? adminManageableGenealogyIds.value : null
+  const allowedIds =
+    adminSession.value?.level === 'region' ? adminManageableGenealogyIds.value : null
   const previousState = data.value
   data.value = movePersonToGenealogy(data.value, personId, targetGenealogyId, allowedIds)
 
   if (data.value === previousState) {
-    showFeedback("Cette fiche ne peut pas être déplacée avec cette session admin.", 'warning')
+    showFeedback('Cette fiche ne peut pas être déplacée avec cette session admin.', 'warning')
     return
   }
 
@@ -1352,7 +1512,10 @@ async function moveSelectedPerson() {
   showFeedback('La fiche a été déplacée.', 'success')
 }
 
-async function exportSelectedPersonPdf({ ancestorDepth: pdfAncestorDepth, descendantDepth: pdfDescendantDepth }) {
+async function exportSelectedPersonPdf({
+  ancestorDepth: pdfAncestorDepth,
+  descendantDepth: pdfDescendantDepth,
+}) {
   const { downloadNetworkGraphPdf } = await import('./features/exports/pdfExport.js')
   const exported = await downloadNetworkGraphPdf({
     person: selectedPerson.value,
@@ -1366,7 +1529,10 @@ async function exportSelectedPersonPdf({ ancestorDepth: pdfAncestorDepth, descen
     title: selectedGenealogy.value?.name || 'GeneFaluche',
   })
   activeOverlay.value = ''
-  showFeedback(exported ? 'Le PDF réseau a été généré.' : "Sélectionne une fiche avant d'exporter.", exported ? 'success' : 'warning')
+  showFeedback(
+    exported ? 'Le PDF réseau a été généré.' : "Sélectionne une fiche avant d'exporter.",
+    exported ? 'success' : 'warning',
+  )
 }
 
 function personUpdateWasApplied(expectedPerson, savedPerson) {
@@ -1388,7 +1554,8 @@ function personUpdateWasApplied(expectedPerson, savedPerson) {
     sameStringArray(savedPerson.roles, expectedPerson.roles) &&
     sameStringArray(savedPerson.sponsorIds, expectedPerson.sponsorIds) &&
     sameStringArray(savedPerson.heartSponsorIds, expectedPerson.heartSponsorIds) &&
-    JSON.stringify(savedPerson.ceremonyEvents || []) === JSON.stringify(expectedPerson.ceremonyEvents || [])
+    JSON.stringify(savedPerson.ceremonyEvents || []) ===
+      JSON.stringify(expectedPerson.ceremonyEvents || [])
   )
 }
 
@@ -1578,14 +1745,11 @@ watch(selectedGenealogyId, () => {
   graphFocusPersonId.value = ''
 })
 
-watch(
-  adminSession,
-  async (session) => {
-    if (session && activeOverlay.value === 'doleances') {
-      await doleances.loadAdminDoleances()
-    }
-  },
-)
+watch(adminSession, async (session) => {
+  if (session && activeOverlay.value === 'doleances') {
+    await doleances.loadAdminDoleances()
+  }
+})
 
 watch(activeOverlay, async (overlay) => {
   if (overlay === 'doleances' && adminSession.value) {
@@ -1624,12 +1788,9 @@ function handleOverlayKeydown(event) {
   }
 }
 
-watch(
-  [selectedGenealogyId, activeView],
-  () => {
-    resetGraphPan()
-  },
-)
+watch([selectedGenealogyId, activeView], () => {
+  resetGraphPan()
+})
 
 watch(
   [pageTitle, pageDescription],

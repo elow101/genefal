@@ -171,6 +171,10 @@ function database_ensure_genealogy_sql_schema(PDO $pdo): void
     database_add_column_if_missing($pdo, 'people', 'baptism_status', 'VARCHAR(40) NULL');
     database_add_column_if_missing($pdo, 'people', 'song', 'TEXT NULL');
     database_add_column_if_missing($pdo, 'people', 'person_json', 'JSON NULL');
+    database_add_column_if_missing($pdo, 'events', 'scope', "VARCHAR(40) NOT NULL DEFAULT 'region'");
+    database_add_column_if_missing($pdo, 'events', 'event_url', 'VARCHAR(600) NULL');
+    database_add_column_if_missing($pdo, 'events', 'family_id', 'VARCHAR(120) NULL');
+    database_add_column_if_missing($pdo, 'events', 'recurrence', "VARCHAR(40) NOT NULL DEFAULT 'none'");
 }
 
 function database_diagnostic(): array

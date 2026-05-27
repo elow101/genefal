@@ -1051,6 +1051,19 @@ function public_upcoming_baptisms(array $events): array
         }
         $id = api_safe_id($event['id'] ?? '', 100);
         $regionId = api_safe_id($event['regionId'] ?? '', 100);
+        $familyId = api_safe_id($event['familyId'] ?? '', 100);
+        $rawScope = $event['scope'] ?? '';
+        if ($rawScope === '') {
+            if ($familyId !== '') {
+                $scope = 'family';
+            } elseif ($regionId !== '') {
+                $scope = 'region';
+            } else {
+                $scope = 'national';
+            }
+        } else {
+            $scope = upcoming_normalise_scope($rawScope);
+        }
         $dateTime = normalise_datetime_local($event['dateTime'] ?? ($event['date'] ?? ''));
         $eventType = normalise_upcoming_event_type($event['eventType'] ?? ($event['type'] ?? ''));
         $title = api_safe_text($event['title'] ?? '', 140);
@@ -1060,9 +1073,10 @@ function public_upcoming_baptisms(array $events): array
         $requiresCeremonyPeople = in_array($eventType, ['bapteme', 'adoption', 'confirmation'], true);
         $requiresCooptagePeople = $eventType === 'cooptage';
         $hasCeremonyPeople = $sponsorIds && ($fillotIds || $baptizedNames);
+        $hasRegion = $regionId !== '' || $scope === 'national';
         if (
             $id === ''
-            || $regionId === ''
+            || !$hasRegion
             || $dateTime === ''
             || isset($seen[$id])
             || ($requiresCeremonyPeople && !$hasCeremonyPeople)
@@ -1089,6 +1103,10 @@ function public_upcoming_baptisms(array $events): array
             'message' => api_safe_text($event['message'] ?? ($event['description'] ?? ''), 1200),
             'creatorName' => api_safe_text($event['creatorName'] ?? ($event['creator'] ?? ''), 120),
             'visibility' => normalise_upcoming_visibility($event['visibility'] ?? 'public'),
+            'scope' => $scope,
+            'eventUrl' => upcoming_safe_url($event['eventUrl'] ?? ''),
+            'familyId' => $familyId,
+            'recurrence' => upcoming_normalise_recurrence($event['recurrence'] ?? 'none'),
             'createdAt' => normalise_created_at($event['createdAt'] ?? gmdate('c')),
             'requests' => public_upcoming_requests(is_array($event['requests'] ?? null) ? $event['requests'] : (is_array($event['responses'] ?? null) ? $event['responses'] : [])),
         ];
@@ -1439,10 +1457,14 @@ function regional_admin_can_manage_genealogy(array $genealogy, string $regionId)
 function merge_regional_admin_upcoming_baptisms(array $currentEvents, array $incomingEvents, string $regionId): array
 {
     $merged = array_values(array_filter($currentEvents, static function (array $event) use ($regionId): bool {
-        return api_safe_id($event['regionId'] ?? '', 100) !== $regionId;
+        $eventRegionId = api_safe_id($event['regionId'] ?? '', 100);
+        $scope = upcoming_normalise_scope($event['scope'] ?? 'region');
+        return $eventRegionId !== $regionId || $scope === 'national';
     }));
     foreach ($incomingEvents as $event) {
-        if (api_safe_id($event['regionId'] ?? '', 100) === $regionId) {
+        $eventRegionId = api_safe_id($event['regionId'] ?? '', 100);
+        $scope = upcoming_normalise_scope($event['scope'] ?? 'region');
+        if ($eventRegionId === $regionId && $scope !== 'national') {
             $merged[] = $event;
         }
     }
@@ -1590,7 +1612,11 @@ function genealogy_audit_region_hash(array $payload, string $regionId): string
     }));
     $events = array_values(array_filter(
         public_upcoming_baptisms(is_array($payload['upcomingBaptisms'] ?? null) ? $payload['upcomingBaptisms'] : []),
-        static fn(array $event): bool => api_safe_id($event['regionId'] ?? '', 100) === $regionId
+        static function (array $event) use ($regionId): bool {
+            $eventRegionId = api_safe_id($event['regionId'] ?? '', 100);
+            $scope = upcoming_normalise_scope($event['scope'] ?? 'region');
+            return $eventRegionId === $regionId || $scope === 'national';
+        }
     ));
     return hash('sha256', json_encode(['genealogies' => $genealogies, 'upcomingBaptisms' => $events], JSON_UNESCAPED_UNICODE) ?: '');
 }
@@ -1636,7 +1662,11 @@ function genealogy_audit_stats(array $payload, array $scopeRegionIds): array
     $events = public_upcoming_baptisms(is_array($payload['upcomingBaptisms'] ?? null) ? $payload['upcomingBaptisms'] : []);
     if ($scopeRegionIds) {
         $scope = array_flip($scopeRegionIds);
-        $events = array_values(array_filter($events, static fn(array $event): bool => isset($scope[api_safe_id($event['regionId'] ?? '', 100)])));
+        $events = array_values(array_filter($events, static function (array $event) use ($scope): bool {
+            $eventRegionId = api_safe_id($event['regionId'] ?? '', 100);
+            $scopeValue = upcoming_normalise_scope($event['scope'] ?? 'region');
+            return isset($scope[$eventRegionId]) || $scopeValue === 'national';
+        }));
     }
     return [
         'genealogies' => count($genealogies),

@@ -39,7 +39,7 @@ function upcoming_sql_events(): array
         $eventId = (string) $event['id'];
         $events[] = [
             'id' => $eventId,
-            'regionId' => (string) $event['region_id'],
+            'regionId' => (string) ($event['region_id'] ?? ''),
             'title' => (string) $event['title'],
             'eventType' => (string) $event['event_type'],
             'sponsorIds' => upcoming_sql_json_array($event['sponsor_ids'] ?? null),
@@ -50,6 +50,10 @@ function upcoming_sql_events(): array
             'message' => (string) ($event['message'] ?? ''),
             'creatorName' => (string) ($event['creator_name'] ?? ''),
             'visibility' => (string) ($event['visibility'] ?? 'public'),
+            'scope' => (string) ($event['scope'] ?? 'region'),
+            'eventUrl' => (string) ($event['event_url'] ?? ''),
+            'familyId' => (string) ($event['family_id'] ?? ''),
+            'recurrence' => (string) ($event['recurrence'] ?? 'none'),
             'createdAt' => (string) $event['created_at'],
             'requests' => $requestsByEvent[$eventId] ?? [],
         ];
@@ -67,9 +71,9 @@ function upcoming_sql_upsert_event(array $event): void
 
     $statement = $pdo->prepare(
         'INSERT INTO events
-            (id, region_id, title, event_type, date_time, place, message, creator_name, visibility, sponsor_ids, fillot_ids, baptized_names, created_at, updated_at)
+            (id, region_id, title, event_type, date_time, place, message, creator_name, visibility, sponsor_ids, fillot_ids, baptized_names, scope, event_url, family_id, recurrence, created_at, updated_at)
          VALUES
-            (:id, :region_id, :title, :event_type, :date_time, :place, :message, :creator_name, :visibility, :sponsor_ids, :fillot_ids, :baptized_names, :created_at, UTC_TIMESTAMP())
+            (:id, :region_id, :title, :event_type, :date_time, :place, :message, :creator_name, :visibility, :sponsor_ids, :fillot_ids, :baptized_names, :scope, :event_url, :family_id, :recurrence, :created_at, UTC_TIMESTAMP())
          ON DUPLICATE KEY UPDATE
             region_id = VALUES(region_id),
             title = VALUES(title),
@@ -82,6 +86,10 @@ function upcoming_sql_upsert_event(array $event): void
             sponsor_ids = VALUES(sponsor_ids),
             fillot_ids = VALUES(fillot_ids),
             baptized_names = VALUES(baptized_names),
+            scope = VALUES(scope),
+            event_url = VALUES(event_url),
+            family_id = VALUES(family_id),
+            recurrence = VALUES(recurrence),
             updated_at = UTC_TIMESTAMP()'
     );
     $statement->execute([
@@ -97,6 +105,10 @@ function upcoming_sql_upsert_event(array $event): void
         ':sponsor_ids' => upcoming_sql_encode($event['sponsorIds'] ?? []),
         ':fillot_ids' => upcoming_sql_encode($event['fillotIds'] ?? []),
         ':baptized_names' => upcoming_sql_encode($event['baptizedNames'] ?? []),
+        ':scope' => (string) ($event['scope'] ?? 'region'),
+        ':event_url' => (string) ($event['eventUrl'] ?? ''),
+        ':family_id' => (string) ($event['familyId'] ?? ''),
+        ':recurrence' => (string) ($event['recurrence'] ?? 'none'),
         ':created_at' => upcoming_sql_datetime((string) ($event['createdAt'] ?? gmdate('c'))),
     ]);
 }

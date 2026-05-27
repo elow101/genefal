@@ -33,6 +33,9 @@ export function unsubscribeUpcomingRegion(payload, csrfToken) {
 }
 
 function upcomingRequest(payload, csrfToken) {
+  if (payload.action === 'create_event' || payload.action === 'update_event') {
+    console.log('Payload événement envoyé à upcoming.php:', payload)
+  }
   return requestJson('/api/upcoming.php', {
     method: 'POST',
     headers: jsonHeaders(csrfToken),

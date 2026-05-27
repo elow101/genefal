@@ -87,6 +87,11 @@ export function eventBadges(event) {
   const visibility = normaliseUpcomingVisibility(event?.visibility)
   badges.push({ label: visibilityLabel(visibility), tone: visibility === 'public' ? 'public' : 'private' })
 
+  const scope = normaliseUpcomingScope(event?.scope)
+  if (scope !== 'region') badges.push({ label: scopeLabel(scope), tone: 'scope' })
+  const recurrence = String(event?.recurrence || '').trim().toLowerCase()
+  if (recurrence && recurrence !== 'none') badges.push({ label: recurrenceLabel(recurrence), tone: 'recurrence' })
+
   if (canRequestParticipation(event)) badges.push({ label: 'Participation ouverte', tone: 'success' })
   if (isTonight(event?.dateTime)) badges.push({ label: 'Ce soir', tone: 'time' })
   if (isNewUpcomingEvent(event)) badges.push({ label: 'Nouveau', tone: 'new' })
@@ -128,6 +133,35 @@ export function requestStatusLabel(value) {
   return 'En attente'
 }
 
+export function normaliseUpcomingScope(value) {
+  const scope = String(value || '').trim().toLowerCase()
+  return ['national', 'region', 'family'].includes(scope) ? scope : 'region'
+}
+
+export function scopeLabel(value) {
+  switch (normaliseUpcomingScope(value)) {
+    case 'national':
+      return 'National'
+    case 'family':
+      return 'Famille'
+    default:
+      return 'Région'
+  }
+}
+
+export function recurrenceLabel(value) {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'weekly':
+      return 'Hebdomadaire'
+    case 'monthly':
+      return 'Mensuel'
+    case 'yearly':
+      return 'Annuel'
+    default:
+      return 'Unique'
+  }
+}
+
 export function createUpcomingEvent({
   regionId,
   eventType,
@@ -141,11 +175,16 @@ export function createUpcomingEvent({
   creatorName = '',
   visibility = 'public',
   allowParticipation = false,
+  scope = 'region',
+  eventUrl = '',
+  familyId = '',
+  recurrence = 'none',
 }) {
   const normalisedEventType = normaliseUpcomingEventType(eventType)
+  const normalisedScope = normaliseUpcomingScope(scope)
   return {
     id: fallbackId(normalisedEventType),
-    regionId,
+    regionId: normalisedScope === 'national' ? '' : String(regionId || '').trim(),
     title: String(title || '').trim(),
     eventType: normalisedEventType,
     allowParticipation: normalisedEventType === 'autre' && allowParticipation === true,
@@ -157,15 +196,38 @@ export function createUpcomingEvent({
     message: String(message || '').trim(),
     creatorName: String(creatorName || '').trim(),
     visibility: normaliseUpcomingVisibility(visibility),
+    scope: normalisedScope,
+    eventUrl: String(eventUrl || '').trim(),
+    familyId: normalisedScope === 'family' ? String(familyId || '').trim() : '',
+    recurrence: String(recurrence || 'none').trim().toLowerCase(),
     createdAt: new Date().toISOString(),
     requests: [],
   }
 }
 
-export function getUpcomingEventsForRegion(state, regionId) {
-  return (state?.upcomingBaptisms || [])
-    .filter((event) => event.regionId === regionId)
-    .slice()
+export function getUpcomingEventsForContext(state, selectedGenealogy) {
+  const events = (state?.upcomingBaptisms || []).slice()
+  if (!selectedGenealogy) {
+    return events
+      .filter((event) => normaliseUpcomingScope(event.scope) === 'national')
+      .sort((a, b) => String(a.dateTime).localeCompare(String(b.dateTime)) || String(a.title).localeCompare(String(b.title)))
+  }
+  const currentId = String(selectedGenealogy.id || '').trim()
+  const currentType = String(selectedGenealogy.type || '').trim()
+  const currentRegionId = currentType === 'region' ? currentId : String(selectedGenealogy.parentId || '').trim()
+  return events
+    .filter((event) => {
+      const scope = normaliseUpcomingScope(event.scope)
+      if (scope === 'national') return true
+      const eventRegionId = String(event.regionId || '').trim()
+      if (scope === 'region') return eventRegionId === currentRegionId
+      if (scope === 'family') {
+        const eventFamilyId = String(event.familyId || '').trim()
+        if (currentType === 'family') return eventFamilyId === currentId || eventRegionId === currentRegionId
+        return eventRegionId === currentRegionId
+      }
+      return false
+    })
     .sort((a, b) => String(a.dateTime).localeCompare(String(b.dateTime)) || String(a.title).localeCompare(String(b.title)))
 }
 

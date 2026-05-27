@@ -12,7 +12,7 @@ import {
 import {
   appendUpcomingEvent,
   createUpcomingEvent,
-  getUpcomingEventsForRegion,
+  getUpcomingEventsForContext,
   normaliseNames,
   removeUpcomingEvent,
 } from '../domain/upcoming.js'
@@ -24,10 +24,9 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
   const region = computed(
     () => (data.value?.genealogies || []).find((genealogy) => genealogy.id === regionId.value) || null,
   )
-  const events = computed(() => getUpcomingEventsForRegion(data.value, regionId.value))
+  const events = computed(() => getUpcomingEventsForContext(data.value, selectedGenealogy.value))
 
   async function createEvent(draft) {
-    if (!regionId.value) return null
     const event = createUpcomingEvent({
       regionId: regionId.value,
       eventType: draft.eventType,
@@ -41,6 +40,10 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
       creatorName: draft.creatorName,
       visibility: draft.visibility,
       allowParticipation: draft.allowParticipation,
+      scope: draft.scope,
+      eventUrl: draft.eventUrl,
+      familyId: draft.familyId || selectedGenealogy.value?.id || '',
+      recurrence: draft.recurrence,
     })
 
     const result = await createUpcomingEventApi({

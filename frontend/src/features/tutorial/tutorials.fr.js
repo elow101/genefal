@@ -97,12 +97,12 @@ export const tutorialsFr = {
   event_create: {
     id: 'event_create',
     title: 'Créer un événement',
-    goal: 'Publier une annonce claire (baptême, adoption, confirmation ou autre) visible dans la bonne région.',
+    goal: 'Publier une annonce claire (baptême, adoption, confirmation ou autre) avec la bonne portée.',
     where: ['Vue « Event à venir » → panneau « Créer un événement ».'],
     steps: [
       {
         title: 'Ouvrir la création',
-        text: "Va dans « Event à venir ». Si le panneau indique que ce n’est pas disponible, sélectionne d’abord une région ou une famille.",
+        text: "Va dans « Event à venir ». Le formulaire est disponible même sans région sélectionnée pour créer un événement national.",
         expected: 'Le formulaire de création apparaît.',
       },
       {
@@ -111,9 +111,19 @@ export const tutorialsFr = {
         expected: 'Les champs « Personnes concernées » s’adaptent.',
       },
       {
+        title: 'Choisir la portée',
+        text: 'Sélectionne National, Région ou Famille. Un événement national est visible partout. Un événement régional est visible dans la région et ses familles. Un événement famille est visible dans sa famille.',
+        expected: 'Les champs de rattachement s’adaptent à la portée choisie.',
+      },
+      {
         title: 'Date, lieu, description',
         text: 'Renseigne date + heure (obligatoires), lieu (recommandé) et une description courte.',
         expected: 'Le formulaire est prêt à être soumis.',
+      },
+      {
+        title: 'Lien externe et récurrence',
+        text: "Tu peux ajouter un lien vers la page officielle de l’événement (optionnel). Tu peux aussi indiquer une récurrence (hebdomadaire, mensuelle, annuelle) quel que soit le type de portée.",
+        expected: 'Le lien et la récurrence apparaissent sur l’annonce.',
       },
       {
         title: 'Participants / rattachement',
@@ -151,7 +161,7 @@ export const tutorialsFr = {
     steps: [
       {
         title: 'Suivre les évènements',
-        text: "Ouvre une région ou une famille puis ajoute ton mail pour recevoir automatiquement les futurs événements.",
+        text: "Ouvre une région ou une famille puis ajoute ton mail pour recevoir automatiquement les futurs événements. Les événements nationaux sont visibles sans région sélectionnée.",
         expected: 'La région est maintenant suivie et les événements seront reçus par mail.',
       },
       {

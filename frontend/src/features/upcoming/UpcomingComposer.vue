@@ -1,10 +1,6 @@
 <template>
   <section class="upcoming-panel upcoming-panel--composer">
-    <p v-if="!enabled" class="empty">
-      Ouvre une faluche de région ou une famille pour créer une annonce à venir.
-    </p>
-
-    <form v-else class="upcoming-form" @submit.prevent="submit">
+    <form class="upcoming-form" @submit.prevent="submit">
       <div class="upcoming-form-head">
         <div>
           <h3>Créer un événement</h3>
@@ -39,6 +35,26 @@
             </select>
           </label>
         </div>
+        <div class="upcoming-fields">
+          <label>
+            Portée
+            <select v-model="draft.scope">
+              <option value="national">National</option>
+              <option value="region">Région</option>
+              <option value="family">Famille</option>
+            </select>
+          </label>
+          <label>
+            Récurrence
+            <select v-model="draft.recurrence">
+              <option value="none">Unique</option>
+              <option value="weekly">Hebdomadaire</option>
+              <option value="monthly">Mensuel</option>
+              <option value="yearly">Annuel</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="scopeWarning" class="field-hint" :class="submitDisabled && draft.scope !== 'national' ? 'field-hint--warning' : ''">{{ scopeWarning }}</p>
         <p v-if="typeWarning" class="field-hint field-hint--warning">{{ typeWarning }}</p>
       </section>
 
@@ -72,7 +88,7 @@
         <label>
           Visibilité
           <select v-model="draft.visibility">
-            <option value="public">Public régional</option>
+            <option value="public">Public</option>
             <option value="private">Privé</option>
             <option value="family">Visible seulement aux fillots/famille</option>
           </select>
@@ -85,6 +101,15 @@
           <input v-model="draft.allowParticipation" type="checkbox" />
           <i aria-hidden="true"></i>
         </label>
+      </section>
+
+      <section class="upcoming-form-block">
+        <h4>Lien externe</h4>
+        <label>
+          Lien de l'événement (optionnel)
+          <input v-model="draft.eventUrl" type="url" placeholder="https://..." />
+        </label>
+        <p v-if="eventUrlWarning" class="field-hint field-hint--warning">{{ eventUrlWarning }}</p>
       </section>
 
       <section v-if="isCeremony || draft.eventType === 'cooptage'" class="upcoming-form-block">
@@ -153,6 +178,7 @@ const DRAFT_KEY = 'genefaluche-upcoming-event-draft'
 const props = defineProps({
   people: { type: Array, required: true },
   enabled: { type: Boolean, default: true },
+  selectedGenealogy: { type: Object, default: null },
   cooptageRole: {
     type: Object,
     default: () => ({ id: 'tva', label: 'TVA' }),
@@ -197,6 +223,9 @@ const submitDisabled = computed(() => {
   if (!draft.title.trim() || !draft.eventDate || !draft.eventTime) return true
   if (isCeremony.value) return draft.sponsorIds.length === 0 || !draft.baptizedNames.trim()
   if (draft.eventType === 'cooptage') return draft.sponsorIds.length === 0 || draft.fillotIds.length === 0
+  if (draft.scope === 'region' && props.selectedGenealogy?.type !== 'region' && props.selectedGenealogy?.type !== 'family') return true
+  if (draft.scope === 'family' && props.selectedGenealogy?.type !== 'family') return true
+  if (draft.eventUrl.trim() && !/^https?:\/\//i.test(draft.eventUrl.trim())) return true
   return false
 })
 const dateWarning = computed(() => {
@@ -210,6 +239,26 @@ const typeWarning = computed(() =>
     ? 'Les demandes de participation sont toujours fermées pour un cooptage.'
     : '',
 )
+const scopeWarning = computed(() => {
+  if (draft.scope === 'region') {
+    const type = props.selectedGenealogy?.type
+    if (type === 'national') return 'Impossible de créer un événement régional depuis l\'arbre national.'
+    if (type === 'region') return 'Cet événement sera ajouté à la région actuellement sélectionnée.'
+    if (type === 'family') return 'Cet événement sera ajouté à la région parente de la famille actuelle.'
+  }
+  if (draft.scope === 'family') {
+    const type = props.selectedGenealogy?.type
+    if (type === 'national') return 'Impossible de créer un événement familial depuis l\'arbre national.'
+    if (type === 'region') return 'Impossible de créer un événement familial depuis un arbre régional.'
+    if (type === 'family') return 'Cet événement sera ajouté à la famille actuellement sélectionnée.'
+  }
+  return ''
+})
+const eventUrlWarning = computed(() => {
+  const url = draft.eventUrl.trim()
+  if (!url) return ''
+  return /^https?:\/\//i.test(url) ? '' : 'Lien invalide : doit commencer par http:// ou https://'
+})
 
 watch(
   () => ({ ...draft, sponsorIds: [...draft.sponsorIds], fillotIds: [...draft.fillotIds] }),
@@ -254,9 +303,14 @@ onMounted(() => {
 })
 
 function defaultDraft() {
+  const genealogy = props.selectedGenealogy
+  let scope = 'national'
+  if (genealogy?.type === 'region') scope = 'region'
+  if (genealogy?.type === 'family') scope = 'family'
   return {
     title: '',
     eventType: 'autre',
+    scope,
     sponsorIds: [],
     fillotIds: [],
     baptizedNames: '',
@@ -268,6 +322,8 @@ function defaultDraft() {
     creatorEmail: '',
     visibility: 'public',
     allowParticipation: false,
+    eventUrl: '',
+    recurrence: 'none',
   }
 }
 
@@ -293,6 +349,10 @@ function submit() {
     creatorEmail: draft.creatorEmail,
     visibility: draft.visibility,
     allowParticipation: draft.eventType === 'autre' && draft.allowParticipation === true,
+    scope: draft.scope,
+    eventUrl: draft.eventUrl,
+    familyId: draft.scope === 'family' ? (props.selectedGenealogy?.id || '') : '',
+    recurrence: draft.recurrence,
   }, (ok) => {
     if (ok) resetDraft()
   })

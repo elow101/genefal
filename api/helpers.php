@@ -58,3 +58,28 @@ function api_safe_text($value, int $maxLength): string
     $text = trim((string) $text);
     return function_exists('mb_substr') ? mb_substr($text, 0, $maxLength, 'UTF-8') : substr($text, 0, $maxLength);
 }
+
+function upcoming_normalise_scope($value): string
+{
+    $scope = api_safe_id($value ?? 'region', 40);
+    return in_array($scope, ['national', 'region', 'family'], true) ? $scope : 'region';
+}
+
+function upcoming_safe_url($value): string
+{
+    $url = trim((string) $value);
+    if ($url === '') {
+        return '';
+    }
+    if (!preg_match('/^https?:\/\//i', $url)) {
+        return '';
+    }
+    $filtered = filter_var($url, FILTER_VALIDATE_URL);
+    return is_string($filtered) ? $filtered : '';
+}
+
+function upcoming_normalise_recurrence($value): string
+{
+    $recurrence = api_safe_id($value ?? 'none', 40);
+    return in_array($recurrence, ['none', 'weekly', 'monthly', 'yearly'], true) ? $recurrence : 'none';
+}

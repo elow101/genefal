@@ -30,7 +30,11 @@
           <dt>Lieu</dt>
           <dd>{{ event.place }}</dd>
         </div>
-        <div v-if="regionName">
+        <div v-if="scopeLabelText">
+          <dt>Portée</dt>
+          <dd>{{ scopeLabelText }}</dd>
+        </div>
+        <div v-if="regionName && event.scope !== 'national'">
           <dt>Région</dt>
           <dd>{{ regionName }}</dd>
         </div>
@@ -49,6 +53,17 @@
       </dl>
 
       <p v-if="event.message" class="event-message">{{ event.message }}</p>
+
+      <div v-if="event.eventUrl" class="event-link">
+        <a
+          :href="event.eventUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="primary-action"
+        >
+          Voir l'événement
+        </a>
+      </div>
 
       <div v-if="canRequestParticipation(event)" class="event-request-summary">
         <strong>{{ event.requests?.length || 0 }}</strong>
@@ -87,6 +102,7 @@ import {
   formatUpcomingDateParts,
   formatUpcomingDateTime,
   requestStatusLabel,
+  scopeLabel,
 } from '../../domain/upcoming.js'
 
 const props = defineProps({
@@ -121,6 +137,7 @@ defineEmits(['request', 'manage', 'delete'])
 const title = computed(() => props.event.title || props.event.baptizedNames?.join(', ') || concernedNames.value || 'Événement')
 const dateParts = computed(() => formatUpcomingDateParts(props.event.dateTime))
 const badges = computed(() => eventBadges(props.event))
+const scopeLabelText = computed(() => scopeLabel(props.event.scope))
 
 const sponsorNames = computed(() =>
   (props.event.sponsorIds || [])

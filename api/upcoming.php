@@ -53,9 +53,23 @@ api_respond(['error' => 'Action inconnue.'], 400);
 function upcoming_create_event(array $body): void
 {
     $state = current_genealogy_payload();
+    $scope = upcoming_normalise_scope($body['scope'] ?? 'region');
     $regionId = api_safe_id($body['regionId'] ?? '', 100);
-    if ($regionId === '' || !upcoming_region_exists($state, $regionId)) {
-        api_respond(['error' => 'Region invalide.'], 400);
+    $familyId = api_safe_id($body['familyId'] ?? '', 100);
+
+    if ($scope === 'national') {
+        $regionId = '';
+        $familyId = '';
+    } elseif ($scope === 'region') {
+        if ($regionId === '' || !upcoming_region_exists($state, $regionId)) {
+            api_respond(['error' => 'Region invalide.'], 400);
+        }
+        $familyId = '';
+    } elseif ($scope === 'family') {
+        if ($familyId === '' || !upcoming_family_exists($state, $familyId)) {
+            api_respond(['error' => 'Famille invalide.'], 400);
+        }
+        $regionId = upcoming_region_id_for_family($state, $familyId);
     }
 
     $eventType = normalise_upcoming_event_type($body['eventType'] ?? 'autre');
@@ -63,6 +77,11 @@ function upcoming_create_event(array $body): void
     $dateTime = normalise_datetime_local($body['dateTime'] ?? '');
     if ($title === '' || $dateTime === '') {
         api_respond(['error' => 'Titre et date sont obligatoires.'], 400);
+    }
+
+    $eventUrl = upcoming_safe_url($body['eventUrl'] ?? '');
+    if (($body['eventUrl'] ?? '') !== '' && $eventUrl === '') {
+        api_respond(['error' => 'URL invalide.'], 400);
     }
 
     $creatorEmail = upcoming_safe_email($body['creatorEmail'] ?? '');
@@ -81,6 +100,10 @@ function upcoming_create_event(array $body): void
         'message' => api_safe_text($body['message'] ?? '', 1200),
         'creatorName' => api_safe_text($body['creatorName'] ?? '', 120),
         'visibility' => upcoming_normalise_visibility($body['visibility'] ?? 'public'),
+        'scope' => $scope,
+        'eventUrl' => $eventUrl,
+        'familyId' => $familyId,
+        'recurrence' => upcoming_normalise_recurrence($body['recurrence'] ?? 'none'),
         'createdAt' => gmdate('c'),
         'requests' => [],
     ];
@@ -228,6 +251,28 @@ function upcoming_update_event(array $body): void
     }
 
     $eventType = normalise_upcoming_event_type($state['upcomingBaptisms'][$eventIndex]['eventType'] ?? 'autre');
+    $scope = upcoming_normalise_scope($body['scope'] ?? ($state['upcomingBaptisms'][$eventIndex]['scope'] ?? 'region'));
+    $regionId = api_safe_id($body['regionId'] ?? ($state['upcomingBaptisms'][$eventIndex]['regionId'] ?? ''), 100);
+    $familyId = api_safe_id($body['familyId'] ?? ($state['upcomingBaptisms'][$eventIndex]['familyId'] ?? ''), 100);
+
+    if ($scope === 'national') {
+        $regionId = '';
+        $familyId = '';
+    } elseif ($scope === 'region') {
+        if ($regionId === '' || !upcoming_region_exists($state, $regionId)) {
+            api_respond(['error' => 'Region invalide.'], 400);
+        }
+        $familyId = '';
+    } elseif ($scope === 'family') {
+        if ($familyId === '' || !upcoming_family_exists($state, $familyId)) {
+            api_respond(['error' => 'Famille invalide.'], 400);
+        }
+        $regionId = upcoming_region_id_for_family($state, $familyId);
+    }
+
+    $state['upcomingBaptisms'][$eventIndex]['scope'] = $scope;
+    $state['upcomingBaptisms'][$eventIndex]['regionId'] = $regionId;
+    $state['upcomingBaptisms'][$eventIndex]['familyId'] = $familyId;
     $state['upcomingBaptisms'][$eventIndex]['allowParticipation'] = upcoming_normalise_allow_participation(
         $eventType,
         $body['allowParticipation'] ?? false
@@ -235,6 +280,12 @@ function upcoming_update_event(array $body): void
     $state['upcomingBaptisms'][$eventIndex]['visibility'] = upcoming_normalise_visibility(
         $body['visibility'] ?? ($state['upcomingBaptisms'][$eventIndex]['visibility'] ?? 'public')
     );
+    $eventUrl = upcoming_safe_url($body['eventUrl'] ?? ($state['upcomingBaptisms'][$eventIndex]['eventUrl'] ?? ''));
+    if (($body['eventUrl'] ?? '') !== '' && $eventUrl === '') {
+        api_respond(['error' => 'URL invalide.'], 400);
+    }
+    $state['upcomingBaptisms'][$eventIndex]['eventUrl'] = $eventUrl;
+    $state['upcomingBaptisms'][$eventIndex]['recurrence'] = upcoming_normalise_recurrence($body['recurrence'] ?? ($state['upcomingBaptisms'][$eventIndex]['recurrence'] ?? 'none'));
     $state['upcomingBaptisms'] = public_upcoming_baptisms($state['upcomingBaptisms']);
     $updatedEvent = $state['upcomingBaptisms'][upcoming_event_index($state, $eventId)] ?? null;
     upcoming_write_state($state);
@@ -452,8 +503,26 @@ function upcoming_request_email(string $eventId, string $requestId): string
 
 function upcoming_notify_region_subscribers(array $state, string $regionId, array $event): void
 {
+    $scope = upcoming_normalise_scope($event['scope'] ?? 'region');
     $regionName = upcoming_region_name($state, $regionId);
     $message = upcoming_event_mail_body($event, $regionName);
+    if ($scope === 'national') {
+        $seen = [];
+        foreach ($state['genealogies'] ?? [] as $genealogy) {
+            $gid = api_safe_id($genealogy['id'] ?? '', 100);
+            if ($gid === '' || ($genealogy['type'] ?? '') !== 'region') {
+                continue;
+            }
+            foreach (upcoming_region_subscribers($gid) as $subscription) {
+                $email = upcoming_safe_email($subscription['email'] ?? '');
+                if ($email !== '' && !isset($seen[$email])) {
+                    $seen[$email] = true;
+                    upcoming_send_mail($email, 'Nouvel evenement GeneFaluche : ' . ($event['title'] ?? 'Evenement'), $message);
+                }
+            }
+        }
+        return;
+    }
     foreach (upcoming_region_subscribers($regionId) as $subscription) {
         $email = upcoming_safe_email($subscription['email'] ?? '');
         if ($email !== '') {
@@ -548,6 +617,26 @@ function upcoming_event_type_label(string $type): string
         'cooptage' => 'Cooptage',
         default => 'Autre',
     };
+}
+
+function upcoming_family_exists(array $state, string $familyId): bool
+{
+    foreach ($state['genealogies'] ?? [] as $genealogy) {
+        if (api_safe_id($genealogy['id'] ?? '', 100) === $familyId && ($genealogy['type'] ?? '') === 'family') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function upcoming_region_id_for_family(array $state, string $familyId): string
+{
+    foreach ($state['genealogies'] ?? [] as $genealogy) {
+        if (api_safe_id($genealogy['id'] ?? '', 100) === $familyId && ($genealogy['type'] ?? '') === 'family') {
+            return api_safe_id($genealogy['parentId'] ?? '', 100);
+        }
+    }
+    return '';
 }
 
 function upcoming_region_name(array $state, string $regionId): string

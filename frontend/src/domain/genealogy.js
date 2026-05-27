@@ -231,7 +231,10 @@ function genealogySourcePriority(source) {
 }
 
 function stripGenealogyContext(person) {
-  const { genealogyId: _genealogyId, genealogyName: _genealogyName, genealogyType: _genealogyType, ...clean } = person
+  const clean = { ...person }
+  delete clean.genealogyId
+  delete clean.genealogyName
+  delete clean.genealogyType
   return clean
 }
 

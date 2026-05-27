@@ -3104,6 +3104,16 @@ textarea {
   border-color: rgba(112, 215, 223, 0.32);
 }
 
+.event-badge--scope {
+  border-color: rgba(159, 122, 234, 0.42);
+  color: #d6bcfa;
+}
+
+.event-badge--recurrence {
+  border-color: rgba(112, 215, 223, 0.32);
+  color: #a0e8ed;
+}
+
 .event-badge--time,
 .event-badge--new,
 .request-card--pending .request-status {

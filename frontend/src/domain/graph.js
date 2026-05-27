@@ -431,7 +431,7 @@ export function displayName(person) {
   return nicknames ? `${person.name} dit ${nicknames}` : person.name
 }
 
-export function displayNicknames(person) {
+function displayNicknames(person) {
   return (person.nicknames || [person.nickname]).filter(Boolean).join(' / ')
 }
 
