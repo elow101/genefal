@@ -1,12 +1,28 @@
 <template>
   <section class="upcoming">
     <div class="section-heading upcoming-region-head">
-      <div>
+      <div class="upcoming-region-copy">
         <h2>Événements à venir</h2>
-        <p v-if="region">{{ filteredEvents.length }} événement(s) visible(s) dans {{ region.name }}.</p>
-        <p v-else>Ouvre une faluche de région ou une famille pour voir les événements.</p>
+        <p v-if="region">
+          {{ filteredEvents.length }} événement(s) visible(s) dans {{ region.name }}.
+        </p>
+
+        <p v-else>Ouvre une faluche de région ou une famille pour voir les événements.
+        </p>
       </div>
-      <span v-if="canDelete" class="mode-badge">Mode admin</span>
+
+      <div class="upcoming-region-actions">
+        <span v-if="canDelete" class="mode-badge"> Mode admin </span>
+
+        <button
+          type="button"
+          class="help-icon help-icon--inline"
+          aria-label="Aide participation événement"
+          @click="$emit('help', 'event_participation')"
+        >
+          ?
+        </button>
+      </div>
     </div>
 
     <form v-if="region" class="attendance-form compact-form" @submit.prevent="subscribe">
@@ -41,7 +57,9 @@
         Type
         <select v-model="typeFilter">
           <option value="">Tous</option>
-          <option v-for="type in eventTypes" :key="type" :value="type">{{ eventTypeLabel(type) }}</option>
+          <option v-for="type in eventTypes" :key="type" :value="type">
+            {{ eventTypeLabel(type) }}
+          </option>
         </select>
       </label>
       <label>
@@ -72,11 +90,16 @@
       />
     </div>
 
-    <section v-if="canDelete && pendingDeleteEventId && !managementEventId" class="delete-confirmation">
+    <section
+      v-if="canDelete && pendingDeleteEventId && !managementEventId"
+      class="delete-confirmation"
+    >
       <p>Supprimer définitivement cet événement ?</p>
       <div class="button-row">
         <button type="button" class="danger-button" @click="confirmAdminDelete">Confirmer</button>
-        <button type="button" class="text-button" @click="pendingDeleteEventId = ''">Annuler</button>
+        <button type="button" class="text-button" @click="pendingDeleteEventId = ''">
+          Annuler
+        </button>
       </div>
     </section>
 
@@ -108,7 +131,11 @@
       </div>
     </form>
 
-    <form v-if="managementEventId" class="attendance-form action-panel" @submit.prevent="loadManagement">
+    <form
+      v-if="managementEventId"
+      class="attendance-form action-panel"
+      @submit.prevent="loadManagement"
+    >
       <div class="form-title-row">
         <div>
           <h3>Gestion créateur</h3>
@@ -141,7 +168,9 @@
           <label v-if="managedEvent.eventType === 'autre'" class="switch-field">
             <span>
               <strong>Autoriser les demandes de participation</strong>
-              <small>Si activé, les visiteurs pourront demander à participer à cet événement.</small>
+              <small
+                >Si activé, les visiteurs pourront demander à participer à cet événement.</small
+              >
             </span>
             <input v-model="managedAllowParticipation" type="checkbox" />
             <i aria-hidden="true"></i>
@@ -168,7 +197,13 @@
             <p v-if="request.message">{{ request.message }}</p>
             <div v-if="group.status === 'pending'" class="button-row">
               <button type="button" @click="setStatus(request.id, 'accepted')">Accepter</button>
-              <button type="button" class="text-button danger-text" @click="setStatus(request.id, 'rejected')">Refuser</button>
+              <button
+                type="button"
+                class="text-button danger-text"
+                @click="setStatus(request.id, 'rejected')"
+              >
+                Refuser
+              </button>
             </div>
           </article>
           <p v-if="group.items.length === 0" class="empty">Aucune demande.</p>
@@ -177,8 +212,12 @@
         <section v-if="pendingDeleteEventId" class="delete-confirmation">
           <p>Supprimer définitivement cet événement ?</p>
           <div class="button-row">
-            <button type="button" class="danger-button" @click="confirmQueuedDelete">Confirmer</button>
-            <button type="button" class="text-button" @click="pendingDeleteEventId = ''">Annuler</button>
+            <button type="button" class="danger-button" @click="confirmQueuedDelete">
+              Confirmer
+            </button>
+            <button type="button" class="text-button" @click="pendingDeleteEventId = ''">
+              Annuler
+            </button>
           </div>
         </section>
         <button
@@ -196,7 +235,12 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { canRequestParticipation, eventTypeLabel, isThisWeek, requestStatusLabel } from '../../domain/upcoming.js'
+import {
+  canRequestParticipation,
+  eventTypeLabel,
+  isThisWeek,
+  requestStatusLabel,
+} from '../../domain/upcoming.js'
 import UpcomingCard from './UpcomingCard.vue'
 
 const props = defineProps({
@@ -207,7 +251,17 @@ const props = defineProps({
   canDelete: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete', 'request', 'subscribe', 'unsubscribe', 'creator-access', 'creator-update', 'request-status', 'creator-delete'])
+const emit = defineEmits([
+  'delete',
+  'request',
+  'subscribe',
+  'unsubscribe',
+  'creator-access',
+  'creator-update',
+  'request-status',
+  'creator-delete',
+  'help',
+])
 const typeFilter = ref('')
 const sortDirection = ref('asc')
 const activeQuickFilter = ref('all')
@@ -233,29 +287,51 @@ const quickFilters = [
   { id: 'open', label: 'Participation ouverte' },
 ]
 
-const eventTypes = computed(() => [...new Set(props.events.map((event) => event.eventType).filter(Boolean))])
+const eventTypes = computed(() => [
+  ...new Set(props.events.map((event) => event.eventType).filter(Boolean)),
+])
 const filteredEvents = computed(() =>
   props.events
     .filter((event) => !typeFilter.value || event.eventType === typeFilter.value)
     .filter(matchesQuickFilter)
     .slice()
-    .sort((a, b) => sortDirection.value === 'asc'
-      ? String(a.dateTime).localeCompare(String(b.dateTime))
-      : String(b.dateTime).localeCompare(String(a.dateTime))),
+    .sort((a, b) =>
+      sortDirection.value === 'asc'
+        ? String(a.dateTime).localeCompare(String(b.dateTime))
+        : String(b.dateTime).localeCompare(String(a.dateTime)),
+    ),
 )
-const requestEvent = computed(() => props.events.find((event) => event.id === requestEventId.value) || null)
+const requestEvent = computed(
+  () => props.events.find((event) => event.id === requestEventId.value) || null,
+)
 const requestGroups = computed(() => {
   const requests = managedEvent.value?.requests || []
   return [
-    { status: 'pending', title: 'Demandes en attente', items: requests.filter((request) => request.status !== 'accepted' && request.status !== 'rejected') },
-    { status: 'accepted', title: 'Participants acceptés', items: requests.filter((request) => request.status === 'accepted') },
-    { status: 'rejected', title: 'Demandes refusées', items: requests.filter((request) => request.status === 'rejected') },
+    {
+      status: 'pending',
+      title: 'Demandes en attente',
+      items: requests.filter(
+        (request) => request.status !== 'accepted' && request.status !== 'rejected',
+      ),
+    },
+    {
+      status: 'accepted',
+      title: 'Participants acceptés',
+      items: requests.filter((request) => request.status === 'accepted'),
+    },
+    {
+      status: 'rejected',
+      title: 'Demandes refusées',
+      items: requests.filter((request) => request.status === 'rejected'),
+    },
   ]
 })
 
 function matchesQuickFilter(event) {
   if (activeQuickFilter.value === 'all') return true
-  if (['bapteme', 'adoption', 'confirmation', 'cooptage', 'autre'].includes(activeQuickFilter.value)) {
+  if (
+    ['bapteme', 'adoption', 'confirmation', 'cooptage', 'autre'].includes(activeQuickFilter.value)
+  ) {
     return event.eventType === activeQuickFilter.value
   }
   if (activeQuickFilter.value === 'week') return isThisWeek(event.dateTime)
@@ -311,7 +387,8 @@ async function updateManagedEvent() {
     eventId: managementEventId.value,
     password: managementPassword.value,
     visibility: managedVisibility.value,
-    allowParticipation: managedEvent.value?.eventType === 'autre' && managedAllowParticipation.value === true,
+    allowParticipation:
+      managedEvent.value?.eventType === 'autre' && managedAllowParticipation.value === true,
   })
   if (event) {
     managedEvent.value = event

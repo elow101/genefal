@@ -21,7 +21,6 @@
         <span v-if="draftStatus" class="inline-status">{{ draftStatus }}</span>
       </div>
 
-
       <section class="upcoming-form-block">
         <h4>Informations</h4>
         <div class="upcoming-fields">
@@ -151,7 +150,6 @@ import { eventRequiresParticipation } from '../../domain/upcoming.js'
 import PersonMultiPicker from '../people/PersonMultiPicker.vue'
 
 const DRAFT_KEY = 'genefaluche-upcoming-event-draft'
-
 const props = defineProps({
   people: { type: Array, required: true },
   enabled: { type: Boolean, default: true },

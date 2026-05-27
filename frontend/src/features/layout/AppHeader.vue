@@ -101,14 +101,33 @@
     </div>
 
     <div class="actions">
-      <button class="home-shortcut" type="button" aria-label="Accueil" title="Accueil" @click="$emit('go-home')">⌂</button>
-      <span class="server-status" :class="{ 'is-offline': error, 'is-online': !error }">
-        {{ statusLabel }}
-      </span>
-      <AppButton @click="$emit('open-help')">Aide</AppButton>
-      <AppButton @click="$emit('export')">Exporter</AppButton>
-      <AppButton @click="$emit('open-doleances')">Doléances</AppButton>
-      <AppButton @click="$emit('open-admin')">Admin</AppButton>
+      <button class="toolbar-help toolbar-icon-action" type="button" aria-label="Ouvrir l’aide" title="Ouvrir l’aide" @click="$emit('open-help')">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.6 2.6 0 1 1 4.2 2.1c-.9.6-1.7 1.2-1.7 2.4" /><path d="M12 17h.01" /></svg>
+        <span>Aide</span>
+      </button>
+      <AppButton class="toolbar-icon-action" @click="$emit('export')">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+        <span>Exporter</span>
+      </AppButton>
+      <AppButton class="toolbar-icon-action" @click="$emit('open-doleances')">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h16v13H7l-3 3V4Z" /><path d="M8 8h8M8 12h5" /></svg>
+        <span>Doléances</span>
+      </AppButton>
+      <AppButton class="toolbar-icon-action" @click="$emit('open-admin')">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-5" /></svg>
+        <span>Admin</span>
+      </AppButton>
+      <button
+        class="home-shortcut toolbar-icon-action"
+        :class="`home-shortcut--${homeStatusKind}`"
+        type="button"
+        :aria-label="homeStatusLabel"
+        :title="homeStatusLabel"
+        @click="$emit('go-home')"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M9 20v-6h6v6" /></svg>
+        <small>{{ statusLabel }}</small>
+      </button>
     </div>
   </section>
 </template>
@@ -137,6 +156,17 @@ let scrollHintRaf = 0
 const selectedPhoto = computed(
   () => props.genealogies.find((genealogy) => genealogy.id === props.selectedGenealogyId)?.photoData || brandMark,
 )
+const homeStatusKind = computed(() => {
+  if (props.error) return 'error'
+  const status = props.statusLabel.toLowerCase()
+  if (status.includes('synchronisation') || status.includes('sauvegarde')) return 'saving'
+  return 'online'
+})
+const homeStatusLabel = computed(() => {
+  if (homeStatusKind.value === 'error') return `Accueil — erreur de sauvegarde : ${props.statusLabel}`
+  if (homeStatusKind.value === 'saving') return `Accueil — ${props.statusLabel}`
+  return `Accueil — ${props.statusLabel}`
+})
 const nationalGenealogy = computed(() => props.genealogies.find((genealogy) => genealogy.type === 'national') || null)
 const regionGroups = computed(() => {
   const regions = props.genealogies.filter((genealogy) => genealogy.type === 'region')

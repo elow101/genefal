@@ -61,7 +61,24 @@ if (!$isAuthenticatedForThisPage) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Acces protege - Faluche Nationale</title>
     <style nonce="' . htmlspecialchars($styleNonce, ENT_QUOTES, 'UTF-8') . '">
-      :root { color-scheme: dark; --accent: #1e98a3; }
+      :root {
+        color-scheme: dark;
+        --background: oklch(0.16 0.02 240);
+        --foreground: oklch(0.97 0.01 240);
+        --card: oklch(0.21 0.02 240 / 0.68);
+        --card-strong: oklch(0.21 0.02 240 / 0.86);
+        --muted-foreground: oklch(0.68 0.02 240);
+        --border: oklch(1 0 0 / 0.10);
+        --primary: oklch(0.78 0.15 195);
+        --primary-foreground: oklch(0.15 0.02 240);
+        --accent: oklch(0.78 0.16 160);
+        --warning: oklch(0.75 0.17 60);
+        --destructive: oklch(0.65 0.22 25);
+        --radius-xl: 1.25rem;
+        --radius-2xl: 1.5rem;
+        --radius-pill: 9999px;
+        --cyan-glow: oklch(0.78 0.15 195);
+      }
       * { box-sizing: border-box; }
       body {
         min-height: 100vh;
@@ -69,69 +86,160 @@ if (!$isAuthenticatedForThisPage) {
         display: grid;
         place-items: center;
         padding: 24px;
-        background: #171d1b;
-        color: #f4f8f7;
+        background:
+          radial-gradient(ellipse at 20% 0%, color-mix(in oklab, var(--primary) 20%, transparent), transparent 44%),
+          radial-gradient(ellipse at 90% 15%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 48%),
+          radial-gradient(ellipse at 85% 100%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 52%),
+          var(--background);
+        color: var(--foreground);
         font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.65), transparent 72%);
       }
       form {
-        width: min(100%, 380px);
+        width: min(100%, 460px);
         display: grid;
-        gap: 14px;
-        padding: 24px;
-        border: 1px solid rgba(255,255,255,.16);
-        border-radius: 8px;
-        background: #202824;
+        gap: 16px;
+        padding: clamp(22px, 5vw, 32px);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-2xl);
+        background:
+          radial-gradient(ellipse at top right, color-mix(in oklab, var(--primary) 15%, transparent), transparent 52%),
+          color-mix(in oklab, var(--card-strong) 88%, transparent);
+        box-shadow: 0 24px 70px rgba(0,0,0,.38);
+        backdrop-filter: blur(24px) saturate(160%);
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
       }
-      h1 { margin: 0; font-size: 1.35rem; }
-      label { display: grid; gap: 8px; color: #d8e5e2; }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-mark {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        border: 1px solid color-mix(in oklab, var(--primary) 38%, transparent);
+        border-radius: 50%;
+        background: color-mix(in oklab, var(--primary) 18%, transparent);
+        color: var(--primary);
+        font-weight: 900;
+        box-shadow:
+          0 0 0 6px color-mix(in oklab, var(--primary) 10%, transparent),
+          0 0 26px color-mix(in oklab, var(--cyan-glow) 28%, transparent);
+      }
+      .brand-copy {
+        min-width: 0;
+      }
+      h1 {
+        margin: 2px 0 0;
+        font-size: clamp(1.25rem, 4vw, 1.65rem);
+        line-height: 1.1;
+        text-shadow: 0 0 22px color-mix(in oklab, var(--cyan-glow) 30%, transparent);
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        color: var(--muted-foreground);
+        font-size: .78rem;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
       input, button {
         min-height: 46px;
-        border-radius: 8px;
-        border: 1px solid rgba(255,255,255,.18);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--border);
         font: inherit;
       }
-      input { padding: 0 12px; background: #17201d; color: #fff; }
-      button { background: var(--accent); color: #071311; font-weight: 700; cursor: pointer; }
+      input {
+        padding: 0 14px;
+        background: color-mix(in oklab, white 8%, transparent);
+        color: var(--foreground);
+        outline: none;
+      }
+      input:focus {
+        border-color: color-mix(in oklab, var(--primary) 52%, transparent);
+        box-shadow:
+          0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent),
+          0 10px 32px -18px color-mix(in oklab, var(--cyan-glow) 70%, transparent);
+      }
+      button {
+        border-color: color-mix(in oklab, var(--primary) 52%, transparent);
+        border-radius: var(--radius-pill);
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow:
+          0 0 0 1px color-mix(in oklab, var(--cyan-glow) 35%, transparent),
+          0 12px 34px -14px color-mix(in oklab, var(--cyan-glow) 72%, transparent);
+      }
+      button:hover, button:focus-visible {
+        filter: brightness(1.06);
+      }
       p { margin: 0; }
-      .error { color: #ffb4b4; }
+      .error {
+        border: 1px solid color-mix(in oklab, var(--destructive) 38%, transparent);
+        border-radius: var(--radius-xl);
+        background: color-mix(in oklab, var(--destructive) 12%, transparent);
+        color: color-mix(in oklab, var(--destructive) 78%, white);
+        padding: 10px 12px;
+      }
       .hint {
-        color: #b8d8d5;
+        color: var(--muted-foreground);
         font-size: .86rem;
         line-height: 1.45;
       }
-      .hint strong { color: #f4f8f7; }
+      .hint strong { color: var(--foreground); }
       .warning {
         display: flex;
         gap: 8px;
         align-items: flex-start;
-        border: 1px solid rgba(180,122,22,.45);
-        border-radius: 8px;
-        background: rgba(180,122,22,.1);
-        color: #f0c46f;
+        border: 1px solid color-mix(in oklab, var(--warning) 42%, transparent);
+        border-radius: var(--radius-xl);
+        background: color-mix(in oklab, var(--warning) 12%, transparent);
+        color: var(--warning);
         font-size: .82rem;
         line-height: 1.45;
         padding: 10px 12px;
       }
-      .warning::before { content: "⚠️"; flex-shrink: 0; }
+      .warning::before { content: "!"; flex-shrink: 0; font-weight: 900; }
       .beta-warning {
-        border: 1px solid rgba(30,152,163,.45);
-        border-radius: 8px;
-        background: rgba(30,152,163,.12);
-        color: #d9f6f5;
+        border: 1px solid color-mix(in oklab, var(--primary) 38%, transparent);
+        border-radius: var(--radius-xl);
+        background: color-mix(in oklab, var(--primary) 12%, transparent);
+        color: color-mix(in oklab, var(--foreground) 88%, var(--primary));
         font-size: .9rem;
         line-height: 1.5;
         padding: 12px 14px;
       }
       .beta-warning strong {
         display: block;
-        color: #f4f8f7;
+        color: var(--foreground);
         margin-bottom: 4px;
       }
     </style>
   </head>
   <body>
     <form method="post" autocomplete="off">
-      <h1>Faluche Nationale</h1>
+      <div class="brand">
+        <span class="brand-mark">F</span>
+        <div class="brand-copy">
+          <h1>Genefaluche</h1>
+        </div>
+      </div>
       <p class="beta-warning"><strong>Version bêta : le site est encore en cours d’amélioration.</strong>Si vous avez une proposition d’amélioration, une modification à suggérer ou un bug à signaler, merci de l’envoyer via l’espace doléance après connexion.</p>
       <p class="warning">Pas toutes les traditions permettent aux imp&eacute;trants de voir leur g&eacute;n&eacute;alogie.<br>Ne montrez pas ce site &agrave; n&rsquo;importe qui.</p>
       <p class="hint"><strong>Indice :</strong> question de rapidit&eacute; et ann&eacute;e de cr&eacute;ation de la coiffe.</p>

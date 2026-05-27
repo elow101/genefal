@@ -9,7 +9,14 @@
         :aria-current="modelValue === view.id ? 'page' : undefined"
         @click="$emit('update:modelValue', view.id)"
       >
-        {{ view.label }}
+        <span class="view-tab-icon" :class="`view-tab-icon--${view.icon || view.id}`" aria-hidden="true">
+          <svg v-if="view.icon === 'tree'" viewBox="0 0 24 24"><path d="M12 5v14M6 9h12M8 15h8" /><circle cx="12" cy="5" r="2" /><circle cx="6" cy="9" r="2" /><circle cx="18" cy="9" r="2" /><circle cx="8" cy="15" r="2" /><circle cx="16" cy="15" r="2" /></svg>
+          <svg v-else-if="view.icon === 'person'" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
+          <svg v-else-if="view.icon === 'calendar'" viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg>
+          <svg v-else-if="view.icon === 'grid'" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+          <svg v-else-if="view.icon === 'chart'" viewBox="0 0 24 24"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 16v-5" /><path d="M12 16V8" /><path d="M16 16v-3" /></svg>
+        </span>
+        <span>{{ view.label }}</span>
       </button>
     </div>
 
@@ -35,7 +42,7 @@
           role="menu"
         >
           <button
-            v-for="view in views"
+            v-for="view in mobileViews"
             :key="view.id"
             type="button"
             :class="{ 'is-active': modelValue === view.id }"
@@ -43,7 +50,14 @@
             @click="selectView(view.id)"
             role="menuitem"
           >
-            {{ view.label }}
+            <span class="view-tab-icon" :class="`view-tab-icon--${view.icon || view.id}`" aria-hidden="true">
+              <svg v-if="view.icon === 'tree'" viewBox="0 0 24 24"><path d="M12 5v14M6 9h12M8 15h8" /><circle cx="12" cy="5" r="2" /><circle cx="6" cy="9" r="2" /><circle cx="18" cy="9" r="2" /><circle cx="8" cy="15" r="2" /><circle cx="16" cy="15" r="2" /></svg>
+              <svg v-else-if="view.icon === 'person'" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
+              <svg v-else-if="view.icon === 'calendar'" viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg>
+              <svg v-else-if="view.icon === 'grid'" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+              <svg v-else-if="view.icon === 'chart'" viewBox="0 0 24 24"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 16v-5" /><path d="M12 16V8" /><path d="M16 16v-3" /></svg>
+            </span>
+            <span>{{ view.label }}</span>
           </button>
         </div>
       </Teleport>
@@ -72,6 +86,7 @@ const currentViewLabel = computed(
   () => props.views.find((view) => view.id === props.modelValue)?.label || 'Choisir une vue',
 )
 const desktopViews = computed(() => props.views.filter((view) => view.id !== 'home'))
+const mobileViews = computed(() => props.views.filter((view) => view.id !== 'home'))
 
 const menuStyle = computed(() => ({
   position: 'fixed',

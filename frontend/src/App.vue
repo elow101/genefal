@@ -61,7 +61,7 @@
       <section
         class="workspace"
         :class="{
-          'workspace--editor-hidden': editorHidden,
+          'workspace--editor-hidden': !editorVisible,
           'workspace--document-flow': !graphIsPannable,
         }"
       >
@@ -250,46 +250,73 @@
             <template v-else>
               <section v-if="activeView === 'home'" class="home-panel">
                 <div class="home-actions" aria-label="Actions principales">
-                  <button type="button" class="primary" @click="openMainTreeView">Explorer l'arbre</button>
-                  <button type="button" @click="activeView = 'upcoming'">Voir les prochains events</button>
-                  <button type="button" @click="openTreeAndBeginPersonCreation">Ajouter une fiche</button>
-                </div>
-                <section class="tutorial-home-card" aria-label="Tutoriels">
-                  <div>
-                    <h3>Tutoriels</h3>
-                    <p>Active les aides interactives uniquement quand tu veux les consulter.</p>
-                  </div>
-                  <label class="switch-field switch-field--compact">
-                    <span>
-                      <strong>Mode tutoriel</strong>
-                      <small>{{ tutorialEnabled ? 'Aides interactives activées' : 'Aides interactives désactivées' }}</small>
+                  <button type="button" class="home-action-card home-action-card--main" @click="openMainTreeView">
+                    <span class="home-action-icon home-action-icon--tree" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M12 5v14M6 9h12M8 15h8" /><circle cx="12" cy="5" r="2" /><circle cx="6" cy="9" r="2" /><circle cx="18" cy="9" r="2" /><circle cx="8" cy="15" r="2" /><circle cx="16" cy="15" r="2" /></svg>
                     </span>
-                    <input v-model="tutorialEnabled" type="checkbox" @change="handleTutorialToggle" />
-                    <i aria-hidden="true"></i>
-                  </label>
-                  <button
-                    v-if="tutorialEnabled"
-                    type="button"
-                    class="tutorial-launch"
-                    @click="openTutorial"
-                  >
-                    Ouvrir les aides interactives
+                    <span class="home-action-copy">
+                      <strong>Explorer l'arbre</strong>
+                      <small>Visualise les filiations, les promos et les liens entre faluchards.</small>
+                    </span>
+                    <span class="home-action-badge">Action principale</span>
                   </button>
-                </section>
-                <div class="home-summary" aria-label="Résumé">
-                  <article>
-                    <strong>{{ people.length }}</strong>
-                    <span>fiche(s)</span>
-                  </article>
-                  <article>
-                    <strong>{{ genealogies.length }}</strong>
-                    <span>arbre(s)</span>
-                  </article>
-                  <article>
-                    <strong>{{ upcomingEvents.length }}</strong>
-                    <span>annonce(s)</span>
-                  </article>
+                  <button type="button" class="home-action-card" @click="openTreeAndBeginPersonCreation">
+                    <span class="home-action-icon home-action-icon--person" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
+                    </span>
+                    <span class="home-action-copy">
+                      <strong>Ajouter une fiche</strong>
+                      <small>Crée une nouvelle personne et relie-la à un arbre existant.</small>
+                    </span>
+                  </button>
+                  <button type="button" class="home-action-card" @click="activeView = 'upcoming'">
+                    <span class="home-action-icon home-action-icon--events" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg>
+                    </span>
+                    <span class="home-action-copy">
+                      <strong>Voir les prochains events</strong>
+                      <small>Congrès, intronisations, rassemblements régionaux à venir.</small>
+                    </span>
+                  </button>
                 </div>
+                <TutorialToggle
+                  v-model:enabled="tutorialEnabled"
+                  :tutorial-count="tutorialOrderFr.length"
+                  @update:enabled="handleTutorialToggle"
+                  @open-guides="openTutorial"
+                />
+                <section class="home-stats" aria-label="Statistiques">
+                  <header class="home-stats-head">
+                    <h3>Statistiques</h3>
+                    <button type="button" @click="activeView = 'stats'">Vue globale</button>
+                  </header>
+                  <div class="home-summary" aria-label="Résumé">
+                    <article>
+                      <span class="home-stat-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      </span>
+                      <strong>{{ people.length }}</strong>
+                      <span>Fiches</span>
+                      <small>Total actuel</small>
+                    </article>
+                    <article>
+                      <span class="home-stat-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M12 5v14M6 9h12M8 15h8" /><circle cx="12" cy="5" r="2" /><circle cx="6" cy="9" r="2" /><circle cx="18" cy="9" r="2" /></svg>
+                      </span>
+                      <strong>{{ genealogies.length }}</strong>
+                      <span>Arbres</span>
+                      <small>Total actuel</small>
+                    </article>
+                    <article>
+                      <span class="home-stat-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 14v-3Z" /><path d="M11.6 16.8A3 3 0 1 1 8 14" /></svg>
+                      </span>
+                      <strong>{{ upcomingEvents.length }}</strong>
+                      <span>Annonces</span>
+                      <small>{{ upcomingEvents.length ? 'En cours' : 'Aucune en cours' }}</small>
+                    </article>
+                  </div>
+                </section>
               </section>
               <template v-else>
                 <UpcomingComposer
@@ -319,6 +346,7 @@
                   @creator-update="handleUpcomingCreatorUpdate"
                   @request-status="handleUpcomingRequestStatus"
                   @creator-delete="handleUpcomingCreatorDelete"
+                  @help="openTutorialById"
                 />
               </template>
             </template>
@@ -452,7 +480,7 @@
       @skip="completeTutorial"
     />
 
-    <TutorialHint
+    <TutorialCoachmark
       v-if="tutorialEnabled && activeHint && !tutorialOpen"
       :title="activeHint.title"
       :text="activeHint.text"
@@ -487,8 +515,9 @@ import PersonDetails from './features/people/PersonDetails.vue'
 import PersonForm from './features/people/PersonForm.vue'
 import PersonSearch from './features/search/PersonSearch.vue'
 import TutorialOverlay from './features/tutorial/TutorialOverlay.vue'
-import TutorialHint from './features/tutorial/TutorialHint.vue'
-import { contextualHintsFr } from './features/tutorial/tutorials.fr.js'
+import TutorialCoachmark from './features/tutorial/TutorialCoachmark.vue'
+import TutorialToggle from './features/tutorial/TutorialToggle.vue'
+import { contextualHintsFr, tutorialOrderFr } from './features/tutorial/tutorials.fr.js'
 
 const secondaryComponentLoaders = {
   adminPanel: () => import('./features/admin/AdminPanel.vue'),
@@ -510,11 +539,11 @@ const UpcomingComposer = defineAsyncComponent(secondaryComponentLoaders.upcoming
 const UpcomingView = defineAsyncComponent(secondaryComponentLoaders.upcomingView)
 
 const views = [
-  { id: 'home', label: 'Accueil' },
-  { id: 'tree', label: 'Arbre' },
-  { id: 'overview', label: "Vue d'ensemble" },
-  { id: 'stats', label: 'Statistiques' },
-  { id: 'upcoming', label: 'Event à venir' },
+  { id: 'home', label: 'Accueil', icon: 'home' },
+  { id: 'tree', label: 'Arbre', icon: 'tree' },
+  { id: 'overview', label: "Vue d'ensemble", icon: 'person' },
+  { id: 'stats', label: 'Statistiques', icon: 'chart' },
+  { id: 'upcoming', label: 'Event à venir', icon: 'calendar' },
 ]
 const TUTORIAL_ENABLED_KEY = 'fetterama:tutorials-enabled'
 const GRAPH_LAYOUT_MODE_KEY = 'fetterama:graph-layout-mode'

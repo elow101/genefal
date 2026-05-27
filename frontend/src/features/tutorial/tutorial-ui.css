@@ -1,0 +1,304 @@
+/* =====================================================================
+   tutorial-ui.css
+   Design system "Faluche Nationale" — dark glassmorphism + cyan glow
+   Importé une seule fois dans main.js.
+   ===================================================================== */
+
+:root {
+  --tut-radius: 0.875rem;
+  --tut-radius-lg: 1.25rem;
+  --tut-radius-xl: 1.5rem;
+
+  --tut-bg:           oklch(0.16 0.02 240);
+  --tut-fg:           oklch(0.97 0.01 240);
+  --tut-muted:        oklch(0.24 0.02 240);
+  --tut-muted-fg:     oklch(0.68 0.02 240);
+  --tut-card:         oklch(0.21 0.02 240 / 0.6);
+  --tut-border:       oklch(1 0 0 / 0.08);
+
+  --tut-primary:      oklch(0.78 0.15 195);   /* cyan */
+  --tut-primary-fg:   oklch(0.15 0.02 240);
+  --tut-warn:         oklch(0.75 0.17 60);    /* orange */
+  --tut-cyan-glow:    oklch(0.78 0.15 195);
+}
+
+/* --------------------------- Glass surfaces -------------------------- */
+.tut-glass {
+  background: color-mix(in oklab, var(--tut-card) 60%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--tut-border);
+}
+.tut-glass-strong {
+  background: color-mix(in oklab, var(--tut-card) 82%, transparent);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--tut-border);
+}
+.tut-glow-cyan {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tut-cyan-glow) 35%, transparent),
+    0 8px 32px -8px color-mix(in oklab, var(--tut-cyan-glow) 40%, transparent);
+}
+.tut-text-glow {
+  text-shadow: 0 0 24px color-mix(in oklab, var(--tut-cyan-glow) 50%, transparent);
+}
+
+/* --------------------------- Buttons --------------------------------- */
+.tut-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: .5rem; height: 2.75rem; padding: 0 1rem;
+  border-radius: .85rem; font-size: .875rem; font-weight: 600;
+  border: 1px solid var(--tut-border); background: color-mix(in oklab, var(--tut-muted) 40%, transparent);
+  color: var(--tut-fg); cursor: pointer; transition: all .2s ease;
+}
+.tut-btn:hover { background: var(--tut-muted); }
+.tut-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.tut-btn-primary {
+  background: var(--tut-primary); color: var(--tut-primary-fg); border-color: transparent;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tut-cyan-glow) 35%, transparent),
+    0 8px 32px -8px color-mix(in oklab, var(--tut-cyan-glow) 40%, transparent);
+}
+.tut-btn-primary:hover { filter: brightness(1.1); }
+
+.tut-btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 2.25rem; width: 2.25rem; border-radius: 999px;
+  border: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-muted) 40%, transparent);
+  color: var(--tut-muted-fg); cursor: pointer; transition: all .2s ease;
+}
+.tut-btn-ghost:hover { background: var(--tut-muted); color: var(--tut-fg); }
+
+.tut-pill {
+  display: inline-flex; align-items: center; gap: .35rem;
+  height: 1.75rem; padding: 0 .65rem; border-radius: 999px;
+  font-size: .75rem; font-weight: 600;
+  border: 1px solid color-mix(in oklab, var(--tut-primary) 30%, transparent);
+  background: color-mix(in oklab, var(--tut-primary) 10%, transparent);
+  color: var(--tut-primary);
+}
+
+/* --------------------------- Switch ---------------------------------- */
+button.tut-switch {
+  all: unset;
+  position: relative;
+  width: 3.5rem; height: 2rem; border-radius: 999px;
+  border: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-muted) 60%, transparent);
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: background .3s ease, border-color .3s ease, box-shadow .3s ease;
+  /* Override global button min-height */
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  display: inline-block;
+  box-sizing: border-box;
+  align-self: center;
+}
+button.tut-switch:focus-visible {
+  outline: 2px solid var(--tut-primary);
+  outline-offset: 2px;
+}
+button.tut-switch[aria-checked="true"] {
+  background: var(--tut-primary);
+  border-color: color-mix(in oklab, var(--tut-primary) 50%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tut-cyan-glow) 30%, transparent),
+    0 0 20px -4px var(--tut-cyan-glow);
+}
+
+.tut-switch__thumb {
+  position: absolute;
+  top: .25rem; left: .25rem;
+  width: 1.5rem; height: 1.5rem; border-radius: 999px;
+  background: var(--tut-fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  display: grid; place-items: center;
+  transition: transform .3s cubic-bezier(.4, 1.6, .5, 1), background .3s ease;
+  pointer-events: none;
+}
+button.tut-switch[aria-checked="true"] .tut-switch__thumb {
+  transform: translateX(1.5rem);
+  background: #fff;
+}
+
+/* --------------------------- Card on home page ----------------------- */
+.tut-card {
+  position: relative; overflow: hidden;
+  border-radius: var(--tut-radius-xl);
+  padding: 1.25rem;
+}
+@media (min-width: 640px) { .tut-card { padding: 1.5rem; } }
+
+.tut-card__halo {
+  pointer-events: none; position: absolute;
+  top: -5rem; right: -5rem; width: 14rem; height: 14rem;
+  border-radius: 999px; filter: blur(48px);
+  background: radial-gradient(closest-side, var(--tut-cyan-glow), transparent);
+  opacity: 0; transition: opacity .5s ease;
+}
+.tut-card[data-enabled="true"] .tut-card__halo { opacity: .55; }
+
+.tut-card__icon {
+  display: grid; place-items: center;
+  width: 2.75rem; height: 2.75rem; border-radius: 1rem;
+  border: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-muted) 40%, transparent);
+  color: var(--tut-muted-fg);
+  transition: all .3s ease;
+}
+.tut-card[data-enabled="true"] .tut-card__icon {
+  border-color: color-mix(in oklab, var(--tut-primary) 40%, transparent);
+  background: color-mix(in oklab, var(--tut-primary) 15%, transparent);
+  color: var(--tut-primary);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tut-cyan-glow) 35%, transparent),
+    0 8px 32px -8px color-mix(in oklab, var(--tut-cyan-glow) 40%, transparent);
+}
+
+/* --------------------------- Coachmark (toast) ----------------------- */
+.tut-coachmark {
+  position: fixed; left: 1rem; right: 1rem; bottom: 1rem; z-index: 60;
+  border-radius: 1.25rem; padding: 1rem;
+  animation: tutSlideUp .3s ease both;
+}
+@media (min-width: 640px) {
+  .tut-coachmark { left: 1.5rem; right: auto; bottom: 1.5rem; max-width: 22rem; }
+}
+
+/* --------------------------- Overlay --------------------------------- */
+.tut-overlay {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: flex-end; justify-content: flex-end;
+}
+@media (min-width: 640px) { .tut-overlay { align-items: stretch; } }
+
+.tut-overlay__backdrop {
+  position: absolute; inset: 0;
+  background: color-mix(in oklab, var(--tut-bg) 70%, transparent);
+  backdrop-filter: blur(6px);
+  animation: tutFade .2s ease both;
+  border: 0; padding: 0; cursor: pointer;
+}
+
+.tut-overlay__panel {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  width: 100%; max-height: 88vh;
+  border-top: 1px solid var(--tut-border);
+  border-radius: 1.5rem 1.5rem 0 0;
+  animation: tutSlideUp .3s ease both;
+}
+@media (min-width: 640px) {
+  .tut-overlay__panel {
+    height: 100%; max-height: none; max-width: 28rem;
+    border-top: 0; border-left: 1px solid var(--tut-border);
+    border-radius: 0;
+    animation: tutSlideLeft .3s ease both;
+  }
+}
+
+.tut-overlay__handle {
+  display: grid; place-items: center; height: .75rem; flex-shrink: 0;
+}
+.tut-overlay__handle span {
+  width: 2.5rem; height: .25rem; border-radius: 999px;
+  background: var(--tut-border);
+}
+@media (min-width: 640px) { .tut-overlay__handle { display: none; } }
+
+.tut-overlay__head, .tut-overlay__foot {
+  flex-shrink: 0; padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--tut-border);
+}
+.tut-overlay__foot {
+  border-bottom: 0; border-top: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-bg) 40%, transparent);
+}
+.tut-overlay__body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+
+.tut-eyebrow {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .7rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--tut-primary);
+}
+
+/* --------------------------- Picker items ---------------------------- */
+.tut-picker-item {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  border-radius: 1.25rem; padding: 1rem;
+  border: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-muted) 30%, transparent);
+  transition: all .2s ease;
+}
+.tut-picker-item:hover {
+  border-color: color-mix(in oklab, var(--tut-primary) 40%, transparent);
+  background: color-mix(in oklab, var(--tut-primary) 5%, transparent);
+}
+.tut-picker-item__icon {
+  display: grid; place-items: center;
+  width: 2.5rem; height: 2.5rem; border-radius: .85rem;
+  border: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-bg) 60%, transparent);
+  color: var(--tut-primary);
+}
+
+/* --------------------------- Step view ------------------------------- */
+.tut-progress { display: flex; gap: .25rem; margin-top: .5rem; }
+.tut-progress span {
+  flex: 1; height: .25rem; border-radius: 999px;
+  background: var(--tut-muted); transition: all .3s ease;
+}
+.tut-progress span.is-done { background: color-mix(in oklab, var(--tut-primary) 60%, transparent); }
+.tut-progress span.is-current {
+  background: var(--tut-primary);
+  box-shadow: 0 0 10px var(--tut-cyan-glow);
+}
+
+/* --------------------------- Detail blocks --------------------------- */
+.tut-detail {
+  border-radius: 1.25rem;
+  border: 1px solid var(--tut-border);
+  background: color-mix(in oklab, var(--tut-muted) 20%, transparent);
+  overflow: hidden;
+}
+.tut-detail[open] { background: color-mix(in oklab, var(--tut-muted) 30%, transparent); }
+.tut-detail > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  padding: .75rem 1rem;
+  font-size: .875rem; font-weight: 600;
+}
+.tut-detail > summary::-webkit-details-marker { display: none; }
+.tut-detail__body { padding: 0 1rem 1rem; font-size: .875rem; line-height: 1.55; color: var(--tut-muted-fg); }
+
+.tut-detail__icon {
+  display: grid; place-items: center;
+  width: 1.75rem; height: 1.75rem; border-radius: .5rem;
+  border: 1px solid var(--tut-border);
+}
+.tut-detail[data-tone="primary"] .tut-detail__icon {
+  color: var(--tut-primary);
+  border-color: color-mix(in oklab, var(--tut-primary) 30%, transparent);
+  background: color-mix(in oklab, var(--tut-primary) 5%, transparent);
+}
+.tut-detail[data-tone="warn"] .tut-detail__icon {
+  color: var(--tut-warn);
+  border-color: color-mix(in oklab, var(--tut-warn) 30%, transparent);
+  background: color-mix(in oklab, var(--tut-warn) 5%, transparent);
+}
+.tut-detail__chevron {
+  width: 1rem; height: 1rem; color: var(--tut-muted-fg);
+  transition: transform .2s ease;
+}
+.tut-detail[open] .tut-detail__chevron { transform: rotate(90deg); }
+
+/* --------------------------- Animations ------------------------------ */
+@keyframes tutFade     { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tutSlideUp  { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes tutSlideLeft{ from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }

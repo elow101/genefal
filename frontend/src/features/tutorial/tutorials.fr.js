@@ -143,6 +143,40 @@ export const tutorialsFr = {
     ],
   },
 
+  event_participation: {
+    id: 'event_participation',
+    title: 'Participer à un événement',
+    goal: 'Suivre un événement et/ou demander à y participer. ',
+    where: ["Depuis l'onglet « Events à venir ».", "ou depuis la fiche d'une région/famille."],
+    steps: [
+      {
+        title: 'Suivre les évènements',
+        text: "Ouvre une région ou une famille puis ajoute ton mail pour recevoir automatiquement les futurs événements.",
+        expected: 'La région est maintenant suivie et les événements seront reçus par mail.',
+      },
+      {
+        title: 'Demander une participation',
+        text: 'Clique sur « Demander à participer » puis complète les informations demandées. Utilise une adresse mail valide pour pouvoir suivre ta demande.',
+        expected: 'La demande est envoyée et pourra être suivie avec cette adresse mail.',
+      },
+      {
+        title: 'Se désabonner',
+        text: 'Tu ne souhaites plus recevoir les événements d’une région ? Remplis le mail concerné dans la barre Evenements à venir et clique sur « Se désabonner ». ',
+        expected: 'Tu ne recevras plus les événements de cette région, tu recevras un mail de confirmation de désabonnement.',
+      },
+    ],
+    warnings: [
+      'Utilise toujours une adresse mail valide : elle permet de suivre ta demande et de recevoir les événements.',
+      'Le créateur de l\'événement reste libre d\'accepter ou de refuser les demandes de participation.',
+    ],
+    troubleshooting: [
+      {
+        title: 'Je ne reçois pas de mail',
+        text: 'Si aucun événement n\'arrive, vérifie les spams et l\'adresse mail saisie. Si aucun mail de confirmation n\'est reçu, contacte un administrateur.',
+      },
+    ],
+  },
+
   admin_features: {
     id: 'admin_features',
     title: 'Fonctions Admin (régional / général)',
@@ -188,7 +222,7 @@ export const tutorialsFr = {
   },
 }
 
-export const tutorialOrderFr = ['faluchard_create', 'crossed_baptism', 'event_create', 'admin_features']
+export const tutorialOrderFr = ['faluchard_create', 'crossed_baptism', 'event_create', 'event_participation', 'admin_features']
 
 export const contextualHintsFr = {
   home: {
@@ -210,6 +244,11 @@ export const contextualHintsFr = {
     title: 'Créer un événement',
     text: 'Choisis le type, puis complète les champs obligatoires. “Autre” peut activer les demandes si tu le souhaites.',
     suggestedTutorialId: 'event_create',
+  },
+  eventParticipation: {
+  title: 'Participer à un événement',
+  text: 'Suis une région, demande une participation ou désabonne-toi des notifications.',
+  suggestedTutorialId: 'event_participation',
   },
   admin: {
     title: 'Mode admin',
