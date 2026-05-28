@@ -422,4 +422,84 @@ $createdEditablePerson = $createdEditableMerged['genealogies'][0]['people'][0];
 assert_same('Nom corrigé', $createdEditablePerson['name'], 'public session can freely edit a person created in the session');
 assert_same('Chant corrigé', $createdEditablePerson['song'], 'public session can edit created person fields beyond relations');
 
+// Tests pour la migration SQL
+
+// Test: payload vide quand SQL est activé mais pas de données SQL
+$emptySqlPayload = genealogy_sql_read_payload();
+assert_same(null, $emptySqlPayload, 'genealogy_sql_read_payload returns null when SQL unavailable or empty');
+
+// Test: migration dryRun compte correctement
+$testMigrationData = [
+    'genealogies' => [
+        [
+            'id' => 'test-region',
+            'name' => 'Test Region',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'person-1', 'name' => 'Alice', 'filiere' => 'medecine'],
+                ['id' => 'person-2', 'name' => 'Bob', 'filiere' => 'droit'],
+            ],
+        ],
+        [
+            'id' => 'test-family',
+            'name' => 'Test Family',
+            'type' => 'family',
+            'parentId' => 'test-region',
+            'people' => [
+                ['id' => 'person-3', 'name' => 'Charlie', 'filiere' => 'pharmacie-preparateur-pharmacie'],
+            ],
+        ],
+    ],
+    'upcomingBaptisms' => [],
+];
+$migratedTestPayload = migrate_genealogy_payload($testMigrationData);
+assert_same(2, count($migratedTestPayload['genealogies']), 'migration preserves all genealogies');
+$totalPeople = 0;
+foreach ($migratedTestPayload['genealogies'] as $g) {
+    $totalPeople += count($g['people'] ?? []);
+}
+assert_same(3, $totalPeople, 'migration counts all people correctly');
+
+// Test: filiere aliases sont normalisés pendant migration
+$testFilierePayload = migrate_genealogy_payload([
+    'genealogies' => [
+        [
+            'id' => 'region-filiere',
+            'name' => 'Region',
+            'type' => 'region',
+            'people' => [
+                ['id' => 'f1', 'name' => 'Test', 'filiere' => 'carab'],
+                ['id' => 'f2', 'name' => 'Test2', 'filiere' => 'dentaire'],
+                ['id' => 'f3', 'name' => 'Test3', 'filiere' => 'pharma'],
+            ],
+        ],
+    ],
+]);
+assert_same('medecine', $testFilierePayload['genealogies'][0]['people'][0]['filiere'], 'carab alias normalized during migration');
+assert_same('chirurgie-dentaire', $testFilierePayload['genealogies'][0]['people'][1]['filiere'], 'dentaire alias normalized during migration');
+assert_same('pharmacie-preparateur-pharmacie', $testFilierePayload['genealogies'][0]['people'][2]['filiere'], 'pharma alias normalized during migration');
+
+// Test: schemaVersion est mis à jour
+$legacyNoVersion = migrate_genealogy_payload([
+    'genealogies' => [['id' => 'legacy', 'name' => 'Legacy', 'people' => []]],
+]);
+assert_same(CURRENT_GENEALOGY_SCHEMA_VERSION, $legacyNoVersion['schemaVersion'], 'migration sets current schema version');
+
+// Test: activeGenealogyId fallback
+$noActiveGenealogy = migrate_genealogy_payload([
+    'genealogies' => [
+        ['id' => 'region-x', 'name' => 'X', 'type' => 'region', 'people' => []],
+    ],
+]);
+assert_same('region-x', $noActiveGenealogy['activeGenealogyId'], 'migration sets first genealogy as active when none specified');
+
+// Test: main genealogy est toujours créée
+$noNationalGenealogy = migrate_genealogy_payload([
+    'genealogies' => [
+        ['id' => 'only-region', 'name' => 'Only Region', 'type' => 'region', 'people' => []],
+    ],
+]);
+assert_same('faluche-nationale', $noNationalGenealogy['genealogies'][0]['id'], 'migration ensures main national genealogy exists');
+assert_same(2, count($noNationalGenealogy['genealogies']), 'migration adds national genealogy when missing');
+
 echo "genealogy-server: ok\n";

@@ -10,6 +10,7 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
 require __DIR__ . '/config.php';
 require_once __DIR__ . '/upcoming_sql.php';
 require_once __DIR__ . '/genealogy_sql.php';
+require_once __DIR__ . '/cache.php';
 
 const PUBLIC_EDITABLE_PEOPLE_SESSION_KEY = 'faluche_public_editable_people';
 const PUBLIC_CREATED_PEOPLE_SESSION_KEY = 'faluche_public_created_people';
@@ -30,14 +31,37 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     header('Content-Type: application/json; charset=utf-8');
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // Cache HTTP: 30 secondes pour les données publiques
+        header('Cache-Control: public, max-age=30, stale-while-revalidate=60');
+        header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 30) . ' GMT');
+        
+        // Cache APCu: évite requêtes SQL répétées
+        $cachedPayload = genealogy_cache_get('payload');
+        if ($cachedPayload !== null) {
+            clear_public_session_permissions();
+            api_respond($cachedPayload + ['people' => []]);
+        }
+        
         if (!is_file(GENEALOGY_DATA_FILE) && !database_genealogy_read_enabled()) {
             api_respond(empty_genealogy_payload());
         }
 
-        [$payload, $data] = genealogy_payload_for_read();
-        if ($payload !== $data) {
+        [$payload, $sourceData] = genealogy_payload_for_read();
+
+        // Écrire uniquement si :
+        // 1. Les données viennent de JSON (pas SQL)
+        // 2. Une migration était nécessaire (payload différent des données brutes)
+        // 3. L'écriture JSON est activée
+        $cameFromJson = !database_genealogy_read_enabled() || empty($sourceData['genealogies']);
+        $needsMigration = $payload !== $sourceData;
+
+        if ($cameFromJson && $needsMigration && database_genealogy_json_write_enabled()) {
             write_genealogy_payload($payload);
         }
+
+        // Mettre en cache pour les prochaines requêtes
+        genealogy_cache_set('payload', $payload, 30);
+        
         clear_public_session_permissions();
         api_respond($payload + ['people' => []]);
     }
@@ -53,6 +77,8 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         if ($action === 'undoPublicSessionAction') {
             require_csrf_token();
             $result = undo_public_session_action($body);
+            // L'undo modifie la payload en session, invalider le cache pour cohérence
+            genealogy_cache_clear();
             api_respond($result);
         }
         if ($action === 'scanPersonDuplicates') {
@@ -66,6 +92,8 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
             if (!write_genealogy_payload($mergeResult)) {
                 api_respond(['error' => 'Impossible de sauvegarder la genealogie.'], 500);
             }
+            // Invalider le cache après fusion
+            genealogy_cache_clear();
             auth_record_admin_audit_event([
                 'summary' => 'Fusion de fiches doublons',
                 'actorLabel' => 'Admin general',
@@ -102,6 +130,9 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         if (!write_genealogy_payload($payload)) {
             api_respond(['error' => 'Impossible de sauvegarder la genealogie.'], 500);
         }
+        
+        // Invalider le cache après modification
+        genealogy_cache_clear();
 
         genealogy_record_audit_event($currentBeforeWrite, $payload, $body, $adminSession);
         if ($adminSession === null) {
@@ -180,25 +211,33 @@ function read_genealogy_file(): string
 
 function genealogy_payload_for_read(): array
 {
+    // Priorité 1 : Lecture SQL si activée et disponible
+    if (database_genealogy_read_enabled()) {
+        $sqlPayload = genealogy_sql_read_payload();
+        if (is_array($sqlPayload) && !empty($sqlPayload['genealogies'])) {
+            // SQL a des données valides, les utiliser
+            $payload = migrate_genealogy_payload($sqlPayload);
+            // Conserver les événements depuis SQL ou les ajouter depuis upcoming SQL
+            return [genealogy_payload_with_optional_sql_events($payload), $sqlPayload];
+        }
+        // SQL est activé mais vide ou indisponible → fallback JSON (ne pas échouer)
+    }
+
+    // Priorité 2 : Lecture JSON (fallback ou mode JSON-only)
     $raw = read_genealogy_file();
     $data = json_decode($raw ?: '[]', true);
     if (!is_array($data) && trim($raw) !== '') {
         api_respond(['error' => 'Donnees temporairement indisponibles.'], 503);
     }
 
-    $jsonPayload = migrate_genealogy_payload(is_array($data) ? $data : []);
-    $payload = $jsonPayload;
-    if (database_genealogy_read_enabled()) {
-        $sqlPayload = genealogy_sql_read_payload();
-        if (is_array($sqlPayload)) {
-            $payload = migrate_genealogy_payload(array_replace($jsonPayload, [
-                'activeGenealogyId' => $sqlPayload['activeGenealogyId'] ?: ($jsonPayload['activeGenealogyId'] ?? ''),
-                'roleResetVersion' => $sqlPayload['roleResetVersion'] ?? ($jsonPayload['roleResetVersion'] ?? null),
-                'genealogies' => $sqlPayload['genealogies'],
-                'upcomingBaptisms' => $jsonPayload['upcomingBaptisms'] ?? [],
-            ]));
-        }
+    $data = is_array($data) ? $data : [];
+    $rawEvents = is_array($data['upcomingBaptisms'] ?? null) ? $data['upcomingBaptisms'] : [];
+    $refreshedEvents = refresh_recurring_upcoming_events($rawEvents);
+    if ($refreshedEvents !== $rawEvents) {
+        $data['upcomingBaptisms'] = $refreshedEvents;
     }
+
+    $payload = migrate_genealogy_payload($data);
 
     return [genealogy_payload_with_optional_sql_events($payload), $data];
 }
@@ -1286,8 +1325,161 @@ function upcoming_baptism_expired(string $dateTime): bool
     if ($timestamp === false) {
         return false;
     }
-    $expiresAt = strtotime(date('Y-m-d 00:00:00', $timestamp) . ' +2 days');
-    return $expiresAt !== false && time() >= $expiresAt;
+    $expiresAt = strtotime(date('Y-m-d 23:59:59', $timestamp));
+    return $expiresAt !== false && time() > $expiresAt;
+}
+
+function upcoming_next_recurrence_datetime(string $dateTime, string $recurrence): string
+{
+    if ($recurrence === 'none') {
+        return '';
+    }
+    $timestamp = strtotime($dateTime);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $interval = match ($recurrence) {
+        'weekly' => '+1 week',
+        'monthly' => '+1 month',
+        'yearly' => '+1 year',
+        default => '',
+    };
+    if ($interval === '') {
+        return '';
+    }
+
+    $next = strtotime(date('Y-m-d H:i:s', $timestamp) . ' ' . $interval);
+    if ($next === false) {
+        return '';
+    }
+
+    // Advance until the date is not expired (future relative to now)
+    $now = time();
+    $maxIterations = 120; // ~10 years for monthly, safety guard
+    $iterations = 0;
+    while ($next !== false && $next <= $now && $iterations < $maxIterations) {
+        $next = strtotime(date('Y-m-d H:i:s', $next) . ' ' . $interval);
+        $iterations++;
+    }
+
+    return $next !== false && $next > $now ? date('c', $next) : '';
+}
+
+function upcoming_event_fingerprint(array $event): string
+{
+    $title = api_safe_text($event['title'] ?? '', 140);
+    $recurrence = upcoming_normalise_recurrence($event['recurrence'] ?? 'none');
+    $scope = upcoming_normalise_scope($event['scope'] ?? 'region');
+    $regionId = api_safe_id($event['regionId'] ?? '', 100);
+    $familyId = api_safe_id($event['familyId'] ?? '', 100);
+    $dateTime = normalise_datetime_local($event['dateTime'] ?? '');
+    return hash('sha256', implode('|', [$title, $recurrence, $scope, $regionId, $familyId, $dateTime]));
+}
+
+function upcoming_spawn_recurring_event(array $event, string $nextDateTime): array
+{
+    $oldId = api_safe_id($event['id'] ?? '', 100);
+    $newId = api_safe_id('recurrence-' . $oldId . '-' . date('YmdHi', strtotime($nextDateTime)) . '-' . bin2hex(random_bytes(4)), 100);
+
+    $spawned = $event;
+    $spawned['id'] = $newId;
+    $spawned['dateTime'] = normalise_datetime_local($nextDateTime);
+    $spawned['createdAt'] = gmdate('c');
+    $spawned['requests'] = [];
+
+    return $spawned;
+}
+
+function refresh_recurring_upcoming_events(array $events): array
+{
+    $changed = false;
+    $fingerprints = [];
+    $now = time();
+
+    // Index existing fingerprints for deduplication
+    foreach ($events as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        $fingerprints[upcoming_event_fingerprint($event)] = true;
+    }
+
+    $newEvents = [];
+    foreach ($events as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        $dateTime = normalise_datetime_local($event['dateTime'] ?? '');
+        $recurrence = upcoming_normalise_recurrence($event['recurrence'] ?? 'none');
+        if ($dateTime === '' || $recurrence === 'none' || !upcoming_baptism_expired($dateTime)) {
+            continue;
+        }
+
+        $nextDateTime = upcoming_next_recurrence_datetime($dateTime, $recurrence);
+        if ($nextDateTime === '') {
+            continue;
+        }
+
+        $spawned = upcoming_spawn_recurring_event($event, $nextDateTime);
+        $fp = upcoming_event_fingerprint($spawned);
+        if (isset($fingerprints[$fp])) {
+            continue; // Already exists, do not duplicate
+        }
+
+        $fingerprints[$fp] = true;
+        $newEvents[] = $spawned;
+        $changed = true;
+    }
+
+    if (!$changed) {
+        return $events;
+    }
+
+    // Copy creator secrets from old events to new spawned events
+    $secrets = upcoming_read_json(UPCOMING_SECRETS_FILE);
+    $sqlMirrorSecrets = [];
+    foreach ($newEvents as $spawned) {
+        $oldId = '';
+        // The old id is embedded in the new id prefix: recurrence-{oldId}-{date}-{random}
+        $parts = explode('-', $spawned['id'] ?? '', 3);
+        if (count($parts) >= 3 && $parts[0] === 'recurrence') {
+            // Reconstruct possible old id (may contain dashes)
+            $possibleOldId = substr($spawned['id'], strlen('recurrence-'));
+            $possibleOldId = preg_replace('/-\d{10,12}-[a-f0-9]+$/', '', $possibleOldId);
+            if ($possibleOldId !== '' && isset($secrets['events'][$possibleOldId])) {
+                $oldId = $possibleOldId;
+            }
+        }
+
+        if ($oldId !== '' && isset($secrets['events'][$oldId])) {
+            $secrets['events'][$spawned['id']] = [
+                'passwordHash' => $secrets['events'][$oldId]['passwordHash'] ?? '',
+                'creatorEmail' => $secrets['events'][$oldId]['creatorEmail'] ?? '',
+                'requestEmails' => [],
+                'createdAt' => gmdate('c'),
+            ];
+            $sqlMirrorSecrets[$spawned['id']] = $secrets['events'][$spawned['id']];
+        }
+        // If no old secret exists, do not create a new password automatically;
+        // the event will simply have no creator access unless handled elsewhere.
+    }
+
+    upcoming_write_json(UPCOMING_SECRETS_FILE, $secrets);
+
+    $merged = array_merge($events, $newEvents);
+
+    // SQL mirror for new events and their secrets
+    if (upcoming_sql_available()) {
+        foreach ($newEvents as $event) {
+            upcoming_sql_upsert_event($event);
+        }
+        foreach ($sqlMirrorSecrets as $eventId => $secret) {
+            upcoming_sql_upsert_creator_secret($eventId, $secret);
+        }
+    }
+
+    return $merged;
 }
 
 function normalise_text($value): string

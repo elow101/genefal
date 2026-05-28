@@ -452,28 +452,6 @@ function upcoming_normalise_visibility($visibility): string
     return in_array($value, ['public', 'private', 'family'], true) ? $value : 'public';
 }
 
-function upcoming_read_json(string $path): array
-{
-    if (!is_file($path)) {
-        return ['events' => [], 'subscriptions' => []];
-    }
-    $data = json_decode((string) file_get_contents($path), true);
-    return is_array($data) ? $data + ['events' => [], 'subscriptions' => []] : ['events' => [], 'subscriptions' => []];
-}
-
-function upcoming_write_json(string $path, array $payload): void
-{
-    $directory = dirname($path);
-    if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
-        api_respond(['error' => 'Impossible de creer le dossier de donnees.'], 500);
-    }
-    auth_protect_data_directory($directory);
-    $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-    if (!is_string($json) || !api_atomic_json_write($path, $json)) {
-        api_respond(['error' => 'Impossible de sauvegarder les donnees evenements.'], 500);
-    }
-}
-
 function upcoming_safe_email($value): string
 {
     $email = filter_var(trim((string) $value), FILTER_VALIDATE_EMAIL);

@@ -109,6 +109,10 @@ function genealogy_sql_write_payload(array $payload): bool
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        // Log détaillé dans fichier
+        $errorMsg = date('c') . ' - Genealogy SQL write error: ' . $exception->getMessage() . "\n";
+        $errorMsg .= 'Stack trace: ' . $exception->getTraceAsString() . "\n";
+        file_put_contents(__DIR__ . '/../data/sql-error.log', $errorMsg, FILE_APPEND | LOCK_EX);
         error_log('Genealogy SQL write error: ' . $exception->getMessage());
         return false;
     }
@@ -270,9 +274,44 @@ function genealogy_sql_delete_missing_people(array $personIds): void
         $pdo->exec('DELETE FROM people');
         return;
     }
-    $placeholders = implode(',', array_fill(0, count($personIds), '?'));
-    $statement = $pdo->prepare("DELETE FROM people WHERE id NOT IN ({$placeholders})");
-    $statement->execute(array_values(array_unique($personIds)));
+    
+    // Filtrer et dédupliquer les IDs
+    $uniqueIds = array_values(array_unique(array_filter($personIds, fn($id) => $id !== '')));
+    
+    if (empty($uniqueIds)) {
+        $pdo->exec('DELETE FROM people');
+        return;
+    }
+    
+    // MySQL limite à 1000 éléments dans IN(), on fait par batch
+    $chunkSize = 900;
+    $chunks = array_chunk($uniqueIds, $chunkSize);
+    
+    // Marquer les personnes à conserver en utilisant une colonne temporaire
+    // On utilise une approche simple : mettre à jour updated_at pour les personnes à garder
+    $pdo->exec("UPDATE people SET updated_at = updated_at WHERE 1=0"); // No-op pour init
+    
+    // Supprimer par batch : pour chaque batch, on garde ceux qui sont dans le batch
+    // Puis on supprime ceux qui n'ont pas été mis à jour (approche simplifiée)
+    
+    // Solution alternative : DELETE avec NOT IN par petits batches
+    // On récupère tous les IDs existants
+    $existingIds = $pdo->query('SELECT id FROM people')->fetchAll(PDO::FETCH_COLUMN);
+    $toDelete = array_diff($existingIds, $uniqueIds);
+    
+    if (empty($toDelete)) {
+        return; // Rien à supprimer
+    }
+    
+    // Supprimer par petits batches
+    $deleteChunks = array_chunk($toDelete, $chunkSize);
+    $deleteStmt = $pdo->prepare("DELETE FROM people WHERE id = :id");
+    
+    foreach ($deleteChunks as $chunk) {
+        foreach ($chunk as $id) {
+            $deleteStmt->execute([':id' => $id]);
+        }
+    }
 }
 
 function genealogy_sql_delete_missing_genealogy_people(array $genealogies): void

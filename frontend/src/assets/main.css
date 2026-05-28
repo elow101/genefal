@@ -27,6 +27,7 @@
   --destructive:       oklch(0.65 0.22 25);
   --warning:           oklch(0.75 0.17 60);
   --success:           oklch(0.78 0.16 160);
+  --events:            #be185d;                /* rose framboise */
 
   /* Glows (utilisés en box-shadow et text-shadow) */
   --cyan-glow:   oklch(0.78 0.15 195);
@@ -2776,7 +2777,7 @@ textarea {
 .upcoming-actions button {
   min-height: 40px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
 }
@@ -5670,6 +5671,8 @@ textarea:focus {
     radial-gradient(ellipse at top right, color-mix(in oklab, var(--accent) 15%, transparent), transparent 50%),
     linear-gradient(135deg, color-mix(in oklab, var(--card) 86%, transparent), color-mix(in oklab, var(--primary) 6%, transparent));
   text-align: left;
+  --action-color: var(--accent);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .home-actions .home-action-card--main {
@@ -5683,13 +5686,40 @@ textarea:focus {
   box-shadow: none;
 }
 
-.home-actions .home-action-card--main:hover,
-.home-actions .home-action-card--main:focus-visible {
-  border-color: color-mix(in oklab, var(--primary) 44%, transparent);
+/* Map each action card to its icon colour via :has() */
+.home-actions .home-action-card:has(.home-action-icon--tree) {
+  --action-color: var(--success);
+}
+.home-actions .home-action-card:has(.home-action-icon--person) {
+  --action-color: var(--warning);
+}
+.home-actions .home-action-card:has(.home-action-icon--events) {
+  --action-color: var(--events);
+}
+
+/* Hover / focus-visible */
+.home-actions .home-action-card:hover,
+.home-actions .home-action-card:focus-visible {
+  border-color: color-mix(in oklab, var(--action-color) 44%, transparent);
   background:
-    radial-gradient(ellipse at top right, color-mix(in oklab, var(--primary) 20%, transparent), transparent 48%),
-    linear-gradient(135deg, color-mix(in oklab, var(--card) 88%, transparent), color-mix(in oklab, var(--primary) 9%, transparent));
-  color: var(--primary);
+    radial-gradient(ellipse at top right, color-mix(in oklab, var(--action-color) 17%, transparent), transparent 48%),
+    linear-gradient(135deg, color-mix(in oklab, var(--card) 88%, transparent), color-mix(in oklab, var(--action-color) 8%, transparent));
+  color: var(--foreground);
+  box-shadow: 0 8px 28px -12px color-mix(in oklab, var(--action-color) 30%, transparent);
+}
+
+/* Active / pressed */
+.home-actions .home-action-card:active {
+  transform: translateY(1px) scale(0.99);
+  background:
+    radial-gradient(ellipse at top right, color-mix(in oklab, var(--action-color) 22%, transparent), transparent 48%),
+    linear-gradient(135deg, color-mix(in oklab, var(--card) 86%, transparent), color-mix(in oklab, var(--action-color) 12%, transparent));
+}
+
+/* Keyboard focus ring */
+.home-actions .home-action-card:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--action-color) 35%, transparent);
+  outline-offset: 3px;
 }
 
 .home-actions .home-action-card::after {
@@ -5711,6 +5741,13 @@ textarea:focus {
   background: color-mix(in oklab, var(--primary) 12%, transparent);
   color: var(--primary);
   box-shadow: 0 0 18px -9px var(--cyan-glow);
+}
+
+.home-stat-icon {
+  border-color: color-mix(in oklab, oklch(0.72 0.18 300) 42%, transparent);
+  background: color-mix(in oklab, oklch(0.72 0.18 300) 12%, transparent);
+  color: oklch(0.72 0.18 300);
+  box-shadow: 0 0 18px -9px color-mix(in oklab, oklch(0.72 0.18 300) 45%, transparent);
 }
 
 .home-action-icon--green {
@@ -5953,9 +5990,9 @@ textarea:focus {
 
 .home-action-icon--events,
 .view-tab-icon--calendar {
-  border-color: color-mix(in oklab, var(--primary) 44%, transparent);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  color: var(--primary);
+  border-color: color-mix(in oklab, var(--events) 44%, transparent);
+  background: color-mix(in oklab, var(--events) 12%, transparent);
+  color: var(--events);
 }
 
 .view-tab-icon--chart {
@@ -5993,7 +6030,11 @@ textarea:focus {
 .view-toggle button:hover .view-tab-icon--calendar,
 .view-select-mobile__menu button.is-active .view-tab-icon--calendar,
 .view-select-mobile__menu button:hover .view-tab-icon--calendar {
-  color: var(--primary);
+  color: var(--events);
+}
+
+.view-tab-icon--chart {
+  color: oklch(0.72 0.18 300);
 }
 
 @media (max-width: 980px) {
@@ -6014,4 +6055,9 @@ textarea:focus {
   .view-select-mobile {
     display: none;
   }
+}
+
+.upcoming-form-actions button {
+  border-radius: 999px;
+  padding: 16px 16px;
 }
