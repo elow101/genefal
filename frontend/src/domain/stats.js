@@ -56,10 +56,18 @@ export function buildTimeline(entries, period = 'month', selectedMonth = '') {
   if (period === 'year') {
     const firstYear = entries[0].date.getFullYear()
     const lastYear = entries.at(-1).date.getFullYear()
-    return Array.from({ length: lastYear - firstYear + 1 }, (_, index) => {
-      const year = firstYear + index
-      const people = entries.filter((entry) => entry.date.getFullYear() === year)
-      return { key: String(year), label: String(year), count: people.length, entries: people }
+    const span = lastYear - firstYear + 1
+    const step = span <= 15 ? 1 : Math.ceil(span / 15)
+    const bucketCount = Math.ceil(span / step)
+    return Array.from({ length: bucketCount }, (_, index) => {
+      const bucketStart = firstYear + index * step
+      const bucketEnd = Math.min(bucketStart + step - 1, lastYear)
+      const people = entries.filter((entry) => {
+        const y = entry.date.getFullYear()
+        return y >= bucketStart && y <= bucketEnd
+      })
+      const label = step === 1 ? String(bucketStart) : `${bucketStart}-${String(bucketEnd).slice(-2)}`
+      return { key: String(bucketStart), label, count: people.length, entries: people }
     })
   }
 

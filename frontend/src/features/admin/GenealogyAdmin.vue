@@ -15,7 +15,7 @@
       <label>
         Type
         <select v-model="draft.type">
-          <option value="region">Région</option>
+          <option v-if="isGeneralAdmin" value="region">Région</option>
           <option value="family">Famille</option>
         </select>
       </label>

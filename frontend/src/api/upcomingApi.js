@@ -24,6 +24,10 @@ export function deleteUpcomingEvent(payload, csrfToken) {
   return upcomingRequest({ action: 'delete_event', ...payload }, csrfToken)
 }
 
+export function adminDeleteUpcomingEvent(eventId, csrfToken) {
+  return upcomingRequest({ action: 'admin_delete_event', eventId }, csrfToken)
+}
+
 export function subscribeUpcomingRegion(payload, csrfToken) {
   return upcomingRequest({ action: 'subscribe_region', ...payload }, csrfToken)
 }

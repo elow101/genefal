@@ -64,7 +64,6 @@
           </ul>
         </template>
 
-        <!-- Step -->
         <template v-else>
           <TutorialStepCard :tutorial="activeTutorial" :step-idx="activeIndex" />
         </template>

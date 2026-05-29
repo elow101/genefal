@@ -1,9 +1,3 @@
-<!--
-  TutorialCoachmark.vue
-  Design glassmorphism + cyan glow. Remplace TutorialHint.vue.
-  Props identiques à l'ancien : title, text, showOpen
-  Events identiques : open, dismiss
--->
 <script setup>
 defineProps({
   title: { type: String, default: '' },

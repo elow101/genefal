@@ -15,6 +15,10 @@
             <strong>Filière</strong>
             <span>{{ filiereLabel(person.filiere) || 'Non renseignée' }}</span>
           </div>
+          <div v-if="person.filiere2">
+            <strong>2e filière</strong>
+            <span>{{ filiereLabel(person.filiere2) }}</span>
+          </div>
           <div>
             <strong>Date de baptême</strong>
             <span>{{ person.baptismDate || 'Non renseignée' }}</span>

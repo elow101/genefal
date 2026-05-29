@@ -55,7 +55,7 @@ export function normaliseFiliereId(id = '') {
   return legacyAliases.get(id) || (filiereById.has(id) ? id : '')
 }
 
-export function filiereOption(id = '') {
+function filiereOption(id = '') {
   return filiereById.get(normaliseFiliereId(id)) || null
 }
 

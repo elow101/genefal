@@ -422,6 +422,31 @@ $createdEditablePerson = $createdEditableMerged['genealogies'][0]['people'][0];
 assert_same('Nom corrigé', $createdEditablePerson['name'], 'public session can freely edit a person created in the session');
 assert_same('Chant corrigé', $createdEditablePerson['song'], 'public session can edit created person fields beyond relations');
 
+// Test: merge_public_people_for_session prevents name+nickname duplicates
+$publicMergeCurrentPeople = [
+    ['id' => 'existing-1', 'name' => 'Alice', 'nickname' => 'Test'],
+];
+$publicMergeIncomingPeople = [
+    ['id' => 'existing-1', 'name' => 'Alice', 'nickname' => 'Test'],
+    ['id' => 'new-dup', 'name' => '  alice ', 'nickname' => 'test'],
+];
+$publicMerged = merge_public_people_for_session('region-a', $publicMergeCurrentPeople, $publicMergeIncomingPeople);
+assert_same(1, count($publicMerged), 'merge_public_people_for_session blocks duplicate person by name+nickname');
+
+$publicMergedForced = merge_public_people_for_session('region-a', $publicMergeCurrentPeople, [
+    ['id' => 'existing-1', 'name' => 'Alice', 'nickname' => 'Test'],
+    ['id' => 'new-forced-dup', 'name' => '  alice ', 'nickname' => 'test', '_forceDuplicateCreation' => true],
+]);
+assert_same(2, count($publicMergedForced), 'merge_public_people_for_session allows an explicitly confirmed duplicate once');
+assert_same(false, array_key_exists('_forceDuplicateCreation', $publicMergedForced[1]), 'duplicate bypass marker is not stored');
+
+$publicMergeIncomingUnique = [
+    ['id' => 'existing-1', 'name' => 'Alice', 'nickname' => 'Test'],
+    ['id' => 'new-unique', 'name' => 'Bob', 'nickname' => 'Unique'],
+];
+$publicMergedUnique = merge_public_people_for_session('region-a', $publicMergeCurrentPeople, $publicMergeIncomingUnique);
+assert_same(2, count($publicMergedUnique), 'merge_public_people_for_session allows unique person');
+
 // Tests pour la migration SQL
 
 // Test: payload vide quand SQL est activé mais pas de données SQL
@@ -453,7 +478,7 @@ $testMigrationData = [
     'upcomingBaptisms' => [],
 ];
 $migratedTestPayload = migrate_genealogy_payload($testMigrationData);
-assert_same(2, count($migratedTestPayload['genealogies']), 'migration preserves all genealogies');
+assert_same(3, count($migratedTestPayload['genealogies']), 'migration preserves all genealogies plus national');
 $totalPeople = 0;
 foreach ($migratedTestPayload['genealogies'] as $g) {
     $totalPeople += count($g['people'] ?? []);
@@ -475,9 +500,10 @@ $testFilierePayload = migrate_genealogy_payload([
         ],
     ],
 ]);
-assert_same('medecine', $testFilierePayload['genealogies'][0]['people'][0]['filiere'], 'carab alias normalized during migration');
-assert_same('chirurgie-dentaire', $testFilierePayload['genealogies'][0]['people'][1]['filiere'], 'dentaire alias normalized during migration');
-assert_same('pharmacie-preparateur-pharmacie', $testFilierePayload['genealogies'][0]['people'][2]['filiere'], 'pharma alias normalized during migration');
+$filiereRegion = genealogy_by_id($testFilierePayload, 'region-filiere');
+assert_same('medecine', $filiereRegion['people'][0]['filiere'], 'carab alias normalized during migration');
+assert_same('chirurgie-dentaire', $filiereRegion['people'][1]['filiere'], 'dentaire alias normalized during migration');
+assert_same('pharmacie-preparateur-pharmacie', $filiereRegion['people'][2]['filiere'], 'pharma alias normalized during migration');
 
 // Test: schemaVersion est mis à jour
 $legacyNoVersion = migrate_genealogy_payload([
@@ -491,7 +517,7 @@ $noActiveGenealogy = migrate_genealogy_payload([
         ['id' => 'region-x', 'name' => 'X', 'type' => 'region', 'people' => []],
     ],
 ]);
-assert_same('region-x', $noActiveGenealogy['activeGenealogyId'], 'migration sets first genealogy as active when none specified');
+assert_same('faluche-nationale', $noActiveGenealogy['activeGenealogyId'], 'migration sets national genealogy as active when none specified');
 
 // Test: main genealogy est toujours créée
 $noNationalGenealogy = migrate_genealogy_payload([

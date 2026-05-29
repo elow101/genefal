@@ -13,6 +13,42 @@
     <p v-if="!person" class="empty">Sélectionne une personne à modifier.</p>
 
     <form v-else @submit.prevent="submit" @input="$emit('editing')" @change="$emit('editing')">
+      <section
+        v-if="duplicateConfirmation"
+        class="duplicate-confirmation"
+        role="alertdialog"
+        aria-labelledby="duplicate-confirmation-title"
+        aria-describedby="duplicate-confirmation-message"
+      >
+        <div>
+          <strong id="duplicate-confirmation-title">Fiche similaire détectée</strong>
+          <p id="duplicate-confirmation-message">
+            Une fiche similaire existe déjà. Voulez-vous quand même créer cette nouvelle fiche ?
+          </p>
+          <small v-if="duplicateConfirmation.label">
+            Fiche existante : {{ duplicateConfirmation.label }}
+          </small>
+        </div>
+        <div class="duplicate-confirmation__actions">
+          <button
+            type="button"
+            class="text-button"
+            :disabled="duplicateConfirmation.loading"
+            @click="$emit('cancel-duplicate')"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            class="primary"
+            :disabled="duplicateConfirmation.loading"
+            @click="$emit('confirm-duplicate')"
+          >
+            Créer quand même
+          </button>
+        </div>
+      </section>
+
       <div class="form-step-tabs" aria-label="Étapes de la fiche">
         <button class="text-button" type="button" :class="{ 'is-active': activeSection === 'identity' }" @click="activateSection('identity')">
           Identité
@@ -30,12 +66,27 @@
 
       <section ref="identityAnchor" class="form-identity">
         <div class="quick-fields">
-          <label>Nom <input v-model="draft.name" required /></label>
+          <label class="name-field">
+            Nom
+            <span class="field-tooltip-wrap">
+              <input v-model="draft.name" placeholder="Facultatif" />
+              <span class="field-tooltip">Remplis ce champ uniquement si la personne est consentante.</span>
+            </span>
+          </label>
           <label>Surnom <input v-model="draft.nickname" /></label>
           <label>
             Filière
             <select v-model="draft.filiere">
               <option value="">Non renseignée</option>
+              <option v-for="option in filiereOptions" :key="option.id" :value="option.id">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+          <label>
+            2e filière (optionnel)
+            <select v-model="draft.filiere2">
+              <option value="">Aucune</option>
               <option v-for="option in filiereOptions" :key="option.id" :value="option.id">
                 {{ option.label }}
               </option>
@@ -186,9 +237,19 @@ const props = defineProps({
   roleOptions: { type: Array, default: () => [] },
   canManageCeremonyEvents: { type: Boolean, default: false },
   isCreating: { type: Boolean, default: false },
+  duplicateConfirmation: { type: Object, default: null },
 })
 
-const emit = defineEmits(['save', 'new', 'help', 'editing', 'change-genealogy', 'cancel'])
+const emit = defineEmits([
+  'save',
+  'new',
+  'help',
+  'editing',
+  'change-genealogy',
+  'cancel',
+  'confirm-duplicate',
+  'cancel-duplicate',
+])
 const activeSection = ref('identity')
 const identityAnchor = ref(null)
 const advancedSection = ref(null)
@@ -201,6 +262,7 @@ const draft = reactive({
   nickname2: '',
   nickname3: '',
   filiere: '',
+  filiere2: '',
   baptismCity: '',
   baptismDate: '',
   baptismStatus: 'unknown',
@@ -219,6 +281,7 @@ watch(
     draft.nickname2 = person?.nicknames?.[1] || ''
     draft.nickname3 = person?.nicknames?.[2] || ''
     draft.filiere = normaliseFiliereId(person?.filiere || '')
+    draft.filiere2 = normaliseFiliereId(person?.filiere2 || '')
     draft.baptismCity = person?.baptismCity || ''
     draft.baptismDate = person?.baptismDate || ''
     draft.baptismStatus = person?.baptismStatus || 'unknown'
@@ -242,6 +305,7 @@ function submit() {
     nickname: draft.nickname,
     nicknames,
     filiere: draft.filiere,
+    filiere2: draft.filiere2,
     baptismCity: draft.baptismCity,
     baptismDate: draft.baptismDate,
     baptismStatus: draft.baptismStatus,

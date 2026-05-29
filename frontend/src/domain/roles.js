@@ -17,7 +17,7 @@ export function roleLabel(roleId, genealogies, genealogy) {
   return roleOptionsForGenealogy(genealogies, genealogy).find((role) => role.id === roleId)?.label || labelFromId(roleId)
 }
 
-export function normaliseRoleId(label = '') {
+function normaliseRoleId(label = '') {
   return String(label)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

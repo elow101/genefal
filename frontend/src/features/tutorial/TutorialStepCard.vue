@@ -1,10 +1,3 @@
-<!--
-  TutorialStepCard.vue
-  Affiche une étape avec le design glassmorphism.
-  Adapté au format de données existant (tutorials.fr.js) :
-  - step.text  (pas step.body)
-  - warnings[] et troubleshooting[] au niveau du tutoriel
--->
 <script setup>
 import { computed } from 'vue'
 

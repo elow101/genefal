@@ -459,10 +459,13 @@
             :role-options="roleOptions"
             :can-manage-ceremony-events="Boolean(adminSession)"
             :is-creating="isCreatingPerson"
+            :duplicate-confirmation="duplicateCreationConfirmation"
             @save="handlePersonFormSave"
             @new="beginPersonCreation"
             @help="openTutorialById"
             @cancel="cancelPersonCreation"
+            @confirm-duplicate="confirmDuplicateCreation"
+            @cancel-duplicate="cancelDuplicateCreation"
             @change-genealogy="handleNewPersonGenealogyChange"
             @editing="markEditing"
           />
@@ -618,6 +621,7 @@ import { useDoleances } from './composables/useDoleances.js'
 import { useGenealogyData } from './composables/useGenealogyData.js'
 import {
   createEmptyPerson,
+  findDuplicatePerson,
   getPersonSourceGenealogy,
   movePersonToGenealogy,
 } from './domain/genealogy.js'
@@ -703,6 +707,8 @@ const tutorialInitialId = ref('')
 const dismissedHintKeys = ref(new Set())
 const creationDraftPerson = ref(null)
 const creationDraftGenealogyId = ref('')
+const pendingDuplicateCreation = ref(null)
+const forcingDuplicateCreation = ref(false)
 let feedbackTimeout = 0
 let autosaveTimeout = 0
 let editingTimeout = 0
@@ -837,6 +843,13 @@ const selectedPersonSourceGenealogy = computed(() =>
 )
 const isCreatingPerson = computed(() => Boolean(creationDraftPerson.value))
 const personFormPerson = computed(() => creationDraftPerson.value || selectedPerson.value)
+const duplicateCreationConfirmation = computed(() => {
+  if (!pendingDuplicateCreation.value) return null
+  return {
+    label: pendingDuplicateCreation.value.duplicateLabel,
+    loading: forcingDuplicateCreation.value,
+  }
+})
 const personFormGenealogyId = computed(() =>
   isCreatingPerson.value
     ? creationDraftGenealogyId.value || selectedGenealogyId.value
@@ -966,14 +979,29 @@ async function handleDoleanceSubmit(payload) {
   }
 }
 
-async function handlePersonFormSave(updatedPerson) {
+async function handlePersonFormSave(updatedPerson, options = {}) {
   const personId = updatedPerson?.id || ''
   if (isCreatingPerson.value) {
+    if (forcingDuplicateCreation.value && !options.forceDuplicate) return
+    const forceDuplicate = Boolean(options.forceDuplicate)
+    const duplicate = forceDuplicate
+      ? null
+      : findDuplicatePerson(people.value, updatedPerson.name, updatedPerson.nickname)
+    if (duplicate) {
+      pendingDuplicateCreation.value = {
+        person: { ...updatedPerson },
+        duplicateLabel: personDuplicateLabel(duplicate),
+      }
+      await nextTick()
+      editorPanel.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+      return
+    }
     const targetGenealogyId = creationDraftGenealogyId.value || selectedGenealogyId.value
     const finalPerson = {
       ...updatedPerson,
       id: `person-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      ...(forceDuplicate ? { _forceDuplicateCreation: true } : {}),
     }
     const previousState = data.value
     const inserted = insertPerson(finalPerson, targetGenealogyId)
@@ -993,6 +1021,7 @@ async function handlePersonFormSave(updatedPerson) {
 
     creationDraftPerson.value = null
     creationDraftGenealogyId.value = ''
+    pendingDuplicateCreation.value = null
     selectGenealogy(targetGenealogyId)
     await nextTick()
     selectPerson(finalPerson.id)
@@ -1098,6 +1127,8 @@ function startPersonCreationDraft() {
   const draft = createEmptyPerson(`draft-person-${Date.now()}`)
   creationDraftPerson.value = draft
   creationDraftGenealogyId.value = targetGenealogyId
+  pendingDuplicateCreation.value = null
+  forcingDuplicateCreation.value = false
   selectPerson('')
   graphFocusPersonId.value = ''
 }
@@ -1105,6 +1136,7 @@ function startPersonCreationDraft() {
 function handleNewPersonGenealogyChange(targetGenealogyId) {
   if (isCreatingPerson.value) {
     creationDraftGenealogyId.value = targetGenealogyId
+    pendingDuplicateCreation.value = null
     return
   }
 }
@@ -1112,7 +1144,28 @@ function handleNewPersonGenealogyChange(targetGenealogyId) {
 function cancelPersonCreation() {
   creationDraftPerson.value = null
   creationDraftGenealogyId.value = ''
+  pendingDuplicateCreation.value = null
+  forcingDuplicateCreation.value = false
   showFeedback('Création abandonnée.', 'success')
+}
+
+async function confirmDuplicateCreation() {
+  if (!pendingDuplicateCreation.value || forcingDuplicateCreation.value) return
+  forcingDuplicateCreation.value = true
+  try {
+    await handlePersonFormSave(pendingDuplicateCreation.value.person, { forceDuplicate: true })
+  } finally {
+    forcingDuplicateCreation.value = false
+  }
+}
+
+function cancelDuplicateCreation() {
+  pendingDuplicateCreation.value = null
+  showFeedback('Création annulée. La fiche existante est conservée.', 'success')
+}
+
+function personDuplicateLabel(person) {
+  return `${person.name || 'Sans nom'}${person.nickname ? ` (${person.nickname})` : ''}`
 }
 
 function scrollToTop() {
@@ -1354,9 +1407,12 @@ async function handleUpcomingCreate(payload, done = () => {}) {
 }
 
 async function handleUpcomingDelete(eventId) {
-  upcoming.deleteEvent(eventId)
-  scheduleAutosave()
-  showFeedback("L'annonce a été supprimée.", 'success')
+  try {
+    await upcoming.adminDeleteEvent(eventId)
+    showFeedback("L'annonce a été supprimée.", 'success')
+  } catch (err) {
+    showFeedback(err.message || 'Suppression impossible.', 'warning')
+  }
 }
 
 async function handleUpcomingSubscribe(payload) {
@@ -1700,6 +1756,9 @@ watch(activeHintKey, (key) => {
 })
 
 function markEditing() {
+  if (isCreatingPerson.value && pendingDuplicateCreation.value && !forcingDuplicateCreation.value) {
+    pendingDuplicateCreation.value = null
+  }
   editing.value = true
   window.clearTimeout(editingTimeout)
   editingTimeout = window.setTimeout(() => {

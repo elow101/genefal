@@ -31,6 +31,25 @@ export function getSelectedPerson(people, selectedPersonId) {
   return people.find((person) => person.id === selectedPersonId) || null
 }
 
+export function findDuplicatePerson(allPeople, name, nickname, excludeId = '') {
+  const normalize = (text) =>
+    (text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+  const targetName = normalize(name)
+  const targetNickname = normalize(nickname)
+  if (!targetName && !targetNickname) return null
+  return allPeople.find((person) => {
+    if (person.id === excludeId) return false
+    const sameName = targetName && normalize(person.name) === targetName
+    const sameNickname = targetNickname && normalize(person.nickname) === targetNickname
+    return sameName && sameNickname
+  }) || null
+}
+
 export function createEmptyPerson(id = `person-${Date.now()}`) {
   return {
     id,
@@ -45,6 +64,7 @@ export function createEmptyPerson(id = `person-${Date.now()}`) {
     ceremonyEvents: [],
     song: '',
     filiere: '',
+    filiere2: '',
     createdAt: new Date().toISOString(),
     sponsorIds: [],
     heartSponsorIds: [],

@@ -249,7 +249,25 @@ if (!$isAuthenticatedForThisPage) {
       </label>' .
       ($error !== '' ? '<p class="error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</p>' : '') .
       '<button type="submit">Entrer</button>
+      <p class="warning accent-hint" style="display:none">Il y a un accent, gogol.</p>
     </form>
+    <script nonce="' . htmlspecialchars($styleNonce, ENT_QUOTES, 'UTF-8') . '">
+    (function(){
+      var input = document.querySelector("input[name=sitePassword]");
+      var hint = document.querySelector(".accent-hint");
+      var form = document.querySelector("form");
+      form.addEventListener("submit", function(e){
+        var val = input.value;
+        if(val && !/[àâäéèêëïîôùûüÿçœæÀÂÄÉÈÊËÏÎÔÙÛÜŸÇŒÆ]/.test(val)){
+          e.preventDefault();
+          hint.style.display = "";
+        } else {
+          hint.style.display = "none";
+        }
+      });
+      input.addEventListener("input", function(){ hint.style.display = "none"; });
+    })();
+    </script>
   </body>
 </html>';
     exit;

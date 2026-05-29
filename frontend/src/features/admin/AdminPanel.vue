@@ -39,9 +39,9 @@
         </label>
         <label>
           Nouveau mot de passe régional
-          <input v-model="newPassword" type="password" />
+          <input v-model="newPassword" type="password" required minlength="8" />
         </label>
-        <button type="submit" :disabled="!regionId">Mettre à jour</button>
+        <button type="submit" :disabled="!regionId || !newPassword">Mettre à jour</button>
       </form>
     </template>
   </section>

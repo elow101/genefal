@@ -3,7 +3,7 @@ import { jsonHeaders, requestJson } from './http.js'
 
 const backendLoginUrl = 'http://127.0.0.1:8765/'
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(message, { status = 0, loginUrl = backendLoginUrl } = {}) {
     super(message)
     this.name = 'ApiError'
@@ -25,11 +25,33 @@ export async function fetchGenealogyState() {
 }
 
 export function saveGenealogyState(payload, csrfToken) {
+  const migrated = migrateGenealogyState(payload)
+  restoreDuplicateCreationFlags(migrated, payload)
   return requestJson('/api/genealogy.php', {
     method: 'POST',
     headers: jsonHeaders(csrfToken),
-    body: JSON.stringify(migrateGenealogyState(payload)),
+    body: JSON.stringify(migrated),
   })
+}
+
+function restoreDuplicateCreationFlags(migrated, original) {
+  const forcedIds = new Set()
+  for (const genealogy of original?.genealogies || []) {
+    for (const person of genealogy?.people || []) {
+      if (person?._forceDuplicateCreation && person.id) {
+        forcedIds.add(person.id)
+      }
+    }
+  }
+  if (!forcedIds.size) return
+
+  for (const genealogy of migrated?.genealogies || []) {
+    for (const person of genealogy?.people || []) {
+      if (forcedIds.has(person.id)) {
+        person._forceDuplicateCreation = true
+      }
+    }
+  }
 }
 
 export function scanPersonDuplicates(csrfToken) {

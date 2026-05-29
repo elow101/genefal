@@ -38,6 +38,9 @@ if ($action === 'update_event') {
 if ($action === 'delete_event') {
     upcoming_delete_event($body);
 }
+if ($action === 'admin_delete_event') {
+    upcoming_admin_delete_event($body);
+}
 if ($action === 'creator_access') {
     upcoming_creator_access($body);
 }
@@ -302,7 +305,38 @@ function upcoming_delete_event(array $body): void
 {
     $eventId = api_safe_id($body['eventId'] ?? '', 100);
     upcoming_require_creator_password($eventId, (string) ($body['password'] ?? ''));
+    upcoming_remove_event($eventId);
+}
 
+function upcoming_admin_delete_event(array $body): void
+{
+    $eventId = api_safe_id($body['eventId'] ?? '', 100);
+    if ($eventId === '') {
+        api_respond(['error' => 'Evenement invalide.'], 400);
+    }
+
+    $adminSession = admin_auth_session();
+    if ($adminSession === null) {
+        api_respond(['error' => 'Authentification admin requise.'], 403);
+    }
+
+    $state = current_genealogy_payload();
+    $eventIndex = upcoming_event_index($state, $eventId);
+    if ($eventIndex < 0) {
+        api_respond(['error' => 'Evenement introuvable.'], 404);
+    }
+
+    $event = $state['upcomingBaptisms'][$eventIndex];
+    $eventRegionId = api_safe_id($event['regionId'] ?? '', 100);
+    if ($adminSession['level'] === 'region' && $adminSession['regionId'] !== $eventRegionId) {
+        api_respond(['error' => 'Vous ne pouvez supprimer que les evenements de votre region.'], 403);
+    }
+
+    upcoming_remove_event($eventId);
+}
+
+function upcoming_remove_event(string $eventId): void
+{
     $state = current_genealogy_payload();
     $eventIndex = upcoming_event_index($state, $eventId);
     if ($eventIndex < 0) {
@@ -407,6 +441,7 @@ function upcoming_write_state(array $state): void
     if (!write_genealogy_payload($state)) {
         api_respond(['error' => 'Impossible de sauvegarder les evenements.'], 500);
     }
+    genealogy_cache_clear();
 }
 
 function upcoming_event_index(array $state, string $eventId): int

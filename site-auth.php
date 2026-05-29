@@ -129,7 +129,7 @@ function site_security_headers(bool $noStore = true): void
     header('Referrer-Policy: same-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
     header(
-        "Content-Security-Policy: default-src 'none'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'; img-src 'self' data:; script-src 'self'; script-src-attr 'none'; style-src 'self' 'nonce-{$styleNonce}'; style-src-elem 'self' 'nonce-{$styleNonce}'; style-src-attr 'unsafe-inline'; upgrade-insecure-requests"
+        "Content-Security-Policy: default-src 'none'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'; img-src 'self' data:; script-src 'self' 'nonce-{$styleNonce}'; script-src-attr 'none'; style-src 'self' 'nonce-{$styleNonce}'; style-src-elem 'self' 'nonce-{$styleNonce}'; style-src-attr 'unsafe-inline'; upgrade-insecure-requests"
     );
     if (site_auth_is_https()) {
         header('Strict-Transport-Security: max-age=' . HSTS_MAX_AGE_SECONDS . '; includeSubDomains');

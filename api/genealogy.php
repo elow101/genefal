@@ -31,9 +31,9 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     header('Content-Type: application/json; charset=utf-8');
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        // Cache HTTP: 30 secondes pour les données publiques
-        header('Cache-Control: public, max-age=30, stale-while-revalidate=60');
-        header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 30) . ' GMT');
+        // Cache HTTP: toujours revalider auprès du serveur (le cache APCu côté serveur suffit)
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Expires: 0');
         
         // Cache APCu: évite requêtes SQL répétées
         $cachedPayload = genealogy_cache_get('payload');
@@ -126,6 +126,7 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         $payload = $hasGenealogies
             ? genealogy_payload_for_write($body, $adminSession)
             : people_payload_for_write($body['people'], $adminSession);
+        $payload = strip_duplicate_creation_flags_from_payload($payload);
 
         if (!write_genealogy_payload($payload)) {
             api_respond(['error' => 'Impossible de sauvegarder la genealogie.'], 500);
@@ -155,6 +156,17 @@ function write_genealogy_payload($payload): bool
 {
     if (!is_array($payload)) {
         return false;
+    }
+
+    // Préserver les événements existants si le payload n'en contient pas
+    // (évite que l'autosave écrase les événements quand SQL ne les fournit pas)
+    $incomingEvents = is_array($payload['upcomingBaptisms'] ?? null) ? $payload['upcomingBaptisms'] : [];
+    if (empty($incomingEvents) && is_file(GENEALOGY_DATA_FILE)) {
+        $existingRaw = file_get_contents(GENEALOGY_DATA_FILE);
+        $existingData = json_decode($existingRaw ?: '{}', true);
+        if (is_array($existingData) && !empty($existingData['upcomingBaptisms'])) {
+            $payload['upcomingBaptisms'] = $existingData['upcomingBaptisms'];
+        }
     }
 
     $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
@@ -217,6 +229,18 @@ function genealogy_payload_for_read(): array
         if (is_array($sqlPayload) && !empty($sqlPayload['genealogies'])) {
             // SQL a des données valides, les utiliser
             $payload = migrate_genealogy_payload($sqlPayload);
+
+            // SQL ne stocke pas les événements : récupérer depuis JSON si upcoming SQL n'est pas activé
+            if (!database_read_enabled() && is_file(GENEALOGY_DATA_FILE)) {
+                $jsonRaw = file_get_contents(GENEALOGY_DATA_FILE);
+                $jsonData = json_decode($jsonRaw ?: '{}', true);
+                if (is_array($jsonData)) {
+                    $rawEvents = is_array($jsonData['upcomingBaptisms'] ?? null) ? $jsonData['upcomingBaptisms'] : [];
+                    $refreshedEvents = refresh_recurring_upcoming_events($rawEvents);
+                    $payload['upcomingBaptisms'] = public_upcoming_baptisms($refreshedEvents);
+                }
+            }
+
             // Conserver les événements depuis SQL ou les ajouter depuis upcoming SQL
             return [genealogy_payload_with_optional_sql_events($payload), $sqlPayload];
         }
@@ -554,13 +578,40 @@ function normalise_people_for_storage(array $people): array
     $seen = [];
     foreach (array_slice($people, 0, MAX_PEOPLE_PER_GENEALOGY) as $person) {
         $item = normalise_person_for_storage($person);
-        if ($item['id'] === '' || $item['name'] === '' || isset($seen[$item['id']])) {
+        if ($item['id'] === '' || isset($seen[$item['id']])) {
             continue;
         }
         $seen[$item['id']] = true;
         $normalised[] = $item;
     }
     return $normalised;
+}
+
+function strip_duplicate_creation_flags_from_payload($payload): array
+{
+    $payload = is_array($payload) ? $payload : [];
+    if (!is_array($payload['genealogies'] ?? null)) {
+        return array_map(static function ($person): array {
+            $person = is_array($person) ? $person : [];
+            unset($person['_forceDuplicateCreation'], $person['_allowDuplicate']);
+            return $person;
+        }, $payload);
+    }
+
+    $payload['genealogies'] = array_map(static function ($genealogy): array {
+        $genealogy = is_array($genealogy) ? $genealogy : [];
+        if (!is_array($genealogy['people'] ?? null)) {
+            return $genealogy;
+        }
+        $genealogy['people'] = array_map(static function ($person): array {
+            $person = is_array($person) ? $person : [];
+            unset($person['_forceDuplicateCreation'], $person['_allowDuplicate']);
+            return $person;
+        }, $genealogy['people']);
+        return $genealogy;
+    }, $payload['genealogies']);
+
+    return $payload;
 }
 
 function person_duplicate_key(array $person): string
@@ -859,7 +910,7 @@ function normalise_person_for_storage($person): array
     }
     $baptismStatus = ($person['baptismStatus'] ?? '') === 'unbaptized' ? 'unbaptized' : 'unknown';
 
-    return [
+    $normalised = [
         'id' => api_safe_id($person['id'] ?? '', 100),
         'name' => api_safe_text($person['name'] ?? '', 140),
         'nickname' => $nicknames[0] ?? '',
@@ -878,6 +929,10 @@ function normalise_person_for_storage($person): array
         'crossGroupId' => api_safe_id($person['crossGroupId'] ?? '', 100),
         'crossGroupSize' => normalise_cross_group_size($person['crossGroupSize'] ?? 0),
     ];
+    if (!empty($person['_forceDuplicateCreation']) || !empty($person['_allowDuplicate'])) {
+        $normalised['_forceDuplicateCreation'] = true;
+    }
+    return $normalised;
 }
 
 function normalise_text_list($value, int $maxLength, int $limit): array
@@ -1913,10 +1968,12 @@ function merge_public_genealogy_additions(array $incoming, ?array $current = nul
 function merge_public_people_for_session(string $genealogyId, array $currentPeople, array $incomingPeople): array
 {
     $existingIndexes = [];
+    $existingDuplicateKeys = [];
     $incomingIds = [];
     foreach ($currentPeople as $index => $person) {
         if (is_array($person) && is_string($person['id'] ?? null) && $person['id'] !== '') {
             $existingIndexes[$person['id']] = $index;
+            $existingDuplicateKeys[person_duplicate_key($person)] = $person['id'];
         }
     }
 
@@ -1930,11 +1987,19 @@ function merge_public_people_for_session(string $genealogyId, array $currentPeop
         }
         $incomingIds[$id] = true;
         if (!array_key_exists($id, $existingIndexes)) {
+            $dupKey = person_duplicate_key($person);
+            $allowDuplicate = !empty($person['_forceDuplicateCreation']) || !empty($person['_allowDuplicate']);
+            if (!$allowDuplicate && $dupKey !== '|' && isset($existingDuplicateKeys[$dupKey]) && $existingDuplicateKeys[$dupKey] !== $id) {
+                continue;
+            }
+            unset($person['_forceDuplicateCreation'], $person['_allowDuplicate']);
             $currentPeople[] = $person;
             $existingIndexes[$id] = count($currentPeople) - 1;
+            $existingDuplicateKeys[$dupKey] = $id;
             mark_public_person_editable($genealogyId, $id);
             continue;
         }
+        unset($person['_forceDuplicateCreation'], $person['_allowDuplicate']);
         if (public_person_is_editable($genealogyId, $id)) {
             $currentPeople[$existingIndexes[$id]] = $person;
             continue;

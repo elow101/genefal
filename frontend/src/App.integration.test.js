@@ -37,10 +37,10 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await wrapper.get('.add-sheet-button').trigger('click')
     await flushPromises()
     expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
-    await wrapper.get('input[required]').setValue('Bérénice')
+    await wrapper.get('.name-field input').setValue('Bérénice')
     await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
 
@@ -56,9 +56,9 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await wrapper.get('.add-sheet-button').trigger('click')
     await flushPromises()
-    await wrapper.get('input[required]').setValue('Fiche temporaire')
+    await wrapper.get('.name-field input').setValue('Fiche temporaire')
     await wrapper.findAll('.person-form button').find((button) => button.text() === 'Annuler').trigger('click')
     await flushPromises()
 
@@ -71,7 +71,7 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await wrapper.get('.add-sheet-button').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Mode Réseau')
@@ -85,7 +85,7 @@ describe('App integration', () => {
     expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
   })
 
-  it('allows public duplicate person creation while admin duplicate tooling handles review', async () => {
+  it('asks for confirmation before creating a potential duplicate person', async () => {
     const requests = installFetchMock({
       initialState: {
         ...baseState,
@@ -108,7 +108,7 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Ajouter une fiche').trigger('click')
+    await wrapper.get('.add-sheet-button').trigger('click')
     await flushPromises()
     await flushPromises()
     const inputs = wrapper.findAll('.person-form input')
@@ -117,8 +117,51 @@ describe('App integration', () => {
     await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Une fiche avec le même nom, prénom et surnom existe déjà.')
-    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Une fiche similaire existe déjà')
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
+
+    await wrapper.findAll('.duplicate-confirmation button').find((button) => button.text() === 'Créer quand même').trigger('click')
+    await flushPromises()
+
+    const saveRequests = requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')
+    expect(saveRequests).toHaveLength(1)
+    const body = JSON.parse(saveRequests[0].options.body)
+    const created = body.genealogies
+      .flatMap((genealogy) => genealogy.people || [])
+      .find((person) => person.name.trim() === 'leo dupont')
+    expect(created?._forceDuplicateCreation).toBe(true)
+    expect(wrapper.text()).not.toContain('Une fiche similaire existe déjà')
+  })
+
+  it('keeps the creation form open when duplicate creation is cancelled', async () => {
+    const requests = installFetchMock({
+      initialState: {
+        ...baseState,
+        genealogies: [
+          {
+            ...baseState.genealogies[0],
+            people: [{ id: 'leo', name: 'Léo Dupont', nickname: 'Herbizeeebi' }],
+          },
+        ],
+      },
+    })
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.get('.add-sheet-button').trigger('click')
+    await flushPromises()
+    const inputs = wrapper.findAll('.person-form input')
+    await inputs[0].setValue('Léo Dupont')
+    await inputs[1].setValue('Herbizeeebi')
+    await wrapper.get('.person-form form').trigger('submit.prevent')
+    await flushPromises()
+
+    await wrapper.findAll('.duplicate-confirmation button').find((button) => button.text() === 'Annuler').trigger('click')
+    await flushPromises()
+
+    expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
+    expect(wrapper.find('.person-form form').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Une fiche similaire existe déjà')
   })
 
   it('explains when a public edit is refused by the server', async () => {
@@ -130,10 +173,10 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Explorer l\'arbre').trigger('click')
+    await wrapper.get('.home-action-card--main').trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')
-    await wrapper.get('input[required]').setValue('Alice modifiée')
+    await wrapper.get('.name-field input').setValue('Alice modifiée')
     await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
 
@@ -152,7 +195,7 @@ describe('App integration', () => {
     await vi.dynamicImportSettled()
     await flushPromises()
     await wrapper.find('form.upcoming-form input[placeholder="Soirée, baptême, repas..."]').setValue('Baptême de Camille')
-    await wrapper.get('select').setValue('bapteme')
+    await wrapper.get('form.upcoming-form select').setValue('bapteme')
     await wrapper.find('form.upcoming-form input[type="search"]').setValue('Alice')
     await wrapper.findAll('form.upcoming-form button').find((button) => button.text().includes('Alice')).trigger('click')
     await wrapper.get('textarea').setValue('Camille')
@@ -190,7 +233,7 @@ describe('App integration', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Explorer l\'arbre').trigger('click')
+    await wrapper.get('.home-action-card--main').trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Admin')).trigger('click')
     await flushPromises()

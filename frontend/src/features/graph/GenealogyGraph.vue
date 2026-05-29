@@ -182,6 +182,28 @@
         >
           {{ line }}
         </text>
+        <g v-if="networkRolePills(hoveredNetworkNode).length" class="network-role-pills">
+          <g
+            v-for="(role, roleIndex) in networkRolePills(hoveredNetworkNode)"
+            :key="`${hoveredNetworkNode.id}-net-role-${role.id}`"
+          >
+            <rect
+              :x="hoveredNetworkNode.x - 100 + roleIndex * 52"
+              :y="networkRolePillsY(hoveredNetworkNode)"
+              :width="Math.min(50, 8 + role.label.length * 5.5)"
+              height="18"
+              rx="9"
+              :fill="role.color"
+            />
+            <text
+              class="network-role-pill-text"
+              :x="hoveredNetworkNode.x - 100 + roleIndex * 52 + Math.min(50, 8 + role.label.length * 5.5) / 2"
+              :y="networkRolePillsY(hoveredNetworkNode) + 13"
+            >
+              {{ shortText(role.label, 8) }}
+            </text>
+          </g>
+        </g>
       </g>
     </svg>
   </section>
@@ -361,7 +383,12 @@ function networkHoverLines(entry) {
   return networkHoverRawLines(entry).flatMap((line) => wrapSvgText(line, 28))
 }
 function networkCardHeight(entry) {
-  return Math.max(96, 28 + networkHoverLines(entry).length * 17)
+  const linesHeight = 28 + networkHoverLines(entry).length * 17
+  const pillsHeight = networkRolePills(entry).length ? 26 : 0
+  return Math.max(96, linesHeight + pillsHeight)
+}
+function networkRolePillsY(entry) {
+  return entry.y + 88 + networkHoverLines(entry).length * 17 + 4
 }
 function networkHoverTextX(entry) {
   return entry.x - 86

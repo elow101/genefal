@@ -2,12 +2,12 @@ function fallbackId(prefix = 'event') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function normaliseUpcomingEventType(value) {
+function normaliseUpcomingEventType(value) {
   const type = String(value || '').trim().toLowerCase()
   return ['bapteme', 'adoption', 'confirmation', 'cooptage'].includes(type) ? type : 'autre'
 }
 
-export function normaliseDateTimeLocal(value) {
+function normaliseDateTimeLocal(value) {
   const raw = String(value || '').trim()
   const match = raw.match(/^(\d{4}-\d{2}-\d{2})(?:T|\s)(\d{2}:\d{2})/)
   return match ? `${match[1]}T${match[2]}` : ''
@@ -62,12 +62,12 @@ export function eventTypeLabel(value) {
   }
 }
 
-export function normaliseUpcomingVisibility(value) {
+function normaliseUpcomingVisibility(value) {
   const visibility = String(value || '').trim().toLowerCase()
   return ['public', 'private', 'family'].includes(visibility) ? visibility : 'public'
 }
 
-export function visibilityLabel(value) {
+function visibilityLabel(value) {
   switch (normaliseUpcomingVisibility(value)) {
     case 'private':
       return 'Privé'
@@ -99,7 +99,7 @@ export function eventBadges(event) {
   return badges
 }
 
-export function isTonight(value) {
+function isTonight(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return false
   const now = new Date()
@@ -116,7 +116,7 @@ export function isThisWeek(value) {
   return date >= now && date <= weekEnd
 }
 
-export function isNewUpcomingEvent(event) {
+function isNewUpcomingEvent(event) {
   const created = new Date(event?.createdAt || '')
   if (Number.isNaN(created.getTime())) return false
   return Date.now() - created.getTime() < 1000 * 60 * 60 * 48
@@ -133,7 +133,7 @@ export function requestStatusLabel(value) {
   return 'En attente'
 }
 
-export function normaliseUpcomingScope(value) {
+function normaliseUpcomingScope(value) {
   const scope = String(value || '').trim().toLowerCase()
   return ['national', 'region', 'family'].includes(scope) ? scope : 'region'
 }
@@ -149,7 +149,7 @@ export function scopeLabel(value) {
   }
 }
 
-export function recurrenceLabel(value) {
+function recurrenceLabel(value) {
   switch (String(value || '').trim().toLowerCase()) {
     case 'weekly':
       return 'Hebdomadaire'
@@ -242,31 +242,5 @@ export function removeUpcomingEvent(state, eventId) {
   return {
     ...state,
     upcomingBaptisms: (state?.upcomingBaptisms || []).filter((event) => event.id !== eventId),
-  }
-}
-
-export function addAttendanceRequest(state, eventIds, request) {
-  return {
-    ...state,
-    upcomingBaptisms: (state?.upcomingBaptisms || []).map((event) => {
-      if (!eventIds.includes(event.id)) return event
-      const requests = event.requests || []
-      const alreadyExists = requests.some((candidate) => candidate.email === request.email)
-
-      return alreadyExists
-        ? event
-        : {
-            ...event,
-            requests: [
-              ...requests,
-              {
-                id: fallbackId('demande'),
-                ...request,
-                status: 'pending',
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          }
-    }),
   }
 }

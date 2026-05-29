@@ -26,9 +26,17 @@ export function useAdmin(csrfToken) {
   }
 
   async function login(password) {
-    const result = await loginAdmin(password, csrfToken.value)
-    session.value = result.admin
-    await refreshCsrfToken()
+    loading.value = true
+    error.value = ''
+    try {
+      const result = await loginAdmin(password, csrfToken.value)
+      session.value = result.admin
+      await refreshCsrfToken()
+    } catch (err) {
+      error.value = err.message
+    } finally {
+      loading.value = false
+    }
   }
 
   async function logout() {
@@ -38,9 +46,17 @@ export function useAdmin(csrfToken) {
   }
 
   async function updateRegionPassword(regionId, password) {
-    const result = await changeRegionPassword(regionId, password, csrfToken.value)
-    session.value = result.admin
-    await refreshCsrfToken()
+    loading.value = true
+    error.value = ''
+    try {
+      const result = await changeRegionPassword(regionId, password, csrfToken.value)
+      session.value = result.admin
+      await refreshCsrfToken()
+    } catch (err) {
+      error.value = err.message
+    } finally {
+      loading.value = false
+    }
   }
 
   async function refreshCsrfToken() {

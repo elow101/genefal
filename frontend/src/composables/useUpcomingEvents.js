@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import {
   accessUpcomingCreator,
+  adminDeleteUpcomingEvent,
   createUpcomingEvent as createUpcomingEventApi,
   deleteUpcomingEvent,
   manageUpcomingRequest,
@@ -110,6 +111,13 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
     return true
   }
 
+  async function adminDeleteEvent(eventId) {
+    const result = await adminDeleteUpcomingEvent(eventId, csrfToken.value)
+    if (result.state) data.value = result.state
+    selectedEventIds.value = selectedEventIds.value.filter((id) => id !== eventId)
+    return true
+  }
+
   return {
     region,
     regionId,
@@ -125,6 +133,7 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
     setRequestStatus,
     updateEvent,
     deleteEventAsCreator,
+    adminDeleteEvent,
   }
 }
 
