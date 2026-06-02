@@ -5,7 +5,7 @@ import { roleLabel } from './roles.js'
 export function computeStats(genealogies) {
   const people = getAllPeople({ genealogies })
   const songs = countValues(people.map((person) => person.song).filter(Boolean))
-  const filieres = countValues(people.map((person) => filiereLabel(person.filiere) || 'Non renseign?e'))
+  const filieres = countValues(people.map((person) => filiereLabel(person.filiere, person.filiereCustom) || 'Non renseign?e'))
   const roleEntries = people.flatMap((person) =>
     (person.roles || []).map((roleId) => ({
       roleId,

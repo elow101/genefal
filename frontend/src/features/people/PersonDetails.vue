@@ -13,11 +13,11 @@
         <div class="details-body info-grid">
           <div>
             <strong>Filière</strong>
-            <span>{{ filiereLabel(person.filiere) || 'Non renseignée' }}</span>
+            <span>{{ filiereLabel(person.filiere, person.filiereCustom) || 'Non renseignée' }}</span>
           </div>
           <div v-if="person.filiere2">
             <strong>2e filière</strong>
-            <span>{{ filiereLabel(person.filiere2) }}</span>
+            <span>{{ filiereLabel(person.filiere2, person.filiere2Custom) }}</span>
           </div>
           <div>
             <strong>Date de baptême</strong>
@@ -41,7 +41,7 @@
         </summary>
         <div class="details-body info-grid">
           <div v-for="event in person.ceremonyEvents || []" :key="event.id">
-            <strong>{{ event.type === 'confirmation' ? 'Confirmation' : 'Adoption' }}</strong>
+            <strong>{{ eventLabel(event.type) }}</strong>
             <span>{{ event.city || 'Ville non renseignée' }}</span>
             <span v-if="event.nickname">{{ event.nickname }}</span>
           </div>
@@ -84,4 +84,9 @@ const roleChips = computed(() =>
     label: props.roleOptions.find((role) => role.id === roleId)?.label || roleId,
   })),
 )
+
+function eventLabel(type) {
+  if (type === 'confirmation') return 'Confirmation'
+  return 'Adoption'
+}
 </script>

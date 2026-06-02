@@ -136,6 +136,11 @@ export const tutorialsFr = {
         expected: 'Les visiteurs peuvent demander à participer si activé.',
       },
       {
+        title: 'Gérer les demandes',
+        text: 'Si les demandes de participation sont activées, le créateur peut les gérer depuis la section « Gestion d’event » de la carte. Garde le mot de passe créateur : il permet d’accepter ou refuser les demandes.',
+        expected: 'Le créateur sait où retrouver les demandes après publication.',
+      },
+      {
         title: 'Créer',
         text: 'Clique sur « Créer l’événement ». Note le mot de passe créateur s’il est affiché : il n’apparaît plus ensuite.',
         expected: 'L’annonce apparaît dans la liste, et le mot de passe peut être copié.',
@@ -266,4 +271,3 @@ export const contextualHintsFr = {
     suggestedTutorialId: 'admin_features',
   },
 }
-

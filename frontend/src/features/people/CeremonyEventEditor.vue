@@ -128,7 +128,8 @@ function removeEvent(eventId) {
 }
 
 function eventLabel(type) {
-  return type === 'confirmation' ? 'Confirmation' : 'Adoption'
+  if (type === 'confirmation') return 'Confirmation'
+  return 'Adoption'
 }
 
 function names(ids = []) {

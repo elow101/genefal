@@ -7,9 +7,7 @@
       <span><i class="legend-line"></i>Parrain / marraine</span>
       <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
       <span><i class="legend-line adoption"></i>Adoption</span>
-      <span><i class="legend-line adoption-heart"></i>Adoption de cœur</span>
       <span><i class="legend-line confirmation"></i>Confirmation</span>
-      <span><i class="legend-line confirmation-heart"></i>Confirmation de cœur</span>
       <span><i class="legend-line cross"></i>Baptême croisé</span>
     </div>
 
@@ -42,29 +40,15 @@
               :class="personRelationClass(person.id)"
               :data-person-id="person.id"
               :style="filiereStyle(person)"
-              @mouseenter="hoveredTreeNodeId = person.id"
-              @mouseleave="hoveredTreeNodeId = ''"
-              @focus="hoveredTreeNodeId = person.id"
-              @blur="hoveredTreeNodeId = ''"
+              @mouseenter="showHoverCard(person, $event, 'tree')"
+              @mouseleave="hideHoverCard('tree')"
+              @focus="showHoverCard(person, $event, 'tree')"
+              @blur="hideHoverCard('tree')"
               @pointerdown.stop
               @click.stop="$emit('select', person.id)"
             >
               <strong>{{ networkMainName(person) }}</strong>
               <small>{{ networkNickname(person) }}</small>
-              <span class="node-info">
-                <span class="node-info__line node-info__line--strong">{{ filiereLabel(person.filiere) || 'Filière non renseignée' }}</span>
-                <span v-if="person.roles?.length" class="node-info__pills">
-                  <span
-                    v-for="role in networkRolePills(person)"
-                    :key="`${person.id}-tree-role-${role.id}`"
-                    class="node-info__pill"
-                    :style="{ '--role-pill-color': role.color }"
-                  >
-                    {{ shortText(role.label, 18) }}
-                  </span>
-                </span>
-                <span v-for="line in hoverInfoLines(person)" :key="line" class="node-info__line">{{ line }}</span>
-              </span>
             </button>
           </div>
         </section>
@@ -111,10 +95,10 @@
         :class="personRelationClass(entry.id)"
         :data-person-id="entry.id"
         tabindex="0"
-        @mouseenter="hoveredNetworkNodeId = entry.id"
-        @mouseleave="hoveredNetworkNodeId = ''"
-        @focus="hoveredNetworkNodeId = entry.id"
-        @blur="hoveredNetworkNodeId = ''"
+        @mouseenter="showHoverCard(entry, $event, 'network')"
+        @mouseleave="hideHoverCard('network')"
+        @focus="showHoverCard(entry, $event, 'network')"
+        @blur="hideHoverCard('network')"
         @pointerdown.stop
         @click.stop="$emit('select', entry.id)"
       >
@@ -154,59 +138,46 @@
         </text>
 
       </g>
-      <g v-if="hoveredNetworkNode" class="network-hover-card">
-        <rect
-          class="network-card-expanded"
-          :x="hoveredNetworkNode.x - 110"
-          :y="hoveredNetworkNode.y + 62"
-          width="220"
-          :height="networkCardHeight(hoveredNetworkNode)"
-          rx="10"
-        />
-        <rect
-          class="network-filiere-strip network-filiere-strip--expanded"
-          :x="hoveredNetworkNode.x - 110"
-          :y="hoveredNetworkNode.y + 62"
-          width="7"
-          :height="networkCardHeight(hoveredNetworkNode)"
-          rx="4"
-          :style="filiereStripStyle(hoveredNetworkNode)"
-        />
-        <text
-          v-for="(line, lineIndex) in networkHoverLines(hoveredNetworkNode)"
-          :key="`${hoveredNetworkNode.id}-hover-info-${lineIndex}`"
-          class="network-extra-line"
-          :class="{ 'network-extra-line--strong': lineIndex === 0 }"
-          :x="networkHoverTextX(hoveredNetworkNode)"
-          :y="networkHoverLineY(hoveredNetworkNode, lineIndex)"
-        >
-          {{ line }}
-        </text>
-        <g v-if="networkRolePills(hoveredNetworkNode).length" class="network-role-pills">
-          <g
-            v-for="(role, roleIndex) in networkRolePills(hoveredNetworkNode)"
-            :key="`${hoveredNetworkNode.id}-net-role-${role.id}`"
-          >
-            <rect
-              :x="hoveredNetworkNode.x - 100 + roleIndex * 52"
-              :y="networkRolePillsY(hoveredNetworkNode)"
-              :width="Math.min(50, 8 + role.label.length * 5.5)"
-              height="18"
-              rx="9"
-              :fill="role.color"
-            />
-            <text
-              class="network-role-pill-text"
-              :x="hoveredNetworkNode.x - 100 + roleIndex * 52 + Math.min(50, 8 + role.label.length * 5.5) / 2"
-              :y="networkRolePillsY(hoveredNetworkNode) + 13"
-            >
-              {{ shortText(role.label, 8) }}
-            </text>
-          </g>
-        </g>
-      </g>
     </svg>
   </section>
+  <Teleport to="body">
+    <article
+      v-if="hoverCard.person"
+      class="graph-hover-card"
+      :style="hoverCardStyle"
+      :data-accent-tone="hoverAccentTone(hoverCard.person)"
+    >
+      <header class="graph-hover-card__header">
+        <strong :title="hoverCard.person.name || 'Sans nom'">{{ hoverCard.person.name || 'Sans nom' }}</strong>
+        <small v-if="networkNickname(hoverCard.person)" :title="networkNickname(hoverCard.person)">
+          {{ networkNickname(hoverCard.person) }}
+        </small>
+      </header>
+      <div class="graph-hover-card__body">
+        <div
+          v-for="item in hoverDetailRows(hoverCard.person)"
+          :key="item.key"
+          class="graph-hover-card__row"
+          :class="{ 'graph-hover-card__row--quote': item.multiline }"
+        >
+          <span>{{ item.label }}</span>
+          <strong :title="item.value">{{ item.value }}</strong>
+        </div>
+      </div>
+      <footer v-if="networkRolePills(hoverCard.person).length" class="graph-hover-card__badges">
+        <span
+          v-for="role in networkRolePills(hoverCard.person)"
+          :key="`${hoverCard.person.id}-hover-role-${role.id}`"
+          class="graph-hover-card__badge"
+          :data-tone="role.tone"
+          :style="{ '--role-pill-color': role.color }"
+          :title="role.label"
+        >
+          {{ role.label }}
+        </span>
+      </footer>
+    </article>
+  </Teleport>
 </template>
 
 <script setup>
@@ -229,11 +200,20 @@ defineEmits(['select'])
 
 const hoveredNetworkNodeId = ref('')
 const hoveredTreeNodeId = ref('')
+const hoverCard = ref({
+  person: null,
+  left: 0,
+  top: 0,
+})
 
 const isEmpty = computed(() => (props.mode === 'tree' ? props.graph.rows.length === 0 : props.graph.nodes.length === 0))
 const nodeById = computed(() => new Map(props.graph.nodes.map((entry) => [entry.id, entry])))
-const hoveredNetworkNode = computed(() => nodeById.value.get(hoveredNetworkNodeId.value) || null)
 const networkNodes = computed(() => orderedNodesForStacking(props.graph.nodes, hoveredNetworkNodeId.value, props.selectedPersonId))
+const hoverCardStyle = computed(() => ({
+  left: `${hoverCard.value.left}px`,
+  top: `${hoverCard.value.top}px`,
+  '--profile-accent': hoverCard.value.person ? hoverAccentColor(hoverCard.value.person) : 'var(--primary)',
+}))
 const hasRelationFocus = computed(() => Boolean(props.selectedPersonId))
 const generationById = computed(() => generationMapForFocus(props.graph.edges, props.selectedPersonId, {
   ancestorDepth: props.haloAncestorDepth,
@@ -260,6 +240,57 @@ function personRelationClass(id) {
 function edgeRelationClass(edge) {
   if (!props.selectedPersonId) return ''
   return generationById.value.has(edge.from) && generationById.value.has(edge.to) ? 'is-direct' : 'is-dimmed'
+}
+function showHoverCard(person, event, source) {
+  if (!canShowHoverCard(event)) return
+  if (source === 'tree') hoveredTreeNodeId.value = person.id
+  if (source === 'network') hoveredNetworkNodeId.value = person.id
+  const rect = event.currentTarget?.getBoundingClientRect?.()
+  if (!rect) return
+  const position = hoverCardPosition(rect)
+  hoverCard.value = {
+    person,
+    left: position.left,
+    top: position.top,
+  }
+}
+function hideHoverCard(source) {
+  if (source === 'tree') hoveredTreeNodeId.value = ''
+  if (source === 'network') hoveredNetworkNodeId.value = ''
+  hoverCard.value = {
+    person: null,
+    left: 0,
+    top: 0,
+  }
+}
+function canShowHoverCard(event) {
+  if (event?.type === 'focus') return true
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches
+}
+function hoverCardPosition(rect) {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+  const margin = 12
+  const cardWidth = Math.min(320, Math.max(220, viewportWidth * 0.28))
+  const estimatedHeight = 300
+  let left = rect.right + margin
+
+  if (left + cardWidth > viewportWidth - margin) {
+    left = rect.left - cardWidth - margin
+  }
+  if (left < margin) {
+    left = rect.left + rect.width / 2 - cardWidth / 2
+  }
+
+  const top = rect.top + rect.height / 2 - estimatedHeight / 2
+  return {
+    left: clamp(left, margin, Math.max(margin, viewportWidth - cardWidth - margin)),
+    top: clamp(top, margin, Math.max(margin, viewportHeight - estimatedHeight - margin)),
+  }
+}
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
 }
 function orderedNodesForStacking(nodes, hoveredId, selectedId) {
   return [...nodes].sort((left, right) => nodeStackRank(left.id, hoveredId, selectedId) - nodeStackRank(right.id, hoveredId, selectedId))
@@ -363,9 +394,10 @@ function networkRolePills(entry) {
     id: roleId,
     label: roleOption(roleId)?.label || roleId,
     color: roleColor(roleId),
+    tone: roleTone(roleId),
   }))
   return roles.length > 3
-    ? [...roles.slice(0, 3), { id: 'more', label: `+${roles.length - 3}`, color: '#4a4f4d' }]
+    ? [...roles.slice(0, 3), { id: 'more', label: `+${roles.length - 3}`, color: '#4a4f4d', tone: 'secondary' }]
     : roles
 }
 function roleColor(roleId) {
@@ -373,28 +405,11 @@ function roleColor(roleId) {
   const hash = String(roleId || '').split('').reduce((total, letter) => total + letter.charCodeAt(0), 0)
   return palette[hash % palette.length]
 }
-function networkRoleText(entry) {
-  return networkRolePills(entry).map((role) => role.label).join(' ? ')
-}
-function networkHoverRawLines(entry) {
-  return [networkFiliereLabel(entry), networkRoleText(entry), ...hoverInfoLines(entry)].filter(Boolean)
-}
-function networkHoverLines(entry) {
-  return networkHoverRawLines(entry).flatMap((line) => wrapSvgText(line, 28))
-}
-function networkCardHeight(entry) {
-  const linesHeight = 28 + networkHoverLines(entry).length * 17
-  const pillsHeight = networkRolePills(entry).length ? 26 : 0
-  return Math.max(96, linesHeight + pillsHeight)
-}
-function networkRolePillsY(entry) {
-  return entry.y + 88 + networkHoverLines(entry).length * 17 + 4
-}
-function networkHoverTextX(entry) {
-  return entry.x - 86
-}
-function networkHoverLineY(entry, lineIndex) {
-  return entry.y + 88 + lineIndex * 17
+function roleTone(roleId) {
+  const id = String(roleId || '').toLowerCase()
+  if (['president', 'président', 'presidente', 'présidente', 'gm', 'gc'].some((token) => id.includes(token))) return 'important'
+  if (['tva', 'bureau', 'admin', 'responsable'].some((token) => id.includes(token))) return 'status'
+  return 'secondary'
 }
 function networkNameLines(entry) {
   return wrapSvgText(networkMainName(entry), 18)
@@ -419,16 +434,34 @@ function networkNickname(entry) {
   return entry.nickname || ''
 }
 function networkFiliereLabel(entry) {
-  return filiereLabel(entry.filiere) || 'filière non renseignée'
+  return filiereLabel(entry.filiere, entry.filiereCustom) || 'filière non renseignée'
 }
-function hoverInfoLines(person) {
+function hoverDetailRows(person) {
   return [
-    person.genealogyName || '',
-    ceremonyLabel(person),
-    person.baptismCity ? `Ville : ${person.baptismCity}` : '',
-    person.song ? `Paillarde : ${person.song}` : '',
-    ...ceremonySummaries(person),
-  ].filter(Boolean)
+    hoverRow('filiere', 'Filière', networkFiliereLabel(person)),
+    hoverRow('genealogy', 'Région', person.genealogyName || ''),
+    hoverRow('baptism', 'Baptême', ceremonyLabel(person)),
+    hoverRow('city', 'Ville', person.baptismCity || ''),
+    hoverRow('song', 'Paillarde', person.song || '', true),
+    hoverRow('ceremonies', 'Liens', ceremonySummaries(person).join(' · '), true),
+  ].filter((item) => item.value)
+}
+function hoverRow(key, label, value, multiline = false) {
+  return {
+    key,
+    label,
+    value: String(value || '').trim(),
+    multiline,
+  }
+}
+function hoverAccentColor(person) {
+  if (hoverAccentTone(person) === 'incomplete') return '#6b7280'
+  if (hoverAccentTone(person) === 'important') return '#fb7185'
+  return filiereAccent(person.filiere) || '#22d3ee'
+}
+function hoverAccentTone(person) {
+  if (!person.name || (!person.filiere && !person.filiereCustom)) return 'incomplete'
+  return networkRolePills(person).some((role) => role.tone === 'important') ? 'important' : 'default'
 }
 function wrapSvgText(value, maxLength) {
   const text = String(value || '').trim()
@@ -452,11 +485,6 @@ function wrapSvgText(value, maxLength) {
 
   if (current) lines.push(current)
   return lines
-}
-
-function shortText(value, maxLength) {
-  const text = String(value || '')
-  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
 }
 const graphWidth = computed(() => Math.max(props.graph.width || 0, 960, ...props.graph.nodes.map((entry) => entry.x + 150)))
 const graphHeight = computed(() => Math.max(props.graph.height || 0, 540, ...props.graph.nodes.map((entry) => entry.y + 170)))

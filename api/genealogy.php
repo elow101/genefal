@@ -31,19 +31,22 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     header('Content-Type: application/json; charset=utf-8');
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        // Cache HTTP: toujours revalider auprès du serveur (le cache APCu côté serveur suffit)
-        header('Cache-Control: no-cache, no-store, must-revalidate');
-        header('Expires: 0');
-        
+        $fastEtag = genealogy_fast_response_etag();
+        if ($fastEtag !== '') {
+            clear_public_session_permissions();
+            api_respond_not_modified_if_etag_matches($fastEtag);
+        }
+
         // Cache APCu: évite requêtes SQL répétées
         $cachedPayload = genealogy_cache_get('payload');
         if ($cachedPayload !== null) {
             clear_public_session_permissions();
-            api_respond($cachedPayload + ['people' => []]);
+            api_respond_with_etag($cachedPayload + ['people' => []], 'genealogy', 200, $fastEtag ?: null);
         }
         
         if (!is_file(GENEALOGY_DATA_FILE) && !database_genealogy_read_enabled()) {
-            api_respond(empty_genealogy_payload());
+            clear_public_session_permissions();
+            api_respond_with_etag(empty_genealogy_payload(), 'genealogy', 200, $fastEtag ?: null);
         }
 
         [$payload, $sourceData] = genealogy_payload_for_read();
@@ -63,7 +66,7 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
         genealogy_cache_set('payload', $payload, 30);
         
         clear_public_session_permissions();
-        api_respond($payload + ['people' => []]);
+        api_respond_with_etag($payload + ['people' => []], 'genealogy', 200, $fastEtag ?: null);
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -923,12 +926,21 @@ function normalise_person_for_storage($person): array
         'ceremonyEvents' => normalise_ceremony_events($person['ceremonyEvents'] ?? []),
         'song' => api_safe_text($person['song'] ?? '', 500),
         'filiere' => normalise_filiere_id($person['filiere'] ?? ''),
+        'filiereCustom' => '',
+        'filiere2' => normalise_filiere_id($person['filiere2'] ?? ''),
+        'filiere2Custom' => '',
         'createdAt' => normalise_created_at($person['createdAt'] ?? ($person['addedAt'] ?? '')),
         'sponsorIds' => id_array($person['sponsorIds'] ?? []),
         'heartSponsorIds' => id_array($person['heartSponsorIds'] ?? []),
         'crossGroupId' => api_safe_id($person['crossGroupId'] ?? '', 100),
         'crossGroupSize' => normalise_cross_group_size($person['crossGroupSize'] ?? 0),
     ];
+    if ($normalised['filiere'] === 'autre') {
+        $normalised['filiereCustom'] = api_safe_text($person['filiereCustom'] ?? '', 120);
+    }
+    if ($normalised['filiere2'] === 'autre') {
+        $normalised['filiere2Custom'] = api_safe_text($person['filiere2Custom'] ?? '', 120);
+    }
     if (!empty($person['_forceDuplicateCreation']) || !empty($person['_allowDuplicate'])) {
         $normalised['_forceDuplicateCreation'] = true;
     }
@@ -1111,6 +1123,7 @@ function normalise_filiere_id($value): string
         'sciences',
         'sciences-economiques-gestion-iae',
         'sciences-politiques',
+        'autre',
     ];
     $id = $aliases[$id] ?? $id;
     return in_array($id, $allowed, true) ? $id : '';
@@ -1748,6 +1761,24 @@ function current_genealogy_payload()
     return genealogy_payload_for_read()[0];
 }
 
+function genealogy_fast_response_etag(): string
+{
+    if (!database_genealogy_read_enabled() || !genealogy_sql_available()) {
+        return '';
+    }
+
+    $version = genealogy_sql_payload_version();
+    if (!is_string($version) || $version === '') {
+        return '';
+    }
+
+    if (!database_read_enabled() && is_file(GENEALOGY_DATA_FILE)) {
+        $version .= '|json-events:' . (string) filesize(GENEALOGY_DATA_FILE) . ':' . (string) filemtime(GENEALOGY_DATA_FILE);
+    }
+
+    return api_etag_from_version('genealogy-sql', $version);
+}
+
 function genealogy_payload_with_optional_sql_events(array $payload): array
 {
     if (!database_read_enabled() || !upcoming_sql_available()) {
@@ -2060,6 +2091,7 @@ function merge_public_people_for_session(string $genealogyId, array $currentPeop
 
 function public_person_with_allowed_updates(array $currentPerson, array $incomingPerson): array
 {
+    $nextPerson = $currentPerson;
     $currentEvents = normalise_ceremony_events($currentPerson['ceremonyEvents'] ?? []);
     $incomingEvents = normalise_ceremony_events($incomingPerson['ceremonyEvents'] ?? []);
     $seen = [];
@@ -2093,16 +2125,35 @@ function public_person_with_allowed_updates(array $currentPerson, array $incomin
     $nextHeartSponsorIds = id_array(array_merge($currentHeartSponsorIds, $incomingHeartSponsorIds));
     $nextSponsorIds = id_array(array_merge($currentSponsorIds, $incomingSponsorIds, $nextHeartSponsorIds));
 
-    if (!$added && $nextSponsorIds === $currentSponsorIds && $nextHeartSponsorIds === $currentHeartSponsorIds) {
-        return $currentPerson;
+    if (person_filiere_is_blank($currentPerson)) {
+        $incomingFiliere = normalise_filiere_id($incomingPerson['filiere'] ?? '');
+        if ($incomingFiliere !== '') {
+            $nextPerson['filiere'] = $incomingFiliere;
+            $nextPerson['filiereCustom'] = $incomingFiliere === 'autre'
+                ? api_safe_text($incomingPerson['filiereCustom'] ?? '', 120)
+                : '';
+            $nextPerson['filiere2'] = normalise_filiere_id($incomingPerson['filiere2'] ?? '');
+            $nextPerson['filiere2Custom'] = $nextPerson['filiere2'] === 'autre'
+                ? api_safe_text($incomingPerson['filiere2Custom'] ?? '', 120)
+                : '';
+        }
     }
 
-    return [
-        ...$currentPerson,
-        'sponsorIds' => $nextSponsorIds,
-        'heartSponsorIds' => $nextHeartSponsorIds,
-        'ceremonyEvents' => array_merge($currentEvents, $added),
-    ];
+    if ($added || $nextSponsorIds !== $currentSponsorIds || $nextHeartSponsorIds !== $currentHeartSponsorIds) {
+        $nextPerson['sponsorIds'] = $nextSponsorIds;
+        $nextPerson['heartSponsorIds'] = $nextHeartSponsorIds;
+        $nextPerson['ceremonyEvents'] = array_merge($currentEvents, $added);
+    }
+
+    return $nextPerson;
+}
+
+function person_filiere_is_blank(array $person): bool
+{
+    return normalise_filiere_id($person['filiere'] ?? '') === ''
+        && api_safe_text($person['filiereCustom'] ?? '', 120) === ''
+        && normalise_filiere_id($person['filiere2'] ?? '') === ''
+        && api_safe_text($person['filiere2Custom'] ?? '', 120) === '';
 }
 
 function ceremony_event_key(array $event): string

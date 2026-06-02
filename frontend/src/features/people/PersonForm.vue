@@ -74,23 +74,41 @@
             </span>
           </label>
           <label>Surnom <input v-model="draft.nickname" /></label>
-          <label>
+          <label class="filiere-field">
             Filière
-            <select v-model="draft.filiere">
-              <option value="">Non renseignée</option>
-              <option v-for="option in filiereOptions" :key="option.id" :value="option.id">
-                {{ option.label }}
-              </option>
-            </select>
+            <span class="field-tooltip-wrap field-tooltip-wrap--above">
+              <select v-model="draft.filiere">
+                <option value="">Non renseignée</option>
+                <option v-for="option in filiereOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="field-tooltip">
+                Les filières sont basées sur le codex national. Si la filière n'est pas dans la liste, choisis "Autre" pour la personnaliser.
+              </span>
+            </span>
           </label>
-          <label>
+          <label v-if="draft.filiere === 'autre'" class="custom-filiere-field">
+            Filière personnalisée
+            <input v-model="draft.filiereCustom" maxlength="120" placeholder="Nom de la filière" />
+          </label>
+          <label class="filiere-field">
             2e filière (optionnel)
-            <select v-model="draft.filiere2">
-              <option value="">Aucune</option>
-              <option v-for="option in filiereOptions" :key="option.id" :value="option.id">
-                {{ option.label }}
-              </option>
-            </select>
+            <span class="field-tooltip-wrap field-tooltip-wrap--above">
+              <select v-model="draft.filiere2">
+                <option value="">Aucune</option>
+                <option v-for="option in filiereOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="field-tooltip">
+                Les filières sont basées sur le codex national. Si la filière n'est pas dans la liste, choisis "Autre" pour la personnaliser.
+              </span>
+            </span>
+          </label>
+          <label v-if="draft.filiere2 === 'autre'" class="custom-filiere-field">
+            2e filière personnalisée
+            <input v-model="draft.filiere2Custom" maxlength="120" placeholder="Nom de la filière" />
           </label>
           <label v-if="canSelectGenealogy && genealogyOptions.length">
             Arbre d'ajout
@@ -215,7 +233,9 @@
       </details>
 
       <div class="form-actions">
-        <button class="primary" type="submit">Enregistrer</button>
+        <button class="primary" type="submit" :disabled="saving">
+          {{ saving ? 'Enregistrement...' : 'Enregistrer' }}
+        </button>
         <button v-if="isCreating" class="text-button" type="button" @click="$emit('cancel')">Annuler</button>
       </div>
     </form>
@@ -237,6 +257,7 @@ const props = defineProps({
   roleOptions: { type: Array, default: () => [] },
   canManageCeremonyEvents: { type: Boolean, default: false },
   isCreating: { type: Boolean, default: false },
+  saving: { type: Boolean, default: false },
   duplicateConfirmation: { type: Object, default: null },
 })
 
@@ -262,7 +283,9 @@ const draft = reactive({
   nickname2: '',
   nickname3: '',
   filiere: '',
+  filiereCustom: '',
   filiere2: '',
+  filiere2Custom: '',
   baptismCity: '',
   baptismDate: '',
   baptismStatus: 'unknown',
@@ -281,7 +304,9 @@ watch(
     draft.nickname2 = person?.nicknames?.[1] || ''
     draft.nickname3 = person?.nicknames?.[2] || ''
     draft.filiere = normaliseFiliereId(person?.filiere || '')
+    draft.filiereCustom = person?.filiereCustom || ''
     draft.filiere2 = normaliseFiliereId(person?.filiere2 || '')
+    draft.filiere2Custom = person?.filiere2Custom || ''
     draft.baptismCity = person?.baptismCity || ''
     draft.baptismDate = person?.baptismDate || ''
     draft.baptismStatus = person?.baptismStatus || 'unknown'
@@ -305,7 +330,9 @@ function submit() {
     nickname: draft.nickname,
     nicknames,
     filiere: draft.filiere,
+    filiereCustom: draft.filiere === 'autre' ? draft.filiereCustom.trim() : '',
     filiere2: draft.filiere2,
+    filiere2Custom: draft.filiere2 === 'autre' ? draft.filiere2Custom.trim() : '',
     baptismCity: draft.baptismCity,
     baptismDate: draft.baptismDate,
     baptismStatus: draft.baptismStatus,

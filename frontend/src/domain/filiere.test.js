@@ -9,4 +9,10 @@ describe('filiere aliases', () => {
     expect(filiereLabel('enseignement-2nd-degre')).toBe('MEEF 2nd degré')
     expect(filiereAccent('psychologie')).toBe('#f3d33b')
   })
+
+  it('supports a custom other filiere label', () => {
+    expect(normaliseFiliereId('autre')).toBe('autre')
+    expect(filiereLabel('autre', 'Taille de pierre')).toBe('Taille de pierre')
+    expect(filiereLabel('autre')).toBe('Autre')
+  })
 })

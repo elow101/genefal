@@ -1,5 +1,10 @@
 <template>
   <section class="overview-panel">
+    <div v-if="filiereFilterLabel" class="overview-active-filter">
+      <span>Filière : {{ filiereFilterLabel }}</span>
+      <button type="button" class="text-button" @click="$emit('clear-filiere-filter')">Effacer</button>
+    </div>
+
     <div class="profile-filters" aria-label="Filtres des profils">
       <label>
         Filiere
@@ -37,7 +42,7 @@
           >
             <strong>{{ displayName(person) }}</strong>
             <span class="node-info">
-              <span>{{ filiereLabel(person.filiere) || 'Filiere non renseignee' }}</span>
+              <span>{{ filiereLabel(person.filiere, person.filiereCustom) || 'Filiere non renseignee' }}</span>
               <span>{{ person.song || 'Informations a completer' }}</span>
             </span>
           </button>
@@ -52,8 +57,11 @@ import { computed, ref } from 'vue'
 import { filiereLabel, filiereOptions, filiereStyle } from '../../domain/filiere.js'
 import { displayName } from '../../domain/graph.js'
 
-const props = defineProps({ people: { type: Array, required: true } })
-defineEmits(['select'])
+const props = defineProps({
+  people: { type: Array, required: true },
+  filiereFilterLabel: { type: String, default: '' },
+})
+defineEmits(['select', 'clear-filiere-filter'])
 
 const filiereFilter = ref('')
 const baptismFilter = ref('')
@@ -61,8 +69,9 @@ const baptismFilter = ref('')
 const filteredPeople = computed(() =>
   props.people.filter((person) => {
     const matchesFiliere =
-      !filiereFilter.value ||
-      (filiereFilter.value === 'unknown' ? !person.filiere : person.filiere === filiereFilter.value)
+      matchesExternalFiliere(person) &&
+      (!filiereFilter.value ||
+        (filiereFilter.value === 'unknown' ? !person.filiere : person.filiere === filiereFilter.value))
     const matchesBaptism =
       !baptismFilter.value ||
       (baptismFilter.value === 'dated'
@@ -72,10 +81,16 @@ const filteredPeople = computed(() =>
   }),
 )
 
+function matchesExternalFiliere(person) {
+  if (!props.filiereFilterLabel) return true
+  const label = filiereLabel(person.filiere, person.filiereCustom) || 'Non renseignee'
+  return label === props.filiereFilterLabel
+}
+
 const groups = computed(() => {
   const map = new Map()
   filteredPeople.value.forEach((person) => {
-    const label = filiereLabel(person.filiere) || 'Non renseignee'
+    const label = filiereLabel(person.filiere, person.filiereCustom) || 'Non renseignee'
     if (!map.has(label)) map.set(label, [])
     map.get(label).push(person)
   })

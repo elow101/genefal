@@ -148,7 +148,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { mergePersonDuplicates, scanPersonDuplicates } from '../../api/genealogyApi.js'
 import { uniqueRoleId } from '../../domain/roles.js'
-import brandMark from '../../assets/fetterama.png'
+import brandMark from '../../assets/fetterama-320.jpg'
 
 const props = defineProps({
   genealogies: { type: Array, required: true },

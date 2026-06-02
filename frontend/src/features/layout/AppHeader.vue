@@ -135,7 +135,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppButton from '../../components/ui/AppButton.vue'
-import brandMark from '../../assets/fetterama.png'
+import brandMark from '../../assets/fetterama-320.jpg'
 
 const props = defineProps({
   genealogies: { type: Array, required: true },

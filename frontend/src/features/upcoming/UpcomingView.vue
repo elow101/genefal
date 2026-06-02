@@ -133,6 +133,7 @@
 
     <form
       v-if="managementEventId"
+      ref="managementPanel"
       class="attendance-form action-panel"
       @submit.prevent="loadManagement"
     >
@@ -156,7 +157,21 @@
 
       <div v-if="managedEvent" class="request-list">
         <section class="manager-options">
-          <h4>Options visibles</h4>
+          <h4>Informations modifiables</h4>
+          <div class="attendance-fields">
+            <label>
+              Date
+              <input v-model="managedDate" type="date" required />
+            </label>
+            <label>
+              Heure
+              <input v-model="managedTime" type="time" required />
+            </label>
+          </div>
+          <label>
+            Lieu
+            <input v-model="managedPlace" placeholder="Salle, ville, adresse courte" />
+          </label>
           <label>
             Visibilité
             <select v-model="managedVisibility">
@@ -234,7 +249,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import {
   canRequestParticipation,
   eventTypeLabel,
@@ -268,10 +283,14 @@ const activeQuickFilter = ref('all')
 const subscriptionEmail = ref('')
 const requestEventId = ref('')
 const managementEventId = ref('')
+const managementPanel = ref(null)
 const managementPassword = ref('')
 const managedEvent = ref(null)
 const managedAllowParticipation = ref(false)
 const managedVisibility = ref('public')
+const managedDate = ref('')
+const managedTime = ref('')
+const managedPlace = ref('')
 const pendingDeleteEventId = ref('')
 const attendance = reactive({ name: '', email: '', message: '' })
 const participationByEvent = reactive({})
@@ -371,6 +390,7 @@ function openManagement(eventId) {
   managementEventId.value = eventId
   pendingDeleteEventId.value = ''
   managedEvent.value = null
+  scrollToManagementPanel()
 }
 
 async function loadManagement() {
@@ -380,12 +400,18 @@ async function loadManagement() {
   })
   managedAllowParticipation.value = managedEvent.value?.allowParticipation === true
   managedVisibility.value = managedEvent.value?.visibility || 'public'
+  managedDate.value = dateInputFromDateTime(managedEvent.value?.dateTime || '')
+  managedTime.value = timeInputFromDateTime(managedEvent.value?.dateTime || '')
+  managedPlace.value = managedEvent.value?.place || ''
+  scrollToManagementPanel()
 }
 
 async function updateManagedEvent() {
   const event = await emitAsync('creator-update', {
     eventId: managementEventId.value,
     password: managementPassword.value,
+    dateTime: managedDate.value && managedTime.value ? `${managedDate.value}T${managedTime.value}` : '',
+    place: managedPlace.value,
     visibility: managedVisibility.value,
     allowParticipation:
       managedEvent.value?.eventType === 'autre' && managedAllowParticipation.value === true,
@@ -394,6 +420,9 @@ async function updateManagedEvent() {
     managedEvent.value = event
     managedAllowParticipation.value = event.allowParticipation === true
     managedVisibility.value = event.visibility || 'public'
+    managedDate.value = dateInputFromDateTime(event.dateTime || '')
+    managedTime.value = timeInputFromDateTime(event.dateTime || '')
+    managedPlace.value = event.place || ''
   }
 }
 
@@ -431,6 +460,9 @@ function closeManagement() {
   managedEvent.value = null
   managedAllowParticipation.value = false
   managedVisibility.value = 'public'
+  managedDate.value = ''
+  managedTime.value = ''
+  managedPlace.value = ''
   pendingDeleteEventId.value = ''
 }
 
@@ -440,9 +472,24 @@ function emitAsync(eventName, payload) {
   })
 }
 
+async function scrollToManagementPanel() {
+  await nextTick()
+  managementPanel.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+}
+
 function formatRequestDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
+function dateInputFromDateTime(value) {
+  const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})(?:T|\s)\d{2}:\d{2}/)
+  return match ? match[1] : ''
+}
+
+function timeInputFromDateTime(value) {
+  const match = String(value || '').match(/^\d{4}-\d{2}-\d{2}(?:T|\s)(\d{2}:\d{2})/)
+  return match ? match[1] : ''
 }
 </script>

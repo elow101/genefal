@@ -204,6 +204,8 @@ assert_same('family', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autr
 assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-legacy')['allowParticipation'], 'legacy custom upcoming event defaults participation opt-in to false');
 assert_same('public', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-legacy')['visibility'], 'invalid upcoming visibility defaults to public');
 assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-forced')['allowParticipation'], 'cooptage cannot force participation opt-in');
+assert_same('2099-02-03 18:30:00', upcoming_sql_event_datetime('2099-02-03T18:30'), 'SQL event storage preserves local wall-clock time');
+assert_same('2099-02-03 18:30:00', upcoming_sql_event_datetime('2099-02-03 18:30:00'), 'SQL event storage keeps database datetime unchanged');
 
 $publicAppend = public_person_with_allowed_updates(
     [
@@ -238,6 +240,20 @@ assert_same('Adoptee', $publicAppend['ceremonyEvents'][0]['nickname'], 'public a
 assert_same('confirmation', $publicAppend['ceremonyEvents'][1]['type'], 'public append preserves new ceremony type');
 assert_same('Confirmee', $publicAppend['ceremonyEvents'][1]['nickname'], 'public append preserves adoption or confirmation nickname');
 assert_same(['heart-b'], $publicAppend['ceremonyEvents'][1]['heartSponsorIds'], 'public append preserves ceremony heart sponsors');
+
+$publicFiliereRecovery = public_person_with_allowed_updates(
+    ['id' => 'person-empty-filiere', 'name' => 'Sans filière', 'filiere' => ''],
+    ['id' => 'person-empty-filiere', 'name' => 'Nom bloqué', 'filiere' => 'autre', 'filiereCustom' => 'Taille de pierre']
+);
+assert_same('Sans filière', $publicFiliereRecovery['name'], 'public filiere recovery still blocks existing person identity edits');
+assert_same('autre', $publicFiliereRecovery['filiere'], 'public filiere recovery allows setting a missing filiere');
+assert_same('Taille de pierre', $publicFiliereRecovery['filiereCustom'], 'public filiere recovery allows setting the custom other label');
+
+$publicFiliereBlocked = public_person_with_allowed_updates(
+    ['id' => 'person-with-filiere', 'name' => 'Avec filière', 'filiere' => 'medecine'],
+    ['id' => 'person-with-filiere', 'name' => 'Avec filière', 'filiere' => 'droit']
+);
+assert_same('medecine', $publicFiliereBlocked['filiere'], 'public filiere recovery does not replace an existing filiere');
 
 assert_same(1, duplicate_group_count([
     [
@@ -496,6 +512,8 @@ $testFilierePayload = migrate_genealogy_payload([
                 ['id' => 'f1', 'name' => 'Test', 'filiere' => 'carab'],
                 ['id' => 'f2', 'name' => 'Test2', 'filiere' => 'dentaire'],
                 ['id' => 'f3', 'name' => 'Test3', 'filiere' => 'pharma'],
+                ['id' => 'f4', 'name' => 'Test4', 'filiere' => 'autre', 'filiereCustom' => 'Taille de pierre'],
+                ['id' => 'f5', 'name' => 'Test5', 'filiere' => 'sciences', 'filiereCustom' => 'Ignorée'],
             ],
         ],
     ],
@@ -504,6 +522,9 @@ $filiereRegion = genealogy_by_id($testFilierePayload, 'region-filiere');
 assert_same('medecine', $filiereRegion['people'][0]['filiere'], 'carab alias normalized during migration');
 assert_same('chirurgie-dentaire', $filiereRegion['people'][1]['filiere'], 'dentaire alias normalized during migration');
 assert_same('pharmacie-preparateur-pharmacie', $filiereRegion['people'][2]['filiere'], 'pharma alias normalized during migration');
+assert_same('autre', $filiereRegion['people'][3]['filiere'], 'custom other filiere is preserved during migration');
+assert_same('Taille de pierre', $filiereRegion['people'][3]['filiereCustom'], 'custom other filiere label is preserved during migration');
+assert_same('', $filiereRegion['people'][4]['filiereCustom'], 'custom filiere label is cleared for known filiere ids');
 
 // Test: schemaVersion est mis à jour
 $legacyNoVersion = migrate_genealogy_payload([

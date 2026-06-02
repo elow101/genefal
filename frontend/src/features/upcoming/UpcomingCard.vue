@@ -1,5 +1,12 @@
 <template>
-  <article class="upcoming-card" :id="`event-${event.id}`">
+  <article
+    class="upcoming-card"
+    :class="[eventAccentClass, { 'upcoming-card--clickable': Boolean(event.eventUrl) }]"
+    :id="`event-${event.id}`"
+    :tabindex="event.eventUrl ? 0 : undefined"
+    @click="openEvent"
+    @keydown.enter="openEvent"
+  >
     <div class="upcoming-card-date" aria-hidden="true">
       <strong>{{ dateParts.day }}</strong>
       <span>{{ dateParts.month }}</span>
@@ -12,6 +19,17 @@
           <strong>{{ title }}</strong>
           <p>{{ formatUpcomingDateTime(event.dateTime) }}</p>
         </div>
+        <span v-if="isSoon" class="soon-badge">BIENTÔT</span>
+        <button
+          type="button"
+          class="creator-action"
+          aria-label="Gestion créateur"
+          title="Gestion créateur"
+          @click.stop="$emit('manage', event.id)"
+        >
+          <span aria-hidden="true">⚙</span>
+          <span class="sr-only">Gestion créateur</span>
+        </button>
       </div>
 
       <div class="badge-row" aria-label="Informations événement">
@@ -25,34 +43,20 @@
         </span>
       </div>
 
-      <dl class="event-meta">
-        <div v-if="event.place">
-          <dt>Lieu</dt>
-          <dd>{{ event.place }}</dd>
-        </div>
-        <div v-if="scopeLabelText">
-          <dt>Portée</dt>
-          <dd>{{ scopeLabelText }}</dd>
-        </div>
-        <div v-if="regionName && event.scope !== 'national'">
-          <dt>Région</dt>
-          <dd>{{ regionName }}</dd>
-        </div>
-        <div v-if="event.creatorName">
-          <dt>Créateur</dt>
-          <dd>{{ event.creatorName }}</dd>
-        </div>
-        <div v-if="sponsorNames">
-          <dt>{{ sponsorLabel }}</dt>
-          <dd>{{ sponsorNames }}</dd>
-        </div>
-        <div v-if="concernedNames">
-          <dt>Concerné(s)</dt>
-          <dd>{{ concernedNames }}</dd>
-        </div>
-      </dl>
-
-      <p v-if="event.message" class="event-message">{{ event.message }}</p>
+      <div class="event-meta" aria-label="Détails événement">
+        <p v-if="event.place || regionName || scopeLabelText" class="event-meta-line">
+          <span class="event-meta-icon" aria-hidden="true">⌖</span>
+          <span>{{ locationLine }}</span>
+        </p>
+        <p v-if="event.creatorName || event.message" class="event-meta-line">
+          <span class="event-meta-icon" aria-hidden="true">◎</span>
+          <span>{{ creatorLine }}</span>
+        </p>
+        <p v-if="sponsorNames || concernedNames" class="event-meta-line event-meta-line--people">
+          <span class="event-meta-icon" aria-hidden="true">◇</span>
+          <span>{{ peopleLine }}</span>
+        </p>
+      </div>
 
       <div v-if="event.eventUrl" class="event-link">
         <a
@@ -60,6 +64,7 @@
           target="_blank"
           rel="noopener noreferrer"
           class="primary-action"
+          @click.stop
         >
           Voir l'événement
         </a>
@@ -77,16 +82,15 @@
         type="button"
         class="primary-action"
         :disabled="Boolean(participationStatus)"
-        @click="$emit('request', event.id)"
+        @click.stop="$emit('request', event.id)"
       >
         {{ requestButtonLabel }}
       </button>
-      <button type="button" class="text-button" @click="$emit('manage', event.id)">Gestion créateur</button>
       <button
         v-if="canDelete"
         class="text-button danger-text"
         type="button"
-        @click="$emit('delete', event.id)"
+        @click.stop="$emit('delete', event.id)"
       >
         Supprimer
       </button>
@@ -138,6 +142,15 @@ const title = computed(() => props.event.title || props.event.baptizedNames?.joi
 const dateParts = computed(() => formatUpcomingDateParts(props.event.dateTime))
 const badges = computed(() => eventBadges(props.event))
 const scopeLabelText = computed(() => scopeLabel(props.event.scope))
+const eventAccentClass = computed(() => `upcoming-card--${normaliseEventType(props.event.eventType)}`)
+const isSoon = computed(() => {
+  const date = new Date(props.event.dateTime || '')
+  if (Number.isNaN(date.getTime())) return false
+  const now = new Date()
+  const soonLimit = new Date(now)
+  soonLimit.setDate(now.getDate() + 3)
+  return date >= now && date <= soonLimit
+})
 
 const sponsorNames = computed(() =>
   (props.event.sponsorIds || [])
@@ -160,4 +173,36 @@ const requestButtonLabel = computed(() =>
     ? `Demande ${requestStatusLabel(props.participationStatus).toLowerCase()}`
     : 'Demander à participer',
 )
+const locationLine = computed(() =>
+  [
+    props.event.place,
+    props.regionName && props.event.scope !== 'national' ? props.regionName : scopeLabelText.value,
+  ]
+    .filter(Boolean)
+    .join(' · '),
+)
+const creatorLine = computed(() =>
+  [props.event.creatorName ? `Créateur : ${props.event.creatorName}` : '', props.event.message]
+    .filter(Boolean)
+    .join(' · '),
+)
+const peopleLine = computed(() =>
+  [
+    sponsorNames.value ? `${sponsorLabel.value} : ${sponsorNames.value}` : '',
+    concernedNames.value ? `Concerné(s) : ${concernedNames.value}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · '),
+)
+
+function normaliseEventType(value) {
+  const type = String(value || '').trim().toLowerCase()
+  return ['bapteme', 'adoption', 'confirmation', 'cooptage'].includes(type) ? type : 'autre'
+}
+
+function openEvent(event) {
+  if (!props.event.eventUrl) return
+  if (event?.target?.closest?.('a, button')) return
+  window.open(props.event.eventUrl, '_blank', 'noopener,noreferrer')
+}
 </script>

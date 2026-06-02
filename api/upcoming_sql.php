@@ -97,7 +97,7 @@ function upcoming_sql_upsert_event(array $event): void
         ':region_id' => (string) ($event['regionId'] ?? ''),
         ':title' => (string) ($event['title'] ?? ''),
         ':event_type' => (string) ($event['eventType'] ?? 'autre'),
-        ':date_time' => upcoming_sql_datetime((string) ($event['dateTime'] ?? '')),
+        ':date_time' => upcoming_sql_event_datetime((string) ($event['dateTime'] ?? '')),
         ':place' => (string) ($event['place'] ?? ''),
         ':message' => (string) ($event['message'] ?? ''),
         ':creator_name' => (string) ($event['creatorName'] ?? ''),
@@ -310,4 +310,16 @@ function upcoming_sql_datetime(string $value): string
 {
     $timestamp = strtotime($value);
     return $timestamp === false ? gmdate('Y-m-d H:i:s') : gmdate('Y-m-d H:i:s', $timestamp);
+}
+
+function upcoming_sql_event_datetime(string $value): string
+{
+    $raw = trim($value);
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})(?:T|\s)(\d{2}):(\d{2})/', $raw, $matches)) {
+        return "{$matches[1]} {$matches[2]}:{$matches[3]}:00";
+    }
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})$/', $raw, $matches)) {
+        return "{$matches[1]} 00:00:00";
+    }
+    return date('Y-m-d H:i:s');
 }

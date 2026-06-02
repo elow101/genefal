@@ -28,6 +28,7 @@ export const filiereOptions = [
   { id: 'sciences', label: 'Sciences', colorLabel: 'Satin violet', strip: '#6b2fb9' },
   { id: 'sciences-economiques-gestion-iae', label: 'Sciences économiques, Gestion, IAE', colorLabel: 'Satin orange', strip: '#f28c28' },
   { id: 'sciences-politiques', label: 'Sciences politiques', colorLabel: 'Satin bleu & rouge', strip: 'linear-gradient(180deg, #2f6fdd 0 50%, #d3272f 50% 100%)' },
+  { id: 'autre', label: 'Autre', colorLabel: 'Personnalisée', strip: '#8f9297' },
 ]
 
 const filiereById = new Map(filiereOptions.map((option) => [option.id, option]))
@@ -59,7 +60,8 @@ function filiereOption(id = '') {
   return filiereById.get(normaliseFiliereId(id)) || null
 }
 
-export function filiereLabel(id = '') {
+export function filiereLabel(id = '', customLabel = '') {
+  if (normaliseFiliereId(id) === 'autre' && customLabel.trim()) return customLabel.trim()
   return filiereOption(id)?.label || ''
 }
 

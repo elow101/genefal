@@ -35,6 +35,7 @@ function genealogy_sql_read_payload(): ?array
             $person = genealogy_sql_decode_object($row['person_json'] ?? null);
             if ($person) {
                 $person['id'] = (string) ($row['person_id'] ?? ($person['id'] ?? ''));
+                genealogy_sql_apply_filiere_columns($person, $row);
                 $peopleByGenealogy[$genealogyId][] = $person;
             }
         }
@@ -57,6 +58,46 @@ function genealogy_sql_read_payload(): ?array
         error_log('Genealogy SQL read error: ' . $exception->getMessage());
         return null;
     }
+}
+
+function genealogy_sql_payload_version(): ?string
+{
+    $pdo = database_pdo();
+    if (!$pdo) {
+        return null;
+    }
+
+    $tables = ['genealogies', 'genealogy_people', 'people', 'app_settings'];
+    $includeUpcomingSql = database_read_enabled()
+        && function_exists('upcoming_sql_available')
+        && upcoming_sql_available();
+    if ($includeUpcomingSql) {
+        $tables[] = 'events';
+        $tables[] = 'event_participation_requests';
+    }
+
+    $parts = [
+        'schema:' . (defined('CURRENT_GENEALOGY_SCHEMA_VERSION') ? (string) CURRENT_GENEALOGY_SCHEMA_VERSION : '1'),
+        'upcoming-sql:' . ($includeUpcomingSql ? '1' : '0'),
+    ];
+
+    try {
+        foreach ($tables as $table) {
+            $statement = $pdo->query(
+                "SELECT COUNT(*) AS row_count, COALESCE(MAX(updated_at), '') AS last_updated FROM {$table}"
+            );
+            $row = $statement ? $statement->fetch() : false;
+            if (!is_array($row)) {
+                return null;
+            }
+            $parts[] = $table . ':' . (string) ($row['row_count'] ?? '0') . ':' . (string) ($row['last_updated'] ?? '');
+        }
+    } catch (Throwable $exception) {
+        error_log('Genealogy SQL version error: ' . $exception->getMessage());
+        return null;
+    }
+
+    return implode('|', $parts);
 }
 
 function genealogy_sql_write_payload(array $payload): bool
@@ -125,13 +166,25 @@ function genealogy_sql_upsert_genealogy_person(string $genealogyId, array $perso
         return;
     }
     $statement = $pdo->prepare(
-        'INSERT INTO genealogy_people (genealogy_id, person_id, person_json, updated_at)
-         VALUES (:genealogy_id, :person_id, :person_json, UTC_TIMESTAMP())
-         ON DUPLICATE KEY UPDATE person_json = VALUES(person_json), updated_at = UTC_TIMESTAMP()'
+        'INSERT INTO genealogy_people
+            (genealogy_id, person_id, filiere, filiere_custom, filiere2, filiere2_custom, person_json, updated_at)
+         VALUES
+            (:genealogy_id, :person_id, :filiere, :filiere_custom, :filiere2, :filiere2_custom, :person_json, UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE
+            filiere = VALUES(filiere),
+            filiere_custom = VALUES(filiere_custom),
+            filiere2 = VALUES(filiere2),
+            filiere2_custom = VALUES(filiere2_custom),
+            person_json = VALUES(person_json),
+            updated_at = UTC_TIMESTAMP()'
     );
     $statement->execute([
         ':genealogy_id' => $genealogyId,
         ':person_id' => (string) ($person['id'] ?? ''),
+        ':filiere' => genealogy_sql_nullable_string($person['filiere'] ?? ''),
+        ':filiere_custom' => genealogy_sql_nullable_string($person['filiereCustom'] ?? ''),
+        ':filiere2' => genealogy_sql_nullable_string($person['filiere2'] ?? ''),
+        ':filiere2_custom' => genealogy_sql_nullable_string($person['filiere2Custom'] ?? ''),
         ':person_json' => genealogy_sql_encode_object($person),
     ]);
 }
@@ -166,6 +219,7 @@ function genealogy_sql_person_from_row(array $row): array
     $stored = genealogy_sql_decode_object($row['person_json'] ?? null);
     if ($stored) {
         $stored['id'] = (string) ($row['id'] ?? ($stored['id'] ?? ''));
+        genealogy_sql_apply_filiere_columns($stored, $row);
         return $stored;
     }
 
@@ -182,6 +236,9 @@ function genealogy_sql_person_from_row(array $row): array
         'ceremonyEvents' => [],
         'song' => (string) ($row['song'] ?? ''),
         'filiere' => (string) ($row['filiere'] ?? ''),
+        'filiereCustom' => (string) ($row['filiere_custom'] ?? ''),
+        'filiere2' => (string) ($row['filiere2'] ?? ''),
+        'filiere2Custom' => (string) ($row['filiere2_custom'] ?? ''),
         'createdAt' => (string) ($row['created_at'] ?? ''),
         'sponsorIds' => [],
         'heartSponsorIds' => [],
@@ -233,9 +290,9 @@ function genealogy_sql_upsert_person(string $genealogyId, array $person): void
     }
     $statement = $pdo->prepare(
         'INSERT INTO people
-            (id, genealogy_id, name, nickname, birth_date, baptism_date, baptism_city, baptism_status, filiere, roles_json, song, notes, photo_path, person_json, updated_at)
+            (id, genealogy_id, name, nickname, birth_date, baptism_date, baptism_city, baptism_status, filiere, filiere_custom, filiere2, filiere2_custom, roles_json, song, notes, photo_path, person_json, updated_at)
          VALUES
-            (:id, :genealogy_id, :name, :nickname, NULL, :baptism_date, :baptism_city, :baptism_status, :filiere, :roles_json, :song, NULL, NULL, :person_json, UTC_TIMESTAMP())
+            (:id, :genealogy_id, :name, :nickname, NULL, :baptism_date, :baptism_city, :baptism_status, :filiere, :filiere_custom, :filiere2, :filiere2_custom, :roles_json, :song, NULL, NULL, :person_json, UTC_TIMESTAMP())
          ON DUPLICATE KEY UPDATE
             genealogy_id = VALUES(genealogy_id),
             name = VALUES(name),
@@ -244,6 +301,9 @@ function genealogy_sql_upsert_person(string $genealogyId, array $person): void
             baptism_city = VALUES(baptism_city),
             baptism_status = VALUES(baptism_status),
             filiere = VALUES(filiere),
+            filiere_custom = VALUES(filiere_custom),
+            filiere2 = VALUES(filiere2),
+            filiere2_custom = VALUES(filiere2_custom),
             roles_json = VALUES(roles_json),
             song = VALUES(song),
             person_json = VALUES(person_json),
@@ -257,7 +317,10 @@ function genealogy_sql_upsert_person(string $genealogyId, array $person): void
         ':baptism_date' => genealogy_sql_date((string) ($person['baptismDate'] ?? '')),
         ':baptism_city' => (string) ($person['baptismCity'] ?? ''),
         ':baptism_status' => (string) ($person['baptismStatus'] ?? ''),
-        ':filiere' => (string) ($person['filiere'] ?? ''),
+        ':filiere' => genealogy_sql_nullable_string($person['filiere'] ?? ''),
+        ':filiere_custom' => genealogy_sql_nullable_string($person['filiereCustom'] ?? ''),
+        ':filiere2' => genealogy_sql_nullable_string($person['filiere2'] ?? ''),
+        ':filiere2_custom' => genealogy_sql_nullable_string($person['filiere2Custom'] ?? ''),
         ':roles_json' => genealogy_sql_encode_array($person['roles'] ?? []),
         ':song' => (string) ($person['song'] ?? ''),
         ':person_json' => genealogy_sql_encode_object($person),
@@ -439,6 +502,29 @@ function genealogy_sql_encode_object(array $value): string
 {
     $encoded = json_encode($value, JSON_UNESCAPED_UNICODE);
     return is_string($encoded) ? $encoded : '{}';
+}
+
+function genealogy_sql_apply_filiere_columns(array &$person, array $row): void
+{
+    foreach ([
+        'filiere' => 'filiere',
+        'filiere_custom' => 'filiereCustom',
+        'filiere2' => 'filiere2',
+        'filiere2_custom' => 'filiere2Custom',
+    ] as $column => $field) {
+        if (array_key_exists($column, $row) && $row[$column] !== null) {
+            $person[$field] = (string) $row[$column];
+        }
+    }
+}
+
+function genealogy_sql_nullable_string($value): ?string
+{
+    if (!is_scalar($value)) {
+        return null;
+    }
+    $text = trim((string) $value);
+    return $text === '' ? null : $text;
 }
 
 function genealogy_sql_date(string $value): ?string

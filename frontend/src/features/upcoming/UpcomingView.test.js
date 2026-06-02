@@ -79,4 +79,46 @@ describe('UpcomingView', () => {
     expect(cards[0].text()).toContain('Autre ouvert')
     expect(cards[0].text()).not.toContain('Baptême')
   })
+
+  it('lets the creator update event date, time and place', async () => {
+    const event = {
+      id: 'event-1',
+      title: 'Repas',
+      eventType: 'autre',
+      dateTime: '2026-06-01T20:30',
+      place: 'Ancien lieu',
+      visibility: 'public',
+      requests: [],
+    }
+    let updatePayload = null
+    const wrapper = mount(UpcomingView, {
+      props: {
+        events: [event],
+        people: [],
+        region: { id: 'region-1', name: 'Alsace' },
+        onCreatorAccess: (_payload, done) => done(event),
+        onCreatorUpdate: (payload, done) => {
+          updatePayload = payload
+          done({ ...event, dateTime: payload.dateTime, place: payload.place })
+        },
+      },
+    })
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Gestion')).trigger('click')
+    await wrapper.find('input[type="password"]').setValue('secret')
+    await wrapper.find('form.action-panel').trigger('submit.prevent')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('input[type="date"]').setValue('2026-06-02')
+    await wrapper.find('input[type="time"]').setValue('21:15')
+    await wrapper.find('input[placeholder="Salle, ville, adresse courte"]').setValue('Nouveau lieu')
+    await wrapper.findAll('button').find((button) => button.text() === 'Enregistrer les options').trigger('click')
+
+    expect(updatePayload).toMatchObject({
+      eventId: 'event-1',
+      password: 'secret',
+      dateTime: '2026-06-02T21:15',
+      place: 'Nouveau lieu',
+    })
+  })
 })

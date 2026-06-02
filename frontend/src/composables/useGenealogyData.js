@@ -1,4 +1,4 @@
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { fetchAuthState, fetchGenealogyState, saveGenealogyState, undoPublicSessionAction } from '../api/genealogyApi.js'
 import {
   appendGenealogy,
@@ -16,7 +16,7 @@ export function useGenealogyData() {
   const loginUrl = ref('http://127.0.0.1:8765/')
   const csrfToken = ref('')
   const saving = ref(false)
-  const data = ref(null)
+  const data = shallowRef(null)
   const sessionActions = ref([])
   const lastSavedSnapshot = ref('')
   let activeSavePromise = null
@@ -61,6 +61,8 @@ export function useGenealogyData() {
   function markStateAsSaved() {
     lastSavedSnapshot.value = stateSnapshot()
   }
+
+  const hasUnsavedChanges = computed(() => Boolean(data.value) && stateSnapshot() !== lastSavedSnapshot.value)
 
   async function save() {
     if (!data.value) return false
@@ -172,6 +174,7 @@ export function useGenealogyData() {
     csrfToken,
     data,
     sessionActions,
+    hasUnsavedChanges,
     ...selection,
     ...peopleMutations,
     upcoming,

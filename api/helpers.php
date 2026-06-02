@@ -8,6 +8,75 @@ function api_respond(array $payload, int $status = 200): void
     exit;
 }
 
+function api_respond_with_etag(array $payload, string $namespace, int $status = 200, ?string $etag = null): void
+{
+    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    if (!is_string($encoded)) {
+        api_respond($payload, $status);
+    }
+
+    $etag = $etag ?: api_etag_from_version($namespace, $encoded);
+    api_send_etag_headers($etag);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && api_request_etag_matches($etag)) {
+        http_response_code(304);
+        exit;
+    }
+
+    http_response_code($status);
+    echo $encoded;
+    exit;
+}
+
+function api_etag_from_version(string $namespace, string $version): string
+{
+    return '"' . hash('sha256', $namespace . ':' . $version) . '"';
+}
+
+function api_send_etag_headers(string $etag): void
+{
+    header('Cache-Control: private, no-cache, must-revalidate');
+    header('ETag: ' . $etag);
+    header('Vary: Cookie');
+}
+
+function api_respond_not_modified_if_etag_matches(string $etag): void
+{
+    api_send_etag_headers($etag);
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && api_request_etag_matches($etag)) {
+        http_response_code(304);
+        exit;
+    }
+}
+
+function api_request_etag_matches(string $etag): bool
+{
+    $header = is_string($_SERVER['HTTP_IF_NONE_MATCH'] ?? null) ? trim($_SERVER['HTTP_IF_NONE_MATCH']) : '';
+    if ($header === '') {
+        return false;
+    }
+
+    $expected = api_normalise_request_etag($etag);
+    foreach (explode(',', $header) as $candidate) {
+        $candidate = api_normalise_request_etag($candidate);
+        if ($candidate === '*' || hash_equals($expected, $candidate)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function api_normalise_request_etag(string $etag): string
+{
+    $etag = trim($etag);
+    if (substr($etag, 0, 2) === 'W/') {
+        $etag = trim(substr($etag, 2));
+    }
+    $etag = trim($etag, '"');
+    return preg_replace('/-(gzip|br|deflate)$/', '', $etag) ?? $etag;
+}
+
 function api_read_json_body(int $maxBytes): ?array
 {
     $raw = file_get_contents('php://input', false, null, 0, $maxBytes + 1);

@@ -1,0 +1,19 @@
+{
+  "name": "GeneFaluche",
+  "short_name": "GeneFaluche",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#011236",
+  "background_color": "#011236",
+  "display": "standalone"
+}

@@ -276,6 +276,15 @@ function upcoming_update_event(array $body): void
     $state['upcomingBaptisms'][$eventIndex]['scope'] = $scope;
     $state['upcomingBaptisms'][$eventIndex]['regionId'] = $regionId;
     $state['upcomingBaptisms'][$eventIndex]['familyId'] = $familyId;
+    $dateTime = normalise_datetime_local($body['dateTime'] ?? ($state['upcomingBaptisms'][$eventIndex]['dateTime'] ?? ''));
+    if ($dateTime === '') {
+        api_respond(['error' => 'Date ou heure invalide.'], 400);
+    }
+    $state['upcomingBaptisms'][$eventIndex]['dateTime'] = $dateTime;
+    $state['upcomingBaptisms'][$eventIndex]['place'] = api_safe_text(
+        $body['place'] ?? ($state['upcomingBaptisms'][$eventIndex]['place'] ?? ''),
+        160
+    );
     $state['upcomingBaptisms'][$eventIndex]['allowParticipation'] = upcoming_normalise_allow_participation(
         $eventType,
         $body['allowParticipation'] ?? false

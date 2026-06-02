@@ -14,13 +14,28 @@
       @open-admin="openAdmin"
     />
 
-    <p v-if="loading" class="notice">Chargement des données...</p>
-    <div v-else-if="error" class="notice notice--error">
+    <p v-if="loading" class="notice app-loading-notice">Chargement des données...</p>
+    <div v-if="!loading && error" class="notice notice--error">
       <p>{{ error }}</p>
       <a :href="loginUrl">Ouvrir la connexion PHP</a>
     </div>
 
-    <template v-else>
+    <template v-if="!error">
+      <div v-if="showFiliereRecoveryNotice" class="recovery-notice-backdrop">
+        <section class="recovery-notice" role="dialog" aria-modal="true" aria-labelledby="recovery-notice-title">
+          <div>
+            <strong id="recovery-notice-title">Information importante</strong>
+            <p>
+              Suite à une mise à jour, certaines fiches n'ont plus leur filière identifiée. La
+              modification de la filière est temporairement ouverte pour les fiches concernées.
+            </p>
+          </div>
+          <button class="primary" type="button" @click="dismissFiliereRecoveryNotice">
+            J'ai compris
+          </button>
+        </section>
+      </div>
+
       <section class="options-bar" aria-label="Options d'affichage">
         <PersonSearch v-model="searchQuery" :results="searchResults" @select="selectSearchResult" />
 
@@ -80,8 +95,19 @@
         >
           <div class="graph-header">
             <div class="graph-header-copy">
-              <h2>{{ focusTitle }}</h2>
-              <p>{{ focusSubtitle }}</p>
+              <h2>{{ loading ? 'Accueil' : focusTitle }}</h2>
+              <div v-if="activeView === 'stats' && stats" class="stats-title-pills" aria-label="Résumé statistiques">
+                <span class="stats-title-pill stats-title-pill--cyan">
+                  <i aria-hidden="true"></i>{{ stats.peopleCount }} fiches
+                </span>
+                <span class="stats-title-pill stats-title-pill--green">
+                  <i aria-hidden="true"></i>{{ stats.baptizedCount }} baptisés
+                </span>
+                <span class="stats-title-pill stats-title-pill--muted">
+                  <i aria-hidden="true"></i>{{ stats.unbaptizedCount }} non baptisés
+                </span>
+              </div>
+              <p v-else>{{ focusSubtitle }}</p>
             </div>
 
             <ViewSwitcher v-model="activeView" :views="views" />
@@ -133,46 +159,6 @@
             </section>
             <div
               v-if="activeView === 'tree'"
-              class="zoom-controls graph-stage-zoom"
-              aria-label="Zoom de l'arbre"
-            >
-              <button
-                type="button"
-                title="Zoom arrière"
-                aria-label="Zoom arrière"
-                @click="adjustZoom(-0.1)"
-              >
-                −
-              </button>
-              <button
-                type="button"
-                title="Réinitialiser le zoom"
-                aria-label="Réinitialiser le zoom"
-                @click="resetZoom"
-              >
-                {{ Math.round(graphZoom * 100) }}%
-              </button>
-              <button
-                type="button"
-                title="Zoom avant"
-                aria-label="Zoom avant"
-                @click="adjustZoom(0.1)"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                class="zoom-controls__selected"
-                title="Recentrer au profil sélectionné"
-                aria-label="Recentrer au profil sélectionné"
-                :disabled="!selectedPersonId"
-                @click="centerSelectedPerson"
-              >
-                Recentrer au profil sélectionné
-              </button>
-            </div>
-            <div
-              v-if="activeView === 'tree'"
               ref="graphViewport"
               class="graph-viewport"
               :class="{ 'is-touch-panning': graphPan.active }"
@@ -184,6 +170,63 @@
               @wheel="handleGraphWheel"
               @click.capture="cancelClickAfterGraphPan"
             >
+              <div
+                class="graph-canvas-tools"
+                aria-label="Outils du canevas"
+                @pointerdown.stop
+                @wheel.stop
+                @click.stop
+              >
+                <div class="zoom-controls graph-stage-zoom" aria-label="Zoom de l'arbre">
+                  <button
+                    type="button"
+                    title="Zoom arrière"
+                    aria-label="Zoom arrière"
+                    @click="adjustZoom(-0.1)"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    title="Réinitialiser le zoom"
+                    aria-label="Réinitialiser le zoom"
+                    @click="resetZoom"
+                  >
+                    {{ Math.round(graphZoom * 100) }}%
+                  </button>
+                  <button
+                    type="button"
+                    title="Zoom avant"
+                    aria-label="Zoom avant"
+                    @click="adjustZoom(0.1)"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    class="zoom-controls__selected"
+                    title="Recentrer au profil sélectionné"
+                    aria-label="Recentrer au profil sélectionné"
+                    :disabled="!selectedPersonId"
+                    @click="centerSelectedPerson"
+                  >
+                    Recentrer
+                  </button>
+                </div>
+                <details v-if="graph.legend" class="graph-legend-popover">
+                  <summary aria-label="Afficher la légende des liens">
+                    <span aria-hidden="true">i</span>
+                    <strong>Légende</strong>
+                  </summary>
+                  <div class="graph-legend" aria-label="Légende des liens">
+                    <span><i class="legend-line"></i>Parrain / marraine</span>
+                    <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
+                    <span><i class="legend-line adoption"></i>Adoption</span>
+                    <span><i class="legend-line confirmation"></i>Confirmation</span>
+                    <span><i class="legend-line cross"></i>Baptême croisé</span>
+                  </div>
+                </details>
+              </div>
               <div
                 ref="graphPanContent"
                 class="graph-pan-content"
@@ -222,58 +265,27 @@
                   ?
                 </button>
               </div>
-              <div class="network-halo-controls__groups">
-                <div
-                  class="network-halo-group"
-                  role="group"
-                  aria-label="Générations ascendantes surlignées"
-                >
-                  <span>Ascendance</span>
-                  <div class="network-halo-options">
-                    <button
-                      v-for="option in haloDepthOptions"
-                      :key="`ancestor-${option.value}`"
-                      type="button"
-                      :class="{ 'is-active': networkHaloAncestorDepth === option.value }"
-                      @click="setNetworkHaloDepth('ancestor', option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
+              <div class="network-depth-slider">
+                <div class="network-depth-slider__label">
+                  <span>Profondeur</span>
+                  <strong>{{ haloDepthLabel(networkHaloDepthValue) }}</strong>
                 </div>
-                <div
-                  class="network-halo-group"
-                  role="group"
-                  aria-label="Générations descendantes surlignées"
-                >
-                  <span>Descendance</span>
-                  <div class="network-halo-options">
-                    <button
-                      v-for="option in haloDepthOptions"
-                      :key="`descendant-${option.value}`"
-                      type="button"
-                      :class="{ 'is-active': networkHaloDescendantDepth === option.value }"
-                      @click="setNetworkHaloDepth('descendant', option.value)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
+                <input
+                  v-model.number="networkHaloDepthValue"
+                  type="range"
+                  min="1"
+                  max="4"
+                  step="1"
+                  aria-label="Profondeur du halo généalogique"
+                />
+                <div class="network-depth-slider__scale" aria-hidden="true">
+                  <span>1</span>
+                  <span>2</span>
+                  <span>3</span>
+                  <span>Toutes</span>
                 </div>
               </div>
             </section>
-            <div
-              v-if="activeView === 'tree' && graph.legend"
-              class="graph-legend graph-legend--below"
-              aria-label="Légende des liens"
-            >
-              <span><i class="legend-line"></i>Parrain / marraine</span>
-              <span><i class="legend-line heart"></i>Parrain / marraine de cœur</span>
-              <span><i class="legend-line adoption"></i>Adoption</span>
-              <span><i class="legend-line adoption-heart"></i>Adoption de cœur</span>
-              <span><i class="legend-line confirmation"></i>Confirmation</span>
-              <span><i class="legend-line confirmation-heart"></i>Confirmation de cœur</span>
-              <span><i class="legend-line cross"></i>Baptême croisé</span>
-            </div>
             <p v-if="activeView === 'tree'" class="graph-help">
               Glisse dans une zone vide pour déplacer le graphe. Touche une fiche pour éclairer sa
               branche selon la portée choisie.
@@ -287,9 +299,23 @@
             >
               ↑
             </button>
+            <section v-if="loading" class="home-panel home-panel--loading" aria-busy="true">
+              <div class="home-actions" aria-hidden="true">
+                <div class="home-action-card home-action-card--main home-skeleton-card"></div>
+                <div class="home-action-card home-skeleton-card"></div>
+                <div class="home-action-card home-skeleton-card"></div>
+              </div>
+              <div class="home-summary" aria-hidden="true">
+                <article class="home-skeleton-card"></article>
+                <article class="home-skeleton-card"></article>
+                <article class="home-skeleton-card"></article>
+              </div>
+            </section>
             <OverviewPanel
               v-else-if="activeView === 'overview'"
               :people="people"
+              :filiere-filter-label="overviewFiliereFilter"
+              @clear-filiere-filter="overviewFiliereFilter = ''"
               @select="handlePersonFocus"
             />
             <StatsDashboard
@@ -297,9 +323,10 @@
               :stats="stats"
               :people="people"
               @select="handlePersonFocus"
+              @filter-filiere="handleFiliereFilter"
             />
-            <template v-else>
-              <section v-if="activeView === 'home'" class="home-panel">
+            <template v-else-if="activeView === 'home'">
+              <section class="home-panel">
                 <div class="home-actions" aria-label="Actions principales">
                   <button
                     type="button"
@@ -357,7 +384,7 @@
                 </div>
                 <TutorialToggle
                   v-model:enabled="tutorialEnabled"
-                  :tutorial-count="tutorialOrderFr.length"
+                  :tutorial-count="TUTORIAL_COUNT"
                   @update:enabled="handleTutorialToggle"
                   @open-guides="openTutorial"
                 />
@@ -375,7 +402,7 @@
                           <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                         </svg>
                       </span>
-                      <strong>{{ people.length }}</strong>
+                      <strong>{{ homePeopleCount }}</strong>
                       <span>Fiches</span>
                       <small>Total actuel</small>
                     </article>
@@ -406,40 +433,67 @@
                   </div>
                 </section>
               </section>
-              <template v-else>
-                <UpcomingView
-                  :events="upcomingEvents"
-                  :people="people"
-                  :region="upcomingRegion"
-                  :cooptage-role-label="cooptageRole.label"
-                  :can-delete="Boolean(adminSession)"
-                  @delete="handleUpcomingDelete"
-                  @request="handleAttendanceRequest"
-                  @subscribe="handleUpcomingSubscribe"
-                  @unsubscribe="handleUpcomingUnsubscribe"
-                  @creator-access="handleUpcomingCreatorAccess"
-                  @creator-update="handleUpcomingCreatorUpdate"
-                  @request-status="handleUpcomingRequestStatus"
-                  @creator-delete="handleUpcomingCreatorDelete"
-                  @help="openTutorialById"
-                />
-                <UpcomingComposer
-                  :people="people"
-                  :enabled="true"
-                  :selected-genealogy="selectedGenealogy"
-                  :cooptage-role="cooptageRole"
-                  @create="handleUpcomingCreate"
-                  @help="openTutorialById"
-                />
-                <section v-if="upcomingCreatorPassword" class="notice upcoming-secret">
-                  <strong>Mot de passe créateur</strong>
-                  <p>Note-le maintenant, il ne sera plus affiché ensuite.</p>
-                  <code>{{ upcomingCreatorPassword }}</code>
-                  <button type="button" class="text-button" @click="copyUpcomingPassword">
-                    Copier
-                  </button>
+            </template>
+            <template v-else-if="activeView === 'upcoming'">
+              <div class="upcoming-create-bar">
+                <button type="button" class="app-button app-button--primary" @click="showUpcomingComposer = true">
+                  + Créer
+                </button>
+              </div>
+              <UpcomingView
+                :events="upcomingEvents"
+                :people="people"
+                :region="upcomingRegion"
+                :cooptage-role-label="cooptageRole.label"
+                :can-delete="Boolean(adminSession)"
+                @delete="handleUpcomingDelete"
+                @request="handleAttendanceRequest"
+                @subscribe="handleUpcomingSubscribe"
+                @unsubscribe="handleUpcomingUnsubscribe"
+                @creator-access="handleUpcomingCreatorAccess"
+                @creator-update="handleUpcomingCreatorUpdate"
+                @request-status="handleUpcomingRequestStatus"
+                @creator-delete="handleUpcomingCreatorDelete"
+                @help="openTutorialById"
+              />
+              <div
+                v-if="showUpcomingComposer"
+                class="upcoming-composer-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="upcoming-composer-title"
+                @click.self="showUpcomingComposer = false"
+              >
+                <section class="upcoming-composer-drawer">
+                  <div class="upcoming-composer-drawer__head">
+                    <h3 id="upcoming-composer-title">Créer un événement</h3>
+                    <button
+                      type="button"
+                      class="overlay-close"
+                      aria-label="Fermer le formulaire de création"
+                      @click="showUpcomingComposer = false"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                  <UpcomingComposer
+                    :people="people"
+                    :enabled="showUpcomingComposer"
+                    :selected-genealogy="selectedGenealogy"
+                    :cooptage-role="cooptageRole"
+                    @create="handleUpcomingCreateFromComposer"
+                    @help="openTutorialById"
+                  />
                 </section>
-              </template>
+              </div>
+              <section v-if="upcomingCreatorPassword" class="notice upcoming-secret">
+                <strong>Mot de passe créateur</strong>
+                <p>Note-le maintenant, il ne sera plus affiché ensuite.</p>
+                <code>{{ upcomingCreatorPassword }}</code>
+                <button type="button" class="text-button" @click="copyUpcomingPassword">
+                  Copier
+                </button>
+              </section>
             </template>
           </div>
         </section>
@@ -459,6 +513,7 @@
             :role-options="roleOptions"
             :can-manage-ceremony-events="Boolean(adminSession)"
             :is-creating="isCreatingPerson"
+            :saving="saving"
             :duplicate-confirmation="duplicateCreationConfirmation"
             @save="handlePersonFormSave"
             @new="beginPersonCreation"
@@ -611,7 +666,6 @@ import {
   defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
-  onMounted,
   ref,
   watch,
 } from 'vue'
@@ -629,26 +683,24 @@ import { buildGraphModel } from './domain/graph.js'
 import { cooptageRoleForRegion, roleOptionsForGenealogy } from './domain/roles.js'
 import { normalizeSearchText, personMatchesSearch } from './domain/search.js'
 import { computeStats } from './domain/stats.js'
-import GenealogyGraph from './features/graph/GenealogyGraph.vue'
 import AppHeader from './features/layout/AppHeader.vue'
 import ViewSwitcher from './features/layout/ViewSwitcher.vue'
-import OverviewPanel from './features/overview/OverviewPanel.vue'
-import PeopleList from './features/people/PeopleList.vue'
-import PersonDetails from './features/people/PersonDetails.vue'
-import PersonForm from './features/people/PersonForm.vue'
 import PersonSearch from './features/search/PersonSearch.vue'
-import TutorialOverlay from './features/tutorial/TutorialOverlay.vue'
-import TutorialCoachmark from './features/tutorial/TutorialCoachmark.vue'
 import TutorialToggle from './features/tutorial/TutorialToggle.vue'
-import { contextualHintsFr, tutorialOrderFr } from './features/tutorial/tutorials.fr.js'
-
 const secondaryComponentLoaders = {
   adminPanel: () => import('./features/admin/AdminPanel.vue'),
   genealogyAdmin: () => import('./features/admin/GenealogyAdmin.vue'),
   adminDoleanceList: () => import('./features/doleances/AdminDoleanceList.vue'),
   doleancePanel: () => import('./features/doleances/DoleancePanel.vue'),
   exportPanel: () => import('./features/exports/ExportPanel.vue'),
+  genealogyGraph: () => import('./features/graph/GenealogyGraph.vue'),
+  overviewPanel: () => import('./features/overview/OverviewPanel.vue'),
+  peopleList: () => import('./features/people/PeopleList.vue'),
+  personDetails: () => import('./features/people/PersonDetails.vue'),
+  personForm: () => import('./features/people/PersonForm.vue'),
   statsDashboard: () => import('./features/stats/StatsDashboard.vue'),
+  tutorialCoachmark: () => import('./features/tutorial/TutorialCoachmark.vue'),
+  tutorialOverlay: () => import('./features/tutorial/TutorialOverlay.vue'),
   upcomingComposer: () => import('./features/upcoming/UpcomingComposer.vue'),
   upcomingView: () => import('./features/upcoming/UpcomingView.vue'),
 }
@@ -657,7 +709,14 @@ const GenealogyAdmin = defineAsyncComponent(secondaryComponentLoaders.genealogyA
 const AdminDoleanceList = defineAsyncComponent(secondaryComponentLoaders.adminDoleanceList)
 const DoleancePanel = defineAsyncComponent(secondaryComponentLoaders.doleancePanel)
 const ExportPanel = defineAsyncComponent(secondaryComponentLoaders.exportPanel)
+const GenealogyGraph = defineAsyncComponent(secondaryComponentLoaders.genealogyGraph)
+const OverviewPanel = defineAsyncComponent(secondaryComponentLoaders.overviewPanel)
+const PeopleList = defineAsyncComponent(secondaryComponentLoaders.peopleList)
+const PersonDetails = defineAsyncComponent(secondaryComponentLoaders.personDetails)
+const PersonForm = defineAsyncComponent(secondaryComponentLoaders.personForm)
 const StatsDashboard = defineAsyncComponent(secondaryComponentLoaders.statsDashboard)
+const TutorialCoachmark = defineAsyncComponent(secondaryComponentLoaders.tutorialCoachmark)
+const TutorialOverlay = defineAsyncComponent(secondaryComponentLoaders.tutorialOverlay)
 const UpcomingComposer = defineAsyncComponent(secondaryComponentLoaders.upcomingComposer)
 const UpcomingView = defineAsyncComponent(secondaryComponentLoaders.upcomingView)
 
@@ -675,23 +734,21 @@ const NETWORK_HALO_DESCENDANT_KEY = 'fetterama:network-halo-descendant-depth'
 const GRAPH_RENDER_SCALE = 0.7
 const GRAPH_ZOOM_MIN = 0.7
 const GRAPH_ZOOM_MAX = 2.6
-const haloDepthOptions = [
-  { value: 1, label: '1' },
-  { value: 2, label: '2' },
-  { value: 3, label: '3' },
-  { value: 'all', label: 'Toutes' },
-]
-
+const FILIERE_RECOVERY_NOTICE_ENABLED = true
+const FILIERE_RECOVERY_NOTICE_KEY = 'fetterama:filiere-recovery-notice-dismissed'
+const TUTORIAL_COUNT = 5
 const activeView = ref('home')
 const activeOverlay = ref('')
 const graphLayoutMode = ref(readGraphLayoutModePreference())
 const searchQuery = ref('')
+const overviewFiliereFilter = ref('')
 const ancestorDepth = ref(20)
 const descendantDepth = ref(20)
 const networkHaloAncestorDepth = ref(readHaloDepthPreference(NETWORK_HALO_ANCESTOR_KEY))
 const networkHaloDescendantDepth = ref(readHaloDepthPreference(NETWORK_HALO_DESCENDANT_KEY))
 const graphZoom = ref(1)
 const upcomingCreatorPassword = ref('')
+const showUpcomingComposer = ref(false)
 const moveTargetGenealogyId = ref('')
 const pageTop = ref(null)
 const editorPanel = ref(null)
@@ -701,9 +758,13 @@ const graphViewport = ref(null)
 const graphPanContent = ref(null)
 const feedbackMessage = ref('')
 const feedbackKind = ref('success')
+const showFiliereRecoveryNotice = ref(
+  FILIERE_RECOVERY_NOTICE_ENABLED && !readDismissedFlag(FILIERE_RECOVERY_NOTICE_KEY),
+)
 const tutorialEnabled = ref(readTutorialPreference())
 const tutorialOpen = ref(false)
 const tutorialInitialId = ref('')
+const contextualHints = ref({})
 const dismissedHintKeys = ref(new Set())
 const creationDraftPerson = ref(null)
 const creationDraftGenealogyId = ref('')
@@ -726,6 +787,19 @@ const graphPan = ref({
 })
 const graphRecentering = ref(false)
 const graphFocusPersonId = ref('')
+const networkHaloDepthValue = computed({
+  get() {
+    return Math.max(
+      haloDepthToSliderValue(networkHaloAncestorDepth.value),
+      haloDepthToSliderValue(networkHaloDescendantDepth.value),
+    )
+  },
+  set(value) {
+    const depth = sliderValueToHaloDepth(value)
+    setNetworkHaloDepth('ancestor', depth)
+    setNetworkHaloDepth('descendant', depth)
+  },
+})
 let graphPanFrame = 0
 let graphRecenteringTimeout = 0
 let pendingGraphPanX = 0
@@ -740,6 +814,7 @@ const {
   csrfToken,
   data,
   sessionActions,
+  hasUnsavedChanges,
   genealogies,
   selectedGenealogyId,
   selectedGenealogy,
@@ -769,18 +844,18 @@ const adminError = computed(() => admin.error.value)
 const doleanceItems = computed(() => doleances.items.value)
 const doleanceLoading = computed(() => doleances.loading.value)
 const doleanceError = computed(() => doleances.error.value)
-const stats = computed(() => computeStats(genealogies.value))
+const stats = computed(() => (activeView.value === 'stats' ? computeStats(genealogies.value) : null))
 const graph = computed(() =>
-  buildGraphModel(people.value, {
-    focusId: selectedPersonId.value,
-    mode: graphLayoutMode.value,
-    ancestorDepth: ancestorDepth.value,
-    descendantDepth: descendantDepth.value,
-    includeAllNetwork:
-      activeView.value === 'tree' &&
-      graphLayoutMode.value === 'network' &&
-      selectedGenealogy.value?.type === 'national',
-  }),
+  activeView.value === 'tree'
+    ? buildGraphModel(people.value, {
+        focusId: selectedPersonId.value,
+        mode: graphLayoutMode.value,
+        ancestorDepth: ancestorDepth.value,
+        descendantDepth: descendantDepth.value,
+        includeAllNetwork:
+          graphLayoutMode.value === 'network' && selectedGenealogy.value?.type === 'national',
+      })
+    : { nodes: [], edges: [], rows: [], legend: false },
 )
 const graphIsPannable = computed(() => activeView.value === 'tree')
 const graphPanStyle = computed(() => ({
@@ -826,6 +901,11 @@ const graphContentSize = computed(() => {
 })
 const upcomingEvents = computed(() => upcoming.events.value)
 const upcomingRegion = computed(() => upcoming.region.value)
+const homePeopleCount = computed(() =>
+  activeView.value === 'home'
+    ? genealogies.value.reduce((total, genealogy) => total + (genealogy.people?.length || 0), 0)
+    : people.value.length,
+)
 const editorHidden = computed(() => ['stats', 'upcoming'].includes(activeView.value))
 const editorVisible = computed(() => {
   if (editorHidden.value) return false
@@ -1030,10 +1110,18 @@ async function handlePersonFormSave(updatedPerson, options = {}) {
     return
   }
 
+  if (personUpdateWasApplied(updatedPerson, selectedPerson.value)) {
+    showFeedback('Aucune modification à enregistrer.', 'success')
+    return
+  }
+
+  const previousState = data.value
   updatePerson(updatedPerson)
   const saved = await save()
 
   if (!saved) {
+    data.value = previousState
+    selectPerson(personId)
     showFeedback("La fiche n'a pas pu être enregistrée pour le moment.", 'warning')
     return
   }
@@ -1062,6 +1150,11 @@ function handleGraphSelect(personId) {
   selectPerson(personId)
   graphFocusPersonId.value = personId
   nextTick(() => centerSelectedPerson())
+}
+
+function handleFiliereFilter(label) {
+  overviewFiliereFilter.value = label
+  activeView.value = 'overview'
 }
 
 function openMainTreeView() {
@@ -1406,6 +1499,13 @@ async function handleUpcomingCreate(payload, done = () => {}) {
   }
 }
 
+async function handleUpcomingCreateFromComposer(payload, done = () => {}) {
+  await handleUpcomingCreate(payload, (ok) => {
+    if (ok) showUpcomingComposer.value = false
+    done(ok)
+  })
+}
+
 async function handleUpcomingDelete(eventId) {
   try {
     await upcoming.adminDeleteEvent(eventId)
@@ -1571,6 +1671,8 @@ async function moveSelectedPerson() {
 async function exportSelectedPersonPdf({
   ancestorDepth: pdfAncestorDepth,
   descendantDepth: pdfDescendantDepth,
+  orientation: pdfOrientation = 'auto',
+  exportMode: pdfExportMode = 'readable',
 }) {
   const { downloadNetworkGraphPdf } = await import('./features/exports/pdfExport.js')
   const exported = await downloadNetworkGraphPdf({
@@ -1583,6 +1685,8 @@ async function exportSelectedPersonPdf({
       includeAllNetwork: false,
     }),
     title: selectedGenealogy.value?.name || 'GeneFaluche',
+    orientation: pdfOrientation,
+    exportMode: pdfExportMode,
   })
   activeOverlay.value = ''
   showFeedback(
@@ -1597,6 +1701,9 @@ function personUpdateWasApplied(expectedPerson, savedPerson) {
     'name',
     'nickname',
     'filiere',
+    'filiereCustom',
+    'filiere2',
+    'filiere2Custom',
     'baptismCity',
     'baptismDate',
     'baptismStatus',
@@ -1633,6 +1740,27 @@ function showFeedback(message, kind = 'success') {
   }, 4200)
 }
 
+function dismissFiliereRecoveryNotice() {
+  showFiliereRecoveryNotice.value = false
+  writeDismissedFlag(FILIERE_RECOVERY_NOTICE_KEY)
+}
+
+function readDismissedFlag(key) {
+  try {
+    return window.localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeDismissedFlag(key) {
+  try {
+    window.localStorage.setItem(key, '1')
+  } catch {
+    // Storage can be unavailable in private or embedded contexts.
+  }
+}
+
 function readTutorialPreference() {
   try {
     return window.localStorage.getItem(TUTORIAL_ENABLED_KEY) === '1'
@@ -1649,8 +1777,17 @@ function writeTutorialPreference(enabled) {
   }
 }
 
-function handleTutorialToggle() {
+async function loadTutorialHints() {
+  if (Object.keys(contextualHints.value).length) return
+  const module = await import('./features/tutorial/tutorials.fr.js')
+  contextualHints.value = module.contextualHintsFr || {}
+}
+
+async function handleTutorialToggle() {
   writeTutorialPreference(tutorialEnabled.value)
+  if (tutorialEnabled.value) {
+    await loadTutorialHints()
+  }
   if (!tutorialEnabled.value) tutorialOpen.value = false
 }
 
@@ -1689,6 +1826,20 @@ function writeHaloDepthPreference(key, value) {
   }
 }
 
+function haloDepthToSliderValue(value) {
+  return value === 'all' ? 4 : Number(value) || 1
+}
+
+function sliderValueToHaloDepth(value) {
+  const depth = Number(value)
+  return depth >= 4 ? 'all' : Math.min(3, Math.max(1, depth || 1))
+}
+
+function haloDepthLabel(value) {
+  const depth = sliderValueToHaloDepth(value)
+  return depth === 'all' ? 'Toutes' : String(depth)
+}
+
 function setNetworkHaloDepth(direction, value) {
   if (direction === 'ancestor') {
     networkHaloAncestorDepth.value = value
@@ -1699,8 +1850,9 @@ function setNetworkHaloDepth(direction, value) {
   writeHaloDepthPreference(NETWORK_HALO_DESCENDANT_KEY, value)
 }
 
-function openTutorial() {
+async function openTutorial() {
   if (!tutorialEnabled.value || activeView.value !== 'home') return
+  await loadTutorialHints()
   tutorialInitialId.value = ''
   tutorialOpen.value = true
 }
@@ -1710,18 +1862,21 @@ function completeTutorial() {
   tutorialInitialId.value = ''
 }
 
-function openHelpCenter() {
+async function openHelpCenter() {
+  await loadTutorialHints()
   tutorialInitialId.value = ''
   tutorialOpen.value = true
 }
 
-function openTutorialById(id) {
+async function openTutorialById(id) {
+  await loadTutorialHints()
   tutorialInitialId.value = id || ''
   tutorialOpen.value = true
 }
 
-function openTutorialFromHint() {
+async function openTutorialFromHint() {
   const id = activeHint.value?.suggestedTutorialId || ''
+  await loadTutorialHints()
   tutorialInitialId.value = id
   tutorialOpen.value = true
 }
@@ -1746,11 +1901,12 @@ const activeHint = computed(() => {
   const key = activeHintKey.value
   if (!key) return null
   if (dismissedHintKeys.value.has(key)) return null
-  return contextualHintsFr[key] || null
+  return contextualHints.value[key] || null
 })
 
 watch(activeHintKey, (key) => {
   if (!key) return
+  loadTutorialHints().catch(() => {})
   // Reset dismissed hints when user explicitly re-opens help center.
   // (We keep this lightweight: no storage, session-only.)
 })
@@ -1767,29 +1923,16 @@ function markEditing() {
 }
 
 function scheduleAutosave(delay = 1400) {
+  if (!hasUnsavedChanges.value) return
   window.clearTimeout(autosaveTimeout)
   autosaveTimeout = window.setTimeout(async () => {
     if (editing.value) {
       scheduleAutosave()
       return
     }
+    if (!hasUnsavedChanges.value) return
     await save()
   }, delay)
-}
-
-function scheduleSecondaryChunkPreload() {
-  const preload = () => {
-    Object.values(secondaryComponentLoaders).forEach((load) => {
-      load().catch(() => {})
-    })
-  }
-
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(preload, { timeout: 5000 })
-    return
-  }
-
-  window.setTimeout(preload, 2500)
 }
 
 function selectSearchResult(personId) {
@@ -1874,10 +2017,6 @@ watch(
   },
   { immediate: true },
 )
-
-onMounted(() => {
-  scheduleSecondaryChunkPreload()
-})
 
 onBeforeUnmount(() => {
   window.clearTimeout(feedbackTimeout)

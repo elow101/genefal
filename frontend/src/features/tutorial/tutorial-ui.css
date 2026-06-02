@@ -173,17 +173,28 @@ button.tut-switch[aria-checked="true"] .tut-switch__thumb {
 
 /* --------------------------- Overlay --------------------------------- */
 .tut-overlay {
-  position: fixed; inset: 0; z-index: 70;
+  position: fixed; inset: 0; z-index: var(--z-tutorial, 260);
   display: flex; align-items: flex-end; justify-content: flex-end;
 }
 @media (min-width: 640px) { .tut-overlay { align-items: stretch; } }
 
 .tut-overlay__backdrop {
   position: absolute; inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   background: color-mix(in oklab, var(--tut-bg) 70%, transparent);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   animation: tutFade .2s ease both;
-  border: 0; padding: 0; cursor: pointer;
+  cursor: pointer;
+  appearance: none;
 }
 
 .tut-overlay__panel {

@@ -81,4 +81,25 @@ describe('PersonForm', () => {
     expect(sponsorshipSection.element.open).toBe(true)
     expect(wrapper.text()).toContain('Fillots')
   })
+
+  it('shows and saves custom filiere only when Autre is selected', async () => {
+    const wrapper = mount(PersonForm, {
+      props: {
+        person,
+        people,
+        roleOptions: [],
+      },
+    })
+
+    expect(wrapper.find('.custom-filiere-field').exists()).toBe(false)
+
+    await wrapper.find('select').setValue('autre')
+    await wrapper.find('.custom-filiere-field input').setValue('Taille de pierre')
+    await wrapper.get('form').trigger('submit.prevent')
+
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({
+      filiere: 'autre',
+      filiereCustom: 'Taille de pierre',
+    })
+  })
 })
