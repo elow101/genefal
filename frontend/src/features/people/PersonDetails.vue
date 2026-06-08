@@ -51,12 +51,20 @@
 
       <details class="details-menu">
         <summary>
-          <span>Rôles</span>
-          <small>{{ person.roles?.length || 0 }}</small>
+          <span>Rôles et statuts</span>
+          <small>{{ roleChips.length + cooptageRows.length }}</small>
         </summary>
-        <div class="details-body chip-list">
-          <span v-for="role in roleChips" :key="role.id" class="chip">{{ role.label }}</span>
-          <span v-if="!person.roles?.length" class="empty">Aucun rôle.</span>
+        <div class="details-body">
+          <div class="chip-list">
+            <span v-for="role in roleChips" :key="role.id" class="chip">{{ role.label }}</span>
+            <span v-if="!roleChips.length && !cooptageRows.length" class="empty">Aucun rôle.</span>
+          </div>
+          <div v-for="event in cooptageRows" :key="event.id" class="cooptage-info-line">
+            <strong>Cooptage / Intronisation</strong>
+            <span>{{ event.line }}</span>
+            <small v-if="event.nickname">Surnom : {{ event.nickname }}</small>
+            <small v-if="event.pmNames">PM d'intro : {{ event.pmNames }}</small>
+          </div>
         </div>
       </details>
     </template>
@@ -72,7 +80,15 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  people: {
+    type: Array,
+    default: () => [],
+  },
   roleOptions: {
+    type: Array,
+    default: () => [],
+  },
+  pastCooptageEvents: {
     type: Array,
     default: () => [],
   },
@@ -84,9 +100,33 @@ const roleChips = computed(() =>
     label: props.roleOptions.find((role) => role.id === roleId)?.label || roleId,
   })),
 )
+const cooptageRows = computed(() =>
+  props.pastCooptageEvents.map((event) => ({
+    id: event.id,
+    line: [
+      event.cooptageDateKnown === false ? '' : formatCooptageEventDate(event.dateTime),
+      event.title || '',
+    ].filter(Boolean).join(' — '),
+    nickname: event.cooptageNickname || '',
+    pmNames: personNames(event.sponsorIds || []),
+  })),
+)
 
 function eventLabel(type) {
   if (type === 'confirmation') return 'Confirmation'
   return 'Adoption'
+}
+
+function formatCooptageEventDate(value) {
+  const date = new Date(value || '')
+  if (Number.isNaN(date.getTime())) return ''
+  return `Intronisé / coopté le ${new Intl.DateTimeFormat('fr-FR').format(date)}`
+}
+
+function personNames(ids) {
+  return ids
+    .map((id) => props.people.find((person) => person.id === id)?.name || '')
+    .filter(Boolean)
+    .join(', ')
 }
 </script>

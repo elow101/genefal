@@ -31,6 +31,11 @@ if (!defined('FALUCHE_GENEALOGY_LIBRARY_ONLY')) {
     header('Content-Type: application/json; charset=utf-8');
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        if (isset($_GET['summary']) && $_GET['summary'] === '1') {
+            clear_public_session_permissions();
+            api_respond_with_etag(genealogy_summary_payload_for_read(), 'genealogy-summary');
+        }
+
         $fastEtag = genealogy_fast_response_etag();
         if ($fastEtag !== '') {
             clear_public_session_permissions();
@@ -1180,6 +1185,7 @@ function public_upcoming_baptisms(array $events): array
         $requiresCeremonyPeople = in_array($eventType, ['bapteme', 'adoption', 'confirmation'], true);
         $requiresCooptagePeople = $eventType === 'cooptage';
         $hasCeremonyPeople = $sponsorIds && ($fillotIds || $baptizedNames);
+        $hasCooptagePeople = $fillotIds || $baptizedNames;
         $hasRegion = $regionId !== '' || $scope === 'national';
         if (
             $id === ''
@@ -1187,12 +1193,13 @@ function public_upcoming_baptisms(array $events): array
             || $dateTime === ''
             || isset($seen[$id])
             || ($requiresCeremonyPeople && !$hasCeremonyPeople)
-            || ($requiresCooptagePeople && !$hasCeremonyPeople)
+            || ($requiresCooptagePeople && !$hasCooptagePeople)
             || (!$requiresCeremonyPeople && !$requiresCooptagePeople && $title === '')
         ) {
             continue;
         }
-        if (upcoming_baptism_expired($dateTime)) {
+        $isPastLinkedCooptage = $eventType === 'cooptage' && $fillotIds && upcoming_baptism_expired($dateTime);
+        if (upcoming_baptism_expired($dateTime) && !$isPastLinkedCooptage) {
             continue;
         }
         $seen[$id] = true;
@@ -1214,6 +1221,8 @@ function public_upcoming_baptisms(array $events): array
             'eventUrl' => upcoming_safe_url($event['eventUrl'] ?? ''),
             'familyId' => $familyId,
             'recurrence' => upcoming_normalise_recurrence($event['recurrence'] ?? 'none'),
+            'cooptageNickname' => api_safe_text($event['cooptageNickname'] ?? '', 90),
+            'cooptageDateKnown' => ($event['cooptageDateKnown'] ?? true) !== false,
             'createdAt' => normalise_created_at($event['createdAt'] ?? gmdate('c')),
             'requests' => public_upcoming_requests(is_array($event['requests'] ?? null) ? $event['requests'] : (is_array($event['responses'] ?? null) ? $event['responses'] : [])),
         ];
@@ -1759,6 +1768,43 @@ function people_payload_for_write(array $people, ?array $adminSession)
 function current_genealogy_payload()
 {
     return genealogy_payload_for_read()[0];
+}
+
+function genealogy_summary_payload_for_read(): array
+{
+    if (database_genealogy_read_enabled()) {
+        $sqlSummary = genealogy_sql_read_summary_payload();
+        if (is_array($sqlSummary) && !empty($sqlSummary['genealogies'])) {
+            $peopleCounts = [];
+            foreach ($sqlSummary['genealogies'] as $genealogy) {
+                if (is_array($genealogy) && is_string($genealogy['id'] ?? null)) {
+                    $peopleCounts[$genealogy['id']] = (int) ($genealogy['peopleCount'] ?? 0);
+                }
+            }
+            $payload = genealogy_payload_with_optional_sql_events(migrate_genealogy_payload($sqlSummary));
+            $payload['genealogies'] = array_map(static function ($genealogy) use ($peopleCounts): array {
+                $genealogy = genealogy_summary_item($genealogy);
+                $genealogy['peopleCount'] = $peopleCounts[$genealogy['id'] ?? ''] ?? 0;
+                return $genealogy;
+            }, is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : []);
+            $payload['summary'] = true;
+            return $payload;
+        }
+    }
+
+    [$payload] = genealogy_payload_for_read();
+    $payload['genealogies'] = array_map('genealogy_summary_item', is_array($payload['genealogies'] ?? null) ? $payload['genealogies'] : []);
+    $payload['summary'] = true;
+    return $payload;
+}
+
+function genealogy_summary_item($genealogy): array
+{
+    $genealogy = is_array($genealogy) ? $genealogy : [];
+    $people = is_array($genealogy['people'] ?? null) ? $genealogy['people'] : [];
+    $genealogy['peopleCount'] = count($people);
+    $genealogy['people'] = [];
+    return $genealogy;
 }
 
 function genealogy_fast_response_etag(): string

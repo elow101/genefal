@@ -44,8 +44,8 @@
               @mouseleave="hideHoverCard('tree')"
               @focus="showHoverCard(person, $event, 'tree')"
               @blur="hideHoverCard('tree')"
-              @pointerdown.stop
-              @click.stop="$emit('select', person.id)"
+              @pointerdown.stop="handleNodePointerDown(person, $event, 'tree')"
+              @click.stop="handleNodeClick(person.id)"
             >
               <strong>{{ networkMainName(person) }}</strong>
               <small>{{ networkNickname(person) }}</small>
@@ -99,8 +99,8 @@
         @mouseleave="hideHoverCard('network')"
         @focus="showHoverCard(entry, $event, 'network')"
         @blur="hideHoverCard('network')"
-        @pointerdown.stop
-        @click.stop="$emit('select', entry.id)"
+        @pointerdown.stop="handleNodePointerDown(entry, $event, 'network')"
+        @click.stop="handleNodeClick(entry.id)"
       >
         <rect class="network-card-base" :x="entry.x - 82" :y="entry.y - 34" width="164" :height="networkBaseCardHeight(entry)" rx="10" />
         <g v-if="generationBadge(entry.id)" class="network-generation-badge" :class="generationBadgeClass(entry.id)">
@@ -146,6 +146,7 @@
       class="graph-hover-card"
       :style="hoverCardStyle"
       :data-accent-tone="hoverAccentTone(hoverCard.person)"
+      :data-mobile="hoverCard.mobile ? 'true' : 'false'"
     >
       <header class="graph-hover-card__header">
         <strong :title="hoverCard.person.name || 'Sans nom'">{{ hoverCard.person.name || 'Sans nom' }}</strong>
@@ -196,7 +197,7 @@ const props = defineProps({
   haloDescendantDepth: { type: [Number, String], default: 1 },
 })
 
-defineEmits(['select'])
+const emit = defineEmits(['select'])
 
 const hoveredNetworkNodeId = ref('')
 const hoveredTreeNodeId = ref('')
@@ -204,6 +205,7 @@ const hoverCard = ref({
   person: null,
   left: 0,
   top: 0,
+  mobile: false,
 })
 
 const isEmpty = computed(() => (props.mode === 'tree' ? props.graph.rows.length === 0 : props.graph.nodes.length === 0))
@@ -241,17 +243,31 @@ function edgeRelationClass(edge) {
   if (!props.selectedPersonId) return ''
   return generationById.value.has(edge.from) && generationById.value.has(edge.to) ? 'is-direct' : 'is-dimmed'
 }
-function showHoverCard(person, event, source) {
-  if (!canShowHoverCard(event)) return
+function handleNodePointerDown(person, event, source) {
+  if (!isCoarsePointer()) return
+  if (hoverCard.value.person?.id === person.id) return
+  event.preventDefault()
+  showHoverCard(person, event, source, { force: true, mobile: true })
+}
+function handleNodeClick(id) {
+  if (isCoarsePointer() && hoverCard.value.person?.id === id) {
+    emit('select', id)
+    return
+  }
+  emit('select', id)
+}
+function showHoverCard(person, event, source, options = {}) {
+  if (!options.force && !canShowHoverCard(event)) return
   if (source === 'tree') hoveredTreeNodeId.value = person.id
   if (source === 'network') hoveredNetworkNodeId.value = person.id
   const rect = event.currentTarget?.getBoundingClientRect?.()
   if (!rect) return
-  const position = hoverCardPosition(rect)
+  const position = options.mobile ? mobileHoverCardPosition() : hoverCardPosition(rect)
   hoverCard.value = {
     person,
     left: position.left,
     top: position.top,
+    mobile: Boolean(options.mobile),
   }
 }
 function hideHoverCard(source) {
@@ -261,12 +277,25 @@ function hideHoverCard(source) {
     person: null,
     left: 0,
     top: 0,
+    mobile: false,
   }
 }
 function canShowHoverCard(event) {
   if (event?.type === 'focus') return true
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
   return window.matchMedia('(hover: hover) and (pointer: fine)').matches
+}
+function isCoarsePointer() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia('(hover: none), (pointer: coarse)').matches
+}
+function mobileHoverCardPosition() {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+  return {
+    left: Math.max(12, Math.min(16, viewportWidth - 220)),
+    top: Math.max(12, viewportHeight - 300),
+  }
 }
 function hoverCardPosition(rect) {
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0

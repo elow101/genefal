@@ -56,7 +56,7 @@ export function eventTypeLabel(value) {
     case 'confirmation':
       return 'Confirmation'
     case 'cooptage':
-      return 'Cooptage'
+      return 'Cooptage / Intronisation'
     default:
       return 'Autre'
   }
@@ -179,6 +179,8 @@ export function createUpcomingEvent({
   eventUrl = '',
   familyId = '',
   recurrence = 'none',
+  cooptageNickname = '',
+  cooptageDateKnown = true,
 }) {
   const normalisedEventType = normaliseUpcomingEventType(eventType)
   const normalisedScope = normaliseUpcomingScope(scope)
@@ -200,13 +202,15 @@ export function createUpcomingEvent({
     eventUrl: String(eventUrl || '').trim(),
     familyId: normalisedScope === 'family' ? String(familyId || '').trim() : '',
     recurrence: String(recurrence || 'none').trim().toLowerCase(),
+    cooptageNickname: String(cooptageNickname || '').trim(),
+    cooptageDateKnown: cooptageDateKnown !== false,
     createdAt: new Date().toISOString(),
     requests: [],
   }
 }
 
 export function getUpcomingEventsForContext(state, selectedGenealogy) {
-  const events = (state?.upcomingBaptisms || []).slice()
+  const events = (state?.upcomingBaptisms || []).filter((event) => !isPastUpcomingEvent(event?.dateTime))
   if (!selectedGenealogy) {
     return events
       .filter((event) => normaliseUpcomingScope(event.scope) === 'national')
@@ -229,6 +233,22 @@ export function getUpcomingEventsForContext(state, selectedGenealogy) {
       return false
     })
     .sort((a, b) => String(a.dateTime).localeCompare(String(b.dateTime)) || String(a.title).localeCompare(String(b.title)))
+}
+
+export function getPastCooptageEventsForPerson(state, personId) {
+  const targetId = String(personId || '').trim()
+  if (!targetId) return []
+  return (state?.upcomingBaptisms || [])
+    .filter((event) => normaliseUpcomingEventType(event?.eventType) === 'cooptage')
+    .filter((event) => isPastUpcomingEvent(event?.dateTime))
+    .filter((event) => (event?.fillotIds || []).includes(targetId))
+    .slice()
+    .sort((a, b) => String(b.dateTime).localeCompare(String(a.dateTime)))
+}
+
+function isPastUpcomingEvent(value) {
+  const date = new Date(value || '')
+  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now()
 }
 
 export function appendUpcomingEvent(state, event) {

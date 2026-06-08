@@ -60,6 +60,51 @@ function genealogy_sql_read_payload(): ?array
     }
 }
 
+function genealogy_sql_read_summary_payload(): ?array
+{
+    if (!genealogy_sql_available()) {
+        return null;
+    }
+
+    try {
+        $pdo = database_connection();
+        $genealogyRows = $pdo
+            ->query("SELECT * FROM genealogies ORDER BY CASE type WHEN 'national' THEN 0 WHEN 'region' THEN 1 ELSE 2 END, name ASC")
+            ->fetchAll();
+        if (!is_array($genealogyRows) || count($genealogyRows) === 0) {
+            return null;
+        }
+
+        $countRows = $pdo
+            ->query('SELECT genealogy_id, COUNT(*) AS people_count FROM genealogy_people GROUP BY genealogy_id')
+            ->fetchAll();
+        $peopleCounts = [];
+        foreach (is_array($countRows) ? $countRows : [] as $row) {
+            $peopleCounts[(string) ($row['genealogy_id'] ?? '')] = (int) ($row['people_count'] ?? 0);
+        }
+
+        $genealogies = [];
+        foreach ($genealogyRows as $row) {
+            $genealogy = genealogy_sql_genealogy_from_row($row);
+            $genealogy['people'] = [];
+            $genealogy['peopleCount'] = $peopleCounts[$genealogy['id']] ?? 0;
+            $genealogies[] = $genealogy;
+        }
+
+        return [
+            'schemaVersion' => 1,
+            'roleResetVersion' => genealogy_sql_setting_int('roleResetVersion'),
+            'activeGenealogyId' => genealogy_sql_setting('activeGenealogyId'),
+            'genealogies' => $genealogies,
+            'upcomingBaptisms' => [],
+            'summary' => true,
+        ];
+    } catch (Throwable $error) {
+        error_log('Genealogy SQL summary read failed: ' . $error->getMessage());
+        return null;
+    }
+}
+
 function genealogy_sql_payload_version(): ?string
 {
     $pdo = database_pdo();

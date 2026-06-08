@@ -140,7 +140,7 @@
       <div class="form-title-row">
         <div>
           <h3>Gestion créateur</h3>
-          <p class="field-hint">Modification limitée aux options de l’annonce et aux demandes.</p>
+          <p class="field-hint">Modification limitée aux options de l’annonce, aux personnes concernées et aux demandes.</p>
         </div>
         <span v-if="managedEvent" class="mode-badge">Vous êtes créateur</span>
       </div>
@@ -172,6 +172,23 @@
             Lieu
             <input v-model="managedPlace" placeholder="Salle, ville, adresse courte" />
           </label>
+          <template v-if="managedEvent.eventType === 'cooptage'">
+            <PersonMultiPicker
+              v-model="managedSponsorIds"
+              :label="cooptageRoleLabel"
+              :people="cooptagePeople"
+              :placeholder="`Rechercher ${cooptageRoleLabel}`"
+            />
+            <PersonMultiPicker
+              v-model="managedFillotIds"
+              label="Faluchard(s) concerné(s)"
+              :people="availableManagedConcernedPeople"
+              placeholder="Rechercher un faluchard concerné"
+            />
+            <p v-if="managedFillotIds.length === 0" class="field-hint field-hint--warning">
+              Ajoute au moins un faluchard concerné pour alimenter les fiches après la date.
+            </p>
+          </template>
           <label>
             Visibilité
             <select v-model="managedVisibility">
@@ -256,6 +273,7 @@ import {
   isThisWeek,
   requestStatusLabel,
 } from '../../domain/upcoming.js'
+import PersonMultiPicker from '../people/PersonMultiPicker.vue'
 import UpcomingCard from './UpcomingCard.vue'
 
 const props = defineProps({
@@ -263,6 +281,7 @@ const props = defineProps({
   people: { type: Array, required: true },
   region: { type: Object, default: null },
   cooptageRoleLabel: { type: String, default: 'TVA' },
+  cooptageRoleId: { type: String, default: 'tva' },
   canDelete: { type: Boolean, default: false },
 })
 
@@ -291,6 +310,8 @@ const managedVisibility = ref('public')
 const managedDate = ref('')
 const managedTime = ref('')
 const managedPlace = ref('')
+const managedSponsorIds = ref([])
+const managedFillotIds = ref([])
 const pendingDeleteEventId = ref('')
 const attendance = reactive({ name: '', email: '', message: '' })
 const participationByEvent = reactive({})
@@ -300,7 +321,7 @@ const quickFilters = [
   { id: 'bapteme', label: 'Baptêmes' },
   { id: 'adoption', label: 'Adoptions' },
   { id: 'confirmation', label: 'Confirmations' },
-  { id: 'cooptage', label: 'Cooptages' },
+  { id: 'cooptage', label: 'Cooptages / Intronisations' },
   { id: 'autre', label: 'Autres' },
   { id: 'week', label: 'Cette semaine' },
   { id: 'open', label: 'Participation ouverte' },
@@ -345,6 +366,12 @@ const requestGroups = computed(() => {
     },
   ]
 })
+const cooptagePeople = computed(() =>
+  props.people.filter((person) => (person.roles || []).includes(props.cooptageRoleId)),
+)
+const availableManagedConcernedPeople = computed(() =>
+  props.people.filter((person) => !managedSponsorIds.value.includes(person.id)),
+)
 
 function matchesQuickFilter(event) {
   if (activeQuickFilter.value === 'all') return true
@@ -403,6 +430,8 @@ async function loadManagement() {
   managedDate.value = dateInputFromDateTime(managedEvent.value?.dateTime || '')
   managedTime.value = timeInputFromDateTime(managedEvent.value?.dateTime || '')
   managedPlace.value = managedEvent.value?.place || ''
+  managedSponsorIds.value = [...(managedEvent.value?.sponsorIds || [])]
+  managedFillotIds.value = [...(managedEvent.value?.fillotIds || [])]
   scrollToManagementPanel()
 }
 
@@ -415,6 +444,8 @@ async function updateManagedEvent() {
     visibility: managedVisibility.value,
     allowParticipation:
       managedEvent.value?.eventType === 'autre' && managedAllowParticipation.value === true,
+    sponsorIds: managedEvent.value?.eventType === 'cooptage' ? [...managedSponsorIds.value] : undefined,
+    fillotIds: managedEvent.value?.eventType === 'cooptage' ? [...managedFillotIds.value] : undefined,
   })
   if (event) {
     managedEvent.value = event
@@ -423,6 +454,8 @@ async function updateManagedEvent() {
     managedDate.value = dateInputFromDateTime(event.dateTime || '')
     managedTime.value = timeInputFromDateTime(event.dateTime || '')
     managedPlace.value = event.place || ''
+    managedSponsorIds.value = [...(event.sponsorIds || [])]
+    managedFillotIds.value = [...(event.fillotIds || [])]
   }
 }
 
@@ -463,6 +496,8 @@ function closeManagement() {
   managedDate.value = ''
   managedTime.value = ''
   managedPlace.value = ''
+  managedSponsorIds.value = []
+  managedFillotIds.value = []
   pendingDeleteEventId.value = ''
 }
 

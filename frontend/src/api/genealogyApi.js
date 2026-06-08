@@ -24,6 +24,14 @@ export async function fetchGenealogyState() {
   }
 }
 
+export async function fetchGenealogySummary() {
+  try {
+    return migrateGenealogyState(await requestJson('/api/genealogy.php?summary=1'))
+  } catch (error) {
+    throw new ApiError(error.message, { status: error.status || 0 })
+  }
+}
+
 export function saveGenealogyState(payload, csrfToken) {
   const migrated = migrateGenealogyState(payload)
   restoreDuplicateCreationFlags(migrated, payload)

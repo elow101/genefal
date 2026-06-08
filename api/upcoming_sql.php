@@ -54,6 +54,8 @@ function upcoming_sql_events(): array
             'eventUrl' => (string) ($event['event_url'] ?? ''),
             'familyId' => (string) ($event['family_id'] ?? ''),
             'recurrence' => (string) ($event['recurrence'] ?? 'none'),
+            'cooptageNickname' => (string) ($event['cooptage_nickname'] ?? ''),
+            'cooptageDateKnown' => (int) ($event['cooptage_date_known'] ?? 1) === 1,
             'createdAt' => (string) $event['created_at'],
             'requests' => $requestsByEvent[$eventId] ?? [],
         ];
@@ -71,9 +73,9 @@ function upcoming_sql_upsert_event(array $event): void
 
     $statement = $pdo->prepare(
         'INSERT INTO events
-            (id, region_id, title, event_type, date_time, place, message, creator_name, visibility, sponsor_ids, fillot_ids, baptized_names, scope, event_url, family_id, recurrence, created_at, updated_at)
+            (id, region_id, title, event_type, date_time, place, message, creator_name, visibility, sponsor_ids, fillot_ids, baptized_names, scope, event_url, family_id, recurrence, cooptage_nickname, cooptage_date_known, created_at, updated_at)
          VALUES
-            (:id, :region_id, :title, :event_type, :date_time, :place, :message, :creator_name, :visibility, :sponsor_ids, :fillot_ids, :baptized_names, :scope, :event_url, :family_id, :recurrence, :created_at, UTC_TIMESTAMP())
+            (:id, :region_id, :title, :event_type, :date_time, :place, :message, :creator_name, :visibility, :sponsor_ids, :fillot_ids, :baptized_names, :scope, :event_url, :family_id, :recurrence, :cooptage_nickname, :cooptage_date_known, :created_at, UTC_TIMESTAMP())
          ON DUPLICATE KEY UPDATE
             region_id = VALUES(region_id),
             title = VALUES(title),
@@ -90,6 +92,8 @@ function upcoming_sql_upsert_event(array $event): void
             event_url = VALUES(event_url),
             family_id = VALUES(family_id),
             recurrence = VALUES(recurrence),
+            cooptage_nickname = VALUES(cooptage_nickname),
+            cooptage_date_known = VALUES(cooptage_date_known),
             updated_at = UTC_TIMESTAMP()'
     );
     $statement->execute([
@@ -109,6 +113,8 @@ function upcoming_sql_upsert_event(array $event): void
         ':event_url' => (string) ($event['eventUrl'] ?? ''),
         ':family_id' => (string) ($event['familyId'] ?? ''),
         ':recurrence' => (string) ($event['recurrence'] ?? 'none'),
+        ':cooptage_nickname' => (string) ($event['cooptageNickname'] ?? ''),
+        ':cooptage_date_known' => ($event['cooptageDateKnown'] ?? true) === false ? 0 : 1,
         ':created_at' => upcoming_sql_datetime((string) ($event['createdAt'] ?? gmdate('c'))),
     ]);
 }

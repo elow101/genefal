@@ -35,7 +35,7 @@ describe('UpcomingView', () => {
     })
 
     expect(wrapper.text()).toContain('Cooptage de juin')
-    expect(wrapper.text()).toContain('Cooptage')
+    expect(wrapper.text()).toContain('Cooptage / Intronisation')
     expect(wrapper.text()).toContain('Camille')
     expect(wrapper.text()).toContain('Paris')
   })
@@ -119,6 +119,55 @@ describe('UpcomingView', () => {
       password: 'secret',
       dateTime: '2026-06-02T21:15',
       place: 'Nouveau lieu',
+    })
+  })
+
+  it('lets the creator update cooptage concerned people', async () => {
+    const event = {
+      id: 'event-1',
+      title: 'Intronisation',
+      eventType: 'cooptage',
+      dateTime: '2026-06-01T20:30',
+      place: 'Paris',
+      visibility: 'public',
+      sponsorIds: ['p1'],
+      fillotIds: ['p2'],
+      requests: [],
+    }
+    let updatePayload = null
+    const wrapper = mount(UpcomingView, {
+      props: {
+        events: [event],
+        people: [
+          { id: 'p1', name: 'Alice', roles: ['tva'] },
+          { id: 'p2', name: 'Basile' },
+          { id: 'p3', name: 'Camille' },
+        ],
+        region: { id: 'region-1', name: 'Alsace' },
+        cooptageRoleId: 'tva',
+        onCreatorAccess: (_payload, done) => done(event),
+        onCreatorUpdate: (payload, done) => {
+          updatePayload = payload
+          done({ ...event, fillotIds: payload.fillotIds })
+        },
+      },
+    })
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Gestion')).trigger('click')
+    await wrapper.find('input[type="password"]').setValue('secret')
+    await wrapper.find('form.action-panel').trigger('submit.prevent')
+    await wrapper.vm.$nextTick()
+
+    const searchInputs = wrapper.findAll('input[type="search"]')
+    await searchInputs[1].setValue('Camille')
+    await wrapper.findAll('.picker-results button').find((button) => button.text().includes('Camille')).trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Enregistrer les options').trigger('click')
+
+    expect(updatePayload).toMatchObject({
+      eventId: 'event-1',
+      password: 'secret',
+      sponsorIds: ['p1'],
+      fillotIds: ['p2', 'p3'],
     })
   })
 })
