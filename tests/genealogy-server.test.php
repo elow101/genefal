@@ -198,12 +198,43 @@ $publicUpcoming = public_upcoming_baptisms([
         'fillotIds' => ['fa2'],
         'dateTime' => '2099-02-03T18:30',
     ],
+    [
+        'id' => 'cooptage-past-linked',
+        'regionId' => 'region-a',
+        'title' => 'Cooptage passe',
+        'eventType' => 'cooptage',
+        'sponsorIds' => ['a2'],
+        'fillotIds' => ['fa2'],
+        'dateTime' => '2020-02-03T18:30',
+        'cooptageNickname' => 'Dudu',
+        'cooptageDateKnown' => false,
+    ],
+    [
+        'id' => 'cooptage-past-linked-no-sponsor',
+        'regionId' => 'region-a',
+        'title' => 'Cooptage passe sans cooptant',
+        'eventType' => 'cooptage',
+        'fillotIds' => ['fa2'],
+        'dateTime' => '2020-02-04T18:30',
+    ],
+    [
+        'id' => 'autre-past',
+        'regionId' => 'region-a',
+        'title' => 'Autre passe',
+        'eventType' => 'autre',
+        'dateTime' => '2020-02-03T18:30',
+    ],
 ]);
 assert_same(true, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-open')['allowParticipation'], 'custom upcoming event keeps explicit participation opt-in');
 assert_same('family', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-open')['visibility'], 'custom upcoming event keeps valid visibility');
 assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-legacy')['allowParticipation'], 'legacy custom upcoming event defaults participation opt-in to false');
 assert_same('public', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-legacy')['visibility'], 'invalid upcoming visibility defaults to public');
 assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-forced')['allowParticipation'], 'cooptage cannot force participation opt-in');
+assert_same('cooptage', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-past-linked')['eventType'], 'linked past cooptage is preserved for person sheets');
+assert_same('Dudu', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-past-linked')['cooptageNickname'], 'linked past cooptage keeps intro nickname');
+assert_same(false, event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-past-linked')['cooptageDateKnown'], 'linked past cooptage keeps unknown date flag');
+assert_same('cooptage', event_by_id(['upcomingBaptisms' => $publicUpcoming], 'cooptage-past-linked-no-sponsor')['eventType'], 'linked past cooptage does not require sponsor ids');
+assert_same([], event_by_id(['upcomingBaptisms' => $publicUpcoming], 'autre-past'), 'past non-cooptage event remains hidden from public upcoming data');
 assert_same('2099-02-03 18:30:00', upcoming_sql_event_datetime('2099-02-03T18:30'), 'SQL event storage preserves local wall-clock time');
 assert_same('2099-02-03 18:30:00', upcoming_sql_event_datetime('2099-02-03 18:30:00'), 'SQL event storage keeps database datetime unchanged');
 

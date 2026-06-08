@@ -39,7 +39,7 @@
                     <em>Branche nationale</em>
                   </span>
                 </span>
-                <small>{{ nationalGenealogy.people?.length || 0 }} fiche(s)</small>
+                <small>{{ genealogyPeopleCount(nationalGenealogy) }} fiche(s)</small>
               </button>
 
               <section
@@ -64,7 +64,7 @@
                     </span>
                   </span>
                   <span class="genealogy-region-meta">
-                    <small>{{ group.region.people?.length || 0 }} fiche(s)</small>
+                    <small>{{ genealogyPeopleCount(group.region) }} fiche(s)</small>
                     <span class="genealogy-region-chevron" aria-hidden="true">▾</span>
                   </span>
                 </button>
@@ -86,7 +86,7 @@
                           <em>Famille</em>
                         </span>
                       </span>
-                      <small>{{ family.people?.length || 0 }} fiche(s)</small>
+                      <small>{{ genealogyPeopleCount(family) }} fiche(s)</small>
                     </button>
                     <p v-if="group.families.length === 0" class="genealogy-family-empty">Aucune famille dans cette région.</p>
                   </div>
@@ -159,7 +159,7 @@ const selectedPhoto = computed(
 const homeStatusKind = computed(() => {
   if (props.error) return 'error'
   const status = props.statusLabel.toLowerCase()
-  if (status.includes('synchronisation') || status.includes('sauvegarde')) return 'saving'
+  if (status.includes('synchronisation') || status.includes('sauvegarde') || status.includes('chargement')) return 'saving'
   return 'online'
 })
 const homeStatusLabel = computed(() => {
@@ -176,6 +176,10 @@ const regionGroups = computed(() => {
     families: families.filter((family) => family.parentId === region.id),
   }))
 })
+
+function genealogyPeopleCount(genealogy) {
+  return genealogy?.peopleCount ?? genealogy?.people?.length ?? 0
+}
 
 function toggleRegion(region) {
   if (expandedRegionId.value === region.id) {

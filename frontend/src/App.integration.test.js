@@ -38,7 +38,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.add-sheet-button').trigger('click')
-    await flushPromises()
+    await settleDynamicImports()
     expect(requests.filter((request) => request.url === '/api/genealogy.php' && request.options?.method === 'POST')).toHaveLength(0)
     await wrapper.get('.name-field input').setValue('Bérénice')
     await wrapper.get('.person-form form').trigger('submit.prevent')
@@ -57,7 +57,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.add-sheet-button').trigger('click')
-    await flushPromises()
+    await settleDynamicImports()
     await wrapper.get('.name-field input').setValue('Fiche temporaire')
     await wrapper.findAll('.person-form button').find((button) => button.text() === 'Annuler').trigger('click')
     await flushPromises()
@@ -72,7 +72,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.add-sheet-button').trigger('click')
-    await flushPromises()
+    await settleDynamicImports()
 
     expect(wrapper.text()).toContain('Mode Réseau')
     expect(wrapper.text()).toContain('Brouillon local non enregistré')
@@ -109,8 +109,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.add-sheet-button').trigger('click')
-    await flushPromises()
-    await flushPromises()
+    await settleDynamicImports()
     const inputs = wrapper.findAll('.person-form input')
     await inputs[0].setValue('  leo dupont  ')
     await inputs[1].setValue('herbizeeebi')
@@ -149,7 +148,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.add-sheet-button').trigger('click')
-    await flushPromises()
+    await settleDynamicImports()
     const inputs = wrapper.findAll('.person-form input')
     await inputs[0].setValue('Léo Dupont')
     await inputs[1].setValue('Herbizeeebi')
@@ -174,8 +173,9 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.home-action-card--main').trigger('click')
-    await flushPromises()
+    await settleDynamicImports()
     await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')
+    await settleDynamicImports()
     await wrapper.get('.name-field input').setValue('Alice modifiée')
     await wrapper.get('.person-form form').trigger('submit.prevent')
     await flushPromises()
@@ -237,7 +237,7 @@ describe('App integration', () => {
     await flushPromises()
 
     await wrapper.get('.home-action-card--main').trigger('click')
-    await flushPromises()
+    await settleDynamicImports()
     await wrapper.findAll('button').find((button) => button.text().includes('Admin')).trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('Alice')).trigger('click')
@@ -251,6 +251,11 @@ describe('App integration', () => {
   })
 
 })
+
+async function settleDynamicImports() {
+  await vi.dynamicImportSettled()
+  await flushPromises()
+}
 
 function installFetchMock(config = {}) {
   const requests = []
@@ -274,6 +279,7 @@ function installFetchMock(config = {}) {
             : incomingState
         return json({ ok: true, state: currentState })
       }
+      if (url === '/api/genealogy.php?summary=1') return json(summaryState(currentState))
       if (url === '/api/upcoming.php' && options.method === 'POST') {
         const event = JSON.parse(options.body)
         currentState = {
@@ -290,6 +296,18 @@ function installFetchMock(config = {}) {
     }),
   )
   return requests
+}
+
+function summaryState(state) {
+  return {
+    ...state,
+    summary: true,
+    genealogies: (state.genealogies || []).map((genealogy) => ({
+      ...genealogy,
+      peopleCount: genealogy.people?.length || 0,
+      people: [],
+    })),
+  }
 }
 
 function json(payload) {

@@ -70,7 +70,7 @@
 
       <template v-if="roleRegion">
         <label class="admin-role-setting">
-          Rôle de cooptage
+          Rôle de cooptage / intronisation
           <select :value="roleRegion.cooptageRoleId || 'tva'" @change="setCooptageRole($event.target.value)">
             <option value="tva">TVA</option>
             <option v-for="role in roleRegion.customRoles || []" :key="role.id" :value="role.id">

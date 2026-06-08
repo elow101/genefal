@@ -164,6 +164,24 @@ function database_add_column_if_missing(PDO $pdo, string $table, string $column,
     $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
 }
 
+function database_index_exists(PDO $pdo, string $table, string $index): bool
+{
+    $statement = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name AND INDEX_NAME = :index_name'
+    );
+    $statement->execute([':table_name' => $table, ':index_name' => $index]);
+    return (int) $statement->fetchColumn() > 0;
+}
+
+function database_add_index_if_missing(PDO $pdo, string $table, string $index, string $definition): void
+{
+    if (database_index_exists($pdo, $table, $index)) {
+        return;
+    }
+    $pdo->exec("ALTER TABLE {$table} ADD INDEX {$index} {$definition}");
+}
+
 function database_ensure_genealogy_sql_schema(PDO $pdo): void
 {
     database_add_column_if_missing($pdo, 'genealogies', 'genealogy_json', 'JSON NULL');
@@ -182,6 +200,17 @@ function database_ensure_genealogy_sql_schema(PDO $pdo): void
     database_add_column_if_missing($pdo, 'events', 'event_url', 'VARCHAR(600) NULL');
     database_add_column_if_missing($pdo, 'events', 'family_id', 'VARCHAR(120) NULL');
     database_add_column_if_missing($pdo, 'events', 'recurrence', "VARCHAR(40) NOT NULL DEFAULT 'none'");
+
+    database_add_index_if_missing($pdo, 'genealogies', 'idx_genealogies_parent_type', '(parent_id, type)');
+    database_add_index_if_missing($pdo, 'people', 'idx_people_genealogy_filiere', '(genealogy_id, filiere)');
+    database_add_index_if_missing($pdo, 'people', 'idx_people_baptism_date', '(baptism_date)');
+    database_add_index_if_missing($pdo, 'genealogy_people', 'idx_genealogy_people_filiere', '(genealogy_id, filiere)');
+    database_add_index_if_missing($pdo, 'genealogy_people', 'idx_genealogy_people_filiere2', '(genealogy_id, filiere2)');
+    database_add_index_if_missing($pdo, 'person_relations', 'idx_relation_genealogy_source', '(genealogy_id, source_person_id)');
+    database_add_index_if_missing($pdo, 'person_relations', 'idx_relation_genealogy_target', '(genealogy_id, target_person_id)');
+    database_add_index_if_missing($pdo, 'events', 'idx_events_date', '(date_time)');
+    database_add_index_if_missing($pdo, 'events', 'idx_events_family_date', '(family_id, date_time)');
+    database_add_index_if_missing($pdo, 'events', 'idx_events_scope_date', '(scope, date_time)');
 }
 
 function database_diagnostic(): array

@@ -229,6 +229,14 @@
               {{ role.label }}
             </button>
           </div>
+          <CooptageEventEditor
+            v-if="!isCreating"
+            :person="person"
+            :people="people"
+            :role-options="roleOptions"
+            :past-events="pastCooptageEvents"
+            @create="(...args) => $emit('create-cooptage', ...args)"
+          />
         </div>
       </details>
 
@@ -246,6 +254,7 @@
 import { nextTick, reactive, ref, watch } from 'vue'
 import { filiereOptions, normaliseFiliereId } from '../../domain/filiere.js'
 import CeremonyEventEditor from './CeremonyEventEditor.vue'
+import CooptageEventEditor from './CooptageEventEditor.vue'
 import SponsorEditor from './SponsorEditor.vue'
 
 const props = defineProps({
@@ -255,6 +264,7 @@ const props = defineProps({
   selectedGenealogyId: { type: String, default: '' },
   canSelectGenealogy: { type: Boolean, default: false },
   roleOptions: { type: Array, default: () => [] },
+  pastCooptageEvents: { type: Array, default: () => [] },
   canManageCeremonyEvents: { type: Boolean, default: false },
   isCreating: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
@@ -266,6 +276,7 @@ const emit = defineEmits([
   'new',
   'help',
   'editing',
+  'create-cooptage',
   'change-genealogy',
   'cancel',
   'confirm-duplicate',

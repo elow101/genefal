@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS genealogies (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_genealogies_parent (parent_id),
+  INDEX idx_genealogies_parent_type (parent_id, type),
   INDEX idx_genealogies_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -36,6 +37,8 @@ CREATE TABLE IF NOT EXISTS people (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_people_genealogy (genealogy_id),
+  INDEX idx_people_genealogy_filiere (genealogy_id, filiere),
+  INDEX idx_people_baptism_date (baptism_date),
   INDEX idx_people_name (name),
   FULLTEXT INDEX ft_people_search (name, nickname),
   CONSTRAINT fk_people_genealogy FOREIGN KEY (genealogy_id) REFERENCES genealogies(id) ON DELETE CASCADE
@@ -60,6 +63,8 @@ CREATE TABLE IF NOT EXISTS person_relations (
   INDEX idx_relation_genealogy (genealogy_id),
   INDEX idx_relation_source (source_person_id, relation_type),
   INDEX idx_relation_target (target_person_id, relation_type),
+  INDEX idx_relation_genealogy_source (genealogy_id, source_person_id),
+  INDEX idx_relation_genealogy_target (genealogy_id, target_person_id),
   CONSTRAINT fk_relation_genealogy FOREIGN KEY (genealogy_id) REFERENCES genealogies(id) ON DELETE CASCADE,
   CONSTRAINT fk_relation_source FOREIGN KEY (source_person_id) REFERENCES people(id) ON DELETE CASCADE,
   CONSTRAINT fk_relation_target FOREIGN KEY (target_person_id) REFERENCES people(id) ON DELETE CASCADE
@@ -77,6 +82,8 @@ CREATE TABLE IF NOT EXISTS genealogy_people (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (genealogy_id, person_id),
   INDEX idx_genealogy_people_person (person_id),
+  INDEX idx_genealogy_people_filiere (genealogy_id, filiere),
+  INDEX idx_genealogy_people_filiere2 (genealogy_id, filiere2),
   CONSTRAINT fk_genealogy_people_genealogy FOREIGN KEY (genealogy_id) REFERENCES genealogies(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -93,10 +100,19 @@ CREATE TABLE IF NOT EXISTS events (
   sponsor_ids JSON NULL,
   fillot_ids JSON NULL,
   baptized_names JSON NULL,
+  scope VARCHAR(40) NOT NULL DEFAULT 'region',
+  event_url VARCHAR(600) NULL,
+  family_id VARCHAR(120) NULL,
+  recurrence VARCHAR(40) NOT NULL DEFAULT 'none',
+  cooptage_nickname VARCHAR(90) NULL,
+  cooptage_date_known TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   INDEX idx_events_region_date (region_id, date_time),
+  INDEX idx_events_date (date_time),
+  INDEX idx_events_family_date (family_id, date_time),
+  INDEX idx_events_scope_date (scope, date_time),
   INDEX idx_events_type (event_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

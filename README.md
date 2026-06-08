@@ -176,7 +176,7 @@ Types d'evenements autorises:
 - Baptême (`bapteme`)
 - Adoption (`adoption`)
 - Confirmation (`confirmation`)
-- Cooptage (`cooptage`)
+- Cooptage / Intronisation (`cooptage`)
 - Autre (`autre`)
 
 Les demandes de participation sont disponibles uniquement pour Baptême, Adoption et Confirmation.
@@ -298,7 +298,7 @@ Apres upload, verifier que `/data/auth.json`, `/data/upcoming-secrets.json` et `
 - Le national agrege les regions et familles sans dedupliquer de travers les statistiques.
 - La priorite de source reste famille, puis region, puis national.
 - Les roles regionaux restent administrables par region.
-- `TVA` reste la valeur de cooptage par defaut.
+- `TVA` reste la valeur de cooptage / intronisation par defaut.
 - Les droits ne doivent jamais dependre uniquement du masquage UI.
 - Les permissions createur d'evenement doivent toujours etre verifiees cote PHP avec le mot de passe temporaire.
 - Les emails des participants ne doivent jamais etre exposes dans le frontend ni dans les reponses publiques.
@@ -319,12 +319,12 @@ Apres upload, verifier que `/data/auth.json`, `/data/upcoming-secrets.json` et `
 12. Ajout et suppression admin d'une adoption ou confirmation.
 13. Envoi et resolution d'une doleance.
 14. Creation region ou famille.
-15. Creation d'un role regional et usage en cooptage.
+15. Creation d'un role regional et usage en cooptage / intronisation.
 16. Statistiques dedupliquees et roles cliquables.
 17. Creation d'un evenement Baptême.
 18. Creation d'un evenement Adoption.
 19. Creation d'un evenement Confirmation.
-20. Creation d'un evenement Cooptage.
+20. Creation d'un evenement Cooptage / Intronisation.
 21. Creation d'un evenement Autre.
 22. Mail createur recu avec mot de passe temporaire.
 23. Abonnement region et reception du mail nouvel evenement.

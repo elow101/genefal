@@ -1,5 +1,11 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import { fetchAuthState, fetchGenealogyState, saveGenealogyState, undoPublicSessionAction } from '../api/genealogyApi.js'
+import {
+  fetchAuthState,
+  fetchGenealogyState,
+  fetchGenealogySummary,
+  saveGenealogyState,
+  undoPublicSessionAction,
+} from '../api/genealogyApi.js'
 import {
   appendGenealogy,
   createGenealogy,
@@ -16,9 +22,11 @@ export function useGenealogyData() {
   const loginUrl = ref('http://127.0.0.1:8765/')
   const csrfToken = ref('')
   const saving = ref(false)
+  const fullDataLoading = ref(false)
   const data = shallowRef(null)
   const sessionActions = ref([])
   const lastSavedSnapshot = ref('')
+  let fullDataPromise = null
   let activeSavePromise = null
   let saveQueuedDuringFlight = false
   const selection = useGenealogySelection(data)
@@ -63,8 +71,35 @@ export function useGenealogyData() {
   }
 
   const hasUnsavedChanges = computed(() => Boolean(data.value) && stateSnapshot() !== lastSavedSnapshot.value)
+  const fullDataLoaded = computed(() => Boolean(data.value) && data.value.summary !== true)
+
+  async function ensureFullData() {
+    if (fullDataLoaded.value) return data.value
+    if (fullDataPromise) return fullDataPromise
+
+    fullDataLoading.value = true
+    fullDataPromise = fetchGenealogyState()
+      .then((state) => {
+        data.value = state
+        markStateAsSaved()
+        selection.initialiseSelection()
+        return state
+      })
+      .catch((err) => {
+        error.value = err.message
+        if (err.loginUrl) loginUrl.value = err.loginUrl
+        throw err
+      })
+      .finally(() => {
+        fullDataLoading.value = false
+        fullDataPromise = null
+      })
+
+    return fullDataPromise
+  }
 
   async function save() {
+    await ensureFullData()
     if (!data.value) return false
 
     if (activeSavePromise) {
@@ -122,6 +157,7 @@ export function useGenealogyData() {
   }
 
   async function undoSessionAction(actionId) {
+    await ensureFullData()
     saving.value = true
     error.value = ''
 
@@ -144,7 +180,7 @@ export function useGenealogyData() {
 
   onMounted(async () => {
     try {
-      const [authResult, stateResult] = await Promise.allSettled([fetchAuthState(), fetchGenealogyState()])
+      const [authResult, stateResult] = await Promise.allSettled([fetchAuthState(), fetchGenealogySummary()])
       const auth = authResult.status === 'fulfilled' ? authResult.value : { authenticated: false }
 
       if (!auth.authenticated) {
@@ -154,8 +190,10 @@ export function useGenealogyData() {
       }
       csrfToken.value = auth.csrfToken || ''
 
-      if (stateResult.status === 'rejected') throw stateResult.reason
-      data.value = stateResult.value
+      const initialState = stateResult.status === 'fulfilled' && summaryHasGenealogies(stateResult.value)
+        ? stateResult.value
+        : await fetchGenealogyState()
+      data.value = initialState
       markStateAsSaved()
       selection.initialiseSelection()
     } catch (err) {
@@ -169,6 +207,8 @@ export function useGenealogyData() {
   return {
     loading,
     saving,
+    fullDataLoading,
+    fullDataLoaded,
     error,
     loginUrl,
     csrfToken,
@@ -183,6 +223,11 @@ export function useGenealogyData() {
     patchGenealogy,
     replaceState,
     save,
+    ensureFullData,
     undoSessionAction,
   }
+}
+
+function summaryHasGenealogies(state) {
+  return Array.isArray(state?.genealogies) && state.genealogies.length > 0
 }

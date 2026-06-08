@@ -46,30 +46,55 @@ export function useGenealogySelection(data) {
 
 function mostConnectedPersonId(people) {
   if (!people.length) return ''
-  return [...people]
-    .sort((left, right) => connectionScore(right, people) - connectionScore(left, people) || left.name.localeCompare(right.name, 'fr'))[0]
-    ?.id || ''
+  const scores = connectionScores(people)
+  return people.reduce((best, person) => {
+    if (!best) return person
+    const score = scores.get(person.id) || 0
+    const bestScore = scores.get(best.id) || 0
+    if (score !== bestScore) return score > bestScore ? person : best
+    return (person.name || '').localeCompare(best.name || '', 'fr') < 0 ? person : best
+  }, null)?.id || ''
 }
 
-function connectionScore(person, people) {
-  const sponsorCount = (person.sponsorIds || []).length + (person.heartSponsorIds || []).length
-  const ceremonySponsorCount = (person.ceremonyEvents || []).reduce(
-    (total, event) => total + (event.sponsorIds?.length || 0) + (event.heartSponsorIds?.length || 0),
-    0,
-  )
-  const descendantCount = people.filter((candidate) => personIsLinkedToSponsor(candidate, person.id)).length
-  const crossCount = person.crossGroupId
-    ? people.filter((candidate) => candidate.id !== person.id && candidate.crossGroupId === person.crossGroupId).length
-    : 0
-  return sponsorCount + ceremonySponsorCount + descendantCount + crossCount
+function connectionScores(people) {
+  const scores = new Map()
+  const crossGroupCounts = new Map()
+
+  for (const person of people) {
+    if (!person?.id) continue
+    scores.set(person.id, 0)
+    if (person.crossGroupId) {
+      crossGroupCounts.set(person.crossGroupId, (crossGroupCounts.get(person.crossGroupId) || 0) + 1)
+    }
+  }
+
+  for (const person of people) {
+    if (!person?.id) continue
+    const linkedSponsorIds = personSponsorIds(person)
+    scores.set(person.id, (scores.get(person.id) || 0) + linkedSponsorIds.length)
+
+    for (const sponsorId of linkedSponsorIds) {
+      if (scores.has(sponsorId)) {
+        scores.set(sponsorId, (scores.get(sponsorId) || 0) + 1)
+      }
+    }
+  }
+
+  for (const person of people) {
+    if (!person?.id || !person.crossGroupId) continue
+    scores.set(person.id, (scores.get(person.id) || 0) + Math.max(0, (crossGroupCounts.get(person.crossGroupId) || 0) - 1))
+  }
+
+  return scores
 }
 
-function personIsLinkedToSponsor(person, sponsorId) {
-  return (
-    (person.sponsorIds || []).includes(sponsorId) ||
-    (person.heartSponsorIds || []).includes(sponsorId) ||
-    (person.ceremonyEvents || []).some((event) =>
-      [...(event.sponsorIds || []), ...(event.heartSponsorIds || [])].includes(sponsorId),
-    )
-  )
+function personSponsorIds(person) {
+  const ids = [
+    ...(person.sponsorIds || []),
+    ...(person.heartSponsorIds || []),
+  ]
+  for (const event of person.ceremonyEvents || []) {
+    ids.push(...(event.sponsorIds || []), ...(event.heartSponsorIds || []))
+  }
+  return ids
 }

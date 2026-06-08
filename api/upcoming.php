@@ -107,6 +107,8 @@ function upcoming_create_event(array $body): void
         'eventUrl' => $eventUrl,
         'familyId' => $familyId,
         'recurrence' => upcoming_normalise_recurrence($body['recurrence'] ?? 'none'),
+        'cooptageNickname' => api_safe_text($body['cooptageNickname'] ?? '', 90),
+        'cooptageDateKnown' => ($body['cooptageDateKnown'] ?? true) !== false,
         'createdAt' => gmdate('c'),
         'requests' => [],
     ];
@@ -289,6 +291,20 @@ function upcoming_update_event(array $body): void
         $eventType,
         $body['allowParticipation'] ?? false
     );
+    if ($eventType === 'cooptage') {
+        $state['upcomingBaptisms'][$eventIndex]['sponsorIds'] = id_array(
+            array_key_exists('sponsorIds', $body) ? $body['sponsorIds'] : ($state['upcomingBaptisms'][$eventIndex]['sponsorIds'] ?? [])
+        );
+        $state['upcomingBaptisms'][$eventIndex]['fillotIds'] = id_array(
+            array_key_exists('fillotIds', $body) ? $body['fillotIds'] : ($state['upcomingBaptisms'][$eventIndex]['fillotIds'] ?? [])
+        );
+        $state['upcomingBaptisms'][$eventIndex]['cooptageNickname'] = api_safe_text(
+            $body['cooptageNickname'] ?? ($state['upcomingBaptisms'][$eventIndex]['cooptageNickname'] ?? ''),
+            90
+        );
+        $state['upcomingBaptisms'][$eventIndex]['cooptageDateKnown'] =
+            ($body['cooptageDateKnown'] ?? ($state['upcomingBaptisms'][$eventIndex]['cooptageDateKnown'] ?? true)) !== false;
+    }
     $state['upcomingBaptisms'][$eventIndex]['visibility'] = upcoming_normalise_visibility(
         $body['visibility'] ?? ($state['upcomingBaptisms'][$eventIndex]['visibility'] ?? 'public')
     );
@@ -636,7 +652,7 @@ function upcoming_event_type_label(string $type): string
         'bapteme' => 'Bapteme',
         'adoption' => 'Adoption',
         'confirmation' => 'Confirmation',
-        'cooptage' => 'Cooptage',
+        'cooptage' => 'Cooptage / Intronisation',
         default => 'Autre',
     };
 }

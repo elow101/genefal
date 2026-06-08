@@ -24,6 +24,7 @@ export function migrateGenealogyState(input) {
       : genealogies[0]?.id || '',
     genealogies,
     upcomingBaptisms: Array.isArray(state.upcomingBaptisms) ? state.upcomingBaptisms : [],
+    ...(state.summary === true ? { summary: true } : {}),
   }
 }
 

@@ -107,7 +107,7 @@ export const tutorialsFr = {
       },
       {
         title: 'Choisir le type',
-        text: 'Choisis Baptême / Adoption / Confirmation / Cooptage / Autre. Le type influence les champs demandés.',
+        text: 'Choisis Baptême / Adoption / Confirmation / Cooptage / Intronisation / Autre. Le type influence les champs demandés.',
         expected: 'Les champs « Personnes concernées » s’adaptent.',
       },
       {
@@ -148,7 +148,7 @@ export const tutorialsFr = {
     ],
     warnings: [
       'Une date passée affiche un avertissement : corrige-la avant de publier.',
-      'Cooptage : les demandes de participation sont toujours fermées.',
+      'Cooptage / Intronisation : les demandes de participation sont toujours fermées.',
     ],
     troubleshooting: [
       {

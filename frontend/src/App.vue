@@ -234,6 +234,7 @@
                 :style="graphPanStyle"
               >
                 <GenealogyGraph
+                  v-if="!graphLoading"
                   :graph="graph"
                   :selected-person-id="graphFocusPersonId"
                   :zoom="graphRenderZoom"
@@ -244,6 +245,9 @@
                   :halo-descendant-depth="networkHaloDescendantDepth"
                   @select="handleGraphSelect"
                 />
+                <p v-else class="notice graph-loading-notice" aria-live="polite">
+                  Préparation de l'arbre...
+                </p>
               </div>
             </div>
             <section
@@ -319,12 +323,13 @@
               @select="handlePersonFocus"
             />
             <StatsDashboard
-              v-else-if="activeView === 'stats'"
+              v-else-if="activeView === 'stats' && stats"
               :stats="stats"
               :people="people"
               @select="handlePersonFocus"
               @filter-filiere="handleFiliereFilter"
             />
+            <p v-else-if="activeView === 'stats'" class="notice">Calcul des statistiques...</p>
             <template v-else-if="activeView === 'home'">
               <section class="home-panel">
                 <div class="home-actions" aria-label="Actions principales">
@@ -368,7 +373,7 @@
                       <small>Crée une nouvelle personne et relie-la à un arbre existant.</small>
                     </span>
                   </button>
-                  <button type="button" class="home-action-card" @click="activeView = 'upcoming'">
+                  <button type="button" class="home-action-card" @click="openUpcomingView">
                     <span class="home-action-icon home-action-icon--events" aria-hidden="true">
                       <svg viewBox="0 0 24 24">
                         <path d="M8 2v4M16 2v4M3 10h18" />
@@ -391,7 +396,7 @@
                 <section class="home-stats" aria-label="Statistiques">
                   <header class="home-stats-head">
                     <h3>Statistiques</h3>
-                    <button type="button" @click="activeView = 'stats'">Vue globale</button>
+                    <button type="button" @click="openStatsView">Vue globale</button>
                   </header>
                   <div class="home-summary" aria-label="Résumé">
                     <article>
@@ -426,9 +431,9 @@
                           <path d="M11.6 16.8A3 3 0 1 1 8 14" />
                         </svg>
                       </span>
-                      <strong>{{ upcomingEvents.length }}</strong>
+                      <strong>{{ homeUpcomingCount }}</strong>
                       <span>Annonces</span>
-                      <small>{{ upcomingEvents.length ? 'En cours' : 'Aucune en cours' }}</small>
+                      <small>{{ homeUpcomingCount ? 'En cours' : 'Aucune en cours' }}</small>
                     </article>
                   </div>
                 </section>
@@ -436,7 +441,7 @@
             </template>
             <template v-else-if="activeView === 'upcoming'">
               <div class="upcoming-create-bar">
-                <button type="button" class="app-button app-button--primary" @click="showUpcomingComposer = true">
+                <button type="button" class="app-button app-button--primary" @click="openUpcomingComposer">
                   + Créer
                 </button>
               </div>
@@ -445,6 +450,7 @@
                 :people="people"
                 :region="upcomingRegion"
                 :cooptage-role-label="cooptageRole.label"
+                :cooptage-role-id="cooptageRole.id"
                 :can-delete="Boolean(adminSession)"
                 @delete="handleUpcomingDelete"
                 @request="handleAttendanceRequest"
@@ -510,12 +516,14 @@
             :genealogy-options="personCreationGenealogyOptions"
             :selected-genealogy-id="personFormGenealogyId"
             :can-select-genealogy="isCreatingPerson"
-            :role-options="roleOptions"
+            :role-options="personFormRoleOptions"
+            :past-cooptage-events="selectedPersonPastCooptageEvents"
             :can-manage-ceremony-events="Boolean(adminSession)"
             :is-creating="isCreatingPerson"
             :saving="saving"
             :duplicate-confirmation="duplicateCreationConfirmation"
             @save="handlePersonFormSave"
+            @create-cooptage="handlePersonCooptageCreate"
             @new="beginPersonCreation"
             @help="openTutorialById"
             @cancel="cancelPersonCreation"
@@ -527,7 +535,9 @@
           <PersonDetails
             v-if="!isCreatingPerson"
             :person="selectedPerson"
-            :role-options="roleOptions"
+            :people="people"
+            :role-options="personFormRoleOptions"
+            :past-cooptage-events="selectedPersonPastCooptageEvents"
           />
           <section v-if="!isCreatingPerson && canMoveSelectedPerson" class="person-move">
             <h3>Déplacer la fiche</h3>
@@ -666,7 +676,9 @@ import {
   defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
+  onMounted,
   ref,
+  shallowRef,
   watch,
 } from 'vue'
 import { useAdmin } from './composables/useAdmin.js'
@@ -679,10 +691,9 @@ import {
   getPersonSourceGenealogy,
   movePersonToGenealogy,
 } from './domain/genealogy.js'
-import { buildGraphModel } from './domain/graph.js'
+import { getPastCooptageEventsForPerson, getUpcomingEventsForContext } from './domain/upcoming.js'
 import { cooptageRoleForRegion, roleOptionsForGenealogy } from './domain/roles.js'
 import { normalizeSearchText, personMatchesSearch } from './domain/search.js'
-import { computeStats } from './domain/stats.js'
 import AppHeader from './features/layout/AppHeader.vue'
 import ViewSwitcher from './features/layout/ViewSwitcher.vue'
 import PersonSearch from './features/search/PersonSearch.vue'
@@ -719,6 +730,11 @@ const TutorialCoachmark = defineAsyncComponent(secondaryComponentLoaders.tutoria
 const TutorialOverlay = defineAsyncComponent(secondaryComponentLoaders.tutorialOverlay)
 const UpcomingComposer = defineAsyncComponent(secondaryComponentLoaders.upcomingComposer)
 const UpcomingView = defineAsyncComponent(secondaryComponentLoaders.upcomingView)
+const EMPTY_GRAPH = Object.freeze({ nodes: [], edges: [], rows: [], legend: false })
+const TREE_COMPONENTS = ['genealogyGraph']
+const EDITOR_COMPONENTS = ['personForm', 'personDetails', 'peopleList']
+const STATS_COMPONENTS = ['statsDashboard']
+const UPCOMING_COMPONENTS = ['upcomingView']
 
 const views = [
   { id: 'home', label: 'Accueil', icon: 'home' },
@@ -773,6 +789,10 @@ const forcingDuplicateCreation = ref(false)
 let feedbackTimeout = 0
 let autosaveTimeout = 0
 let editingTimeout = 0
+let statsLoadRequest = 0
+let graphLoadRequest = 0
+let graphModelModule = null
+const graphLayoutCache = new Map()
 const editing = ref(false)
 const graphPan = ref({
   active: false,
@@ -785,6 +805,7 @@ const graphPan = ref({
   x: 0,
   y: 0,
 })
+const graphViewportSize = ref({ width: 0, height: 0 })
 const graphRecentering = ref(false)
 const graphFocusPersonId = ref('')
 const networkHaloDepthValue = computed({
@@ -801,6 +822,7 @@ const networkHaloDepthValue = computed({
   },
 })
 let graphPanFrame = 0
+let graphViewportMeasureFrame = 0
 let graphRecenteringTimeout = 0
 let pendingGraphPanX = 0
 let pendingGraphPanY = 0
@@ -809,6 +831,8 @@ let suppressGraphClickUntil = 0
 const {
   loading,
   saving,
+  fullDataLoading,
+  fullDataLoaded,
   error,
   loginUrl,
   csrfToken,
@@ -832,6 +856,7 @@ const {
   patchGenealogy,
   replaceState,
   save,
+  ensureFullData,
   undoSessionAction,
 } = useGenealogyData()
 
@@ -844,22 +869,12 @@ const adminError = computed(() => admin.error.value)
 const doleanceItems = computed(() => doleances.items.value)
 const doleanceLoading = computed(() => doleances.loading.value)
 const doleanceError = computed(() => doleances.error.value)
-const stats = computed(() => (activeView.value === 'stats' ? computeStats(genealogies.value) : null))
-const graph = computed(() =>
-  activeView.value === 'tree'
-    ? buildGraphModel(people.value, {
-        focusId: selectedPersonId.value,
-        mode: graphLayoutMode.value,
-        ancestorDepth: ancestorDepth.value,
-        descendantDepth: descendantDepth.value,
-        includeAllNetwork:
-          graphLayoutMode.value === 'network' && selectedGenealogy.value?.type === 'national',
-      })
-    : { nodes: [], edges: [], rows: [], legend: false },
-)
+const stats = ref(null)
+const graph = shallowRef(EMPTY_GRAPH)
+const graphLoading = ref(false)
 const graphIsPannable = computed(() => activeView.value === 'tree')
 const graphPanStyle = computed(() => ({
-  transform: `translate3d(${graphPan.value.x}px, ${graphPan.value.y}px, 0)`,
+  transform: `translate(${graphPan.value.x}px, ${graphPan.value.y}px)`,
 }))
 const graphRenderZoom = computed(() => graphZoom.value * GRAPH_RENDER_SCALE)
 const graphContentSize = computed(() => {
@@ -899,12 +914,17 @@ const graphContentSize = computed(() => {
       graphRenderZoom.value,
   }
 })
-const upcomingEvents = computed(() => upcoming.events.value)
+const upcomingEvents = computed(() => (activeView.value === 'upcoming' ? upcoming.events.value : []))
 const upcomingRegion = computed(() => upcoming.region.value)
 const homePeopleCount = computed(() =>
   activeView.value === 'home'
-    ? genealogies.value.reduce((total, genealogy) => total + (genealogy.people?.length || 0), 0)
+    ? genealogies.value.reduce((total, genealogy) => total + (genealogy.peopleCount ?? genealogy.people?.length ?? 0), 0)
     : people.value.length,
+)
+const homeUpcomingCount = computed(() =>
+  activeView.value === 'home'
+    ? getUpcomingEventsForContext(data.value, selectedGenealogy.value).length
+    : upcomingEvents.value.length,
 )
 const editorHidden = computed(() => ['stats', 'upcoming'].includes(activeView.value))
 const editorVisible = computed(() => {
@@ -921,8 +941,19 @@ const cooptageRole = computed(() => cooptageRoleForRegion(upcomingRegion.value))
 const selectedPersonSourceGenealogy = computed(() =>
   selectedPerson.value ? getPersonSourceGenealogy(data.value, selectedPerson.value.id) : null,
 )
+const selectedPersonPastCooptageEvents = computed(() =>
+  getPastCooptageEventsForPerson(data.value, selectedPerson.value?.id),
+)
 const isCreatingPerson = computed(() => Boolean(creationDraftPerson.value))
 const personFormPerson = computed(() => creationDraftPerson.value || selectedPerson.value)
+const personFormRoleOptions = computed(() => {
+  if (isCreatingPerson.value) {
+    const genealogyId = creationDraftGenealogyId.value || selectedGenealogyId.value
+    const genealogy = genealogies.value.find((item) => item.id === genealogyId) || selectedGenealogy.value
+    return roleOptionsForGenealogy(genealogies.value, genealogy)
+  }
+  return roleOptionsForGenealogy(genealogies.value, selectedPersonSourceGenealogy.value || selectedGenealogy.value)
+})
 const duplicateCreationConfirmation = computed(() => {
   if (!pendingDuplicateCreation.value) return null
   return {
@@ -979,6 +1010,7 @@ const personCreationGenealogyOptions = computed(() =>
 
 const statusLabel = computed(() => {
   if (loading.value) return 'Synchronisation'
+  if (fullDataLoading.value) return 'Chargement des fiches'
   if (error.value) return 'Hors ligne'
   if (saving.value) return 'Sauvegarde…'
   return 'En ligne'
@@ -986,6 +1018,7 @@ const statusLabel = computed(() => {
 
 const searchResults = computed(() => {
   const query = normalizeSearchText(debouncedSearchQuery.value)
+  if (!fullDataLoaded.value) return []
   if (!query) return []
   return people.value
     .filter((person) => personMatchesSearch(person, query, ['song', 'baptismCity', 'filiere']))
@@ -1005,7 +1038,9 @@ const focusSubtitle = computed(() => {
   if (activeView.value === 'overview')
     return `${people.value.length} faluchard(s), triés par filière`
   if (activeView.value === 'stats') {
-    return `${stats.value.peopleCount} fiche(s), ${stats.value.baptizedCount} baptisé(s), ${stats.value.unbaptizedCount} non baptisé(s)`
+    const currentStats = stats.value
+    if (!currentStats) return 'Calcul des statistiques...'
+    return `${currentStats.peopleCount} fiche(s), ${currentStats.baptizedCount} baptisé(s), ${currentStats.unbaptizedCount} non baptisé(s)`
   }
   if (activeView.value === 'upcoming') {
     if (upcomingRegion.value) {
@@ -1036,6 +1071,7 @@ const pageDescription = computed(() => {
 })
 
 async function openAdmin() {
+  await ensureFullData()
   activeOverlay.value = 'admin'
   await admin.refresh()
 }
@@ -1138,7 +1174,9 @@ async function handlePersonFormSave(updatedPerson, options = {}) {
   )
 }
 
-function handlePersonFocus(personId) {
+async function handlePersonFocus(personId) {
+  await ensureFullData()
+  await Promise.all([preloadTreeView(), preloadEditor()])
   selectPerson(personId)
   graphFocusPersonId.value = personId
   activeView.value = 'tree'
@@ -1153,13 +1191,107 @@ function handleGraphSelect(personId) {
 }
 
 function handleFiliereFilter(label) {
+  preloadSecondaryComponents(['overviewPanel'])
   overviewFiliereFilter.value = label
   activeView.value = 'overview'
 }
 
-function openMainTreeView() {
+async function openMainTreeView() {
+  await ensureFullData()
+  await preloadTreeView()
   activeView.value = 'tree'
   setGraphLayoutMode('network')
+}
+
+async function openStatsView() {
+  await ensureFullData()
+  await preloadSecondaryComponents(STATS_COMPONENTS)
+  activeView.value = 'stats'
+}
+
+function openUpcomingView() {
+  preloadSecondaryComponents(UPCOMING_COMPONENTS)
+  activeView.value = 'upcoming'
+}
+
+async function openUpcomingComposer() {
+  await ensureFullData()
+  showUpcomingComposer.value = true
+}
+
+function preloadSecondaryComponents(names) {
+  return Promise.allSettled(
+    names.map((name) => {
+      const loader = secondaryComponentLoaders[name]
+      return loader ? loader() : Promise.resolve()
+    }),
+  )
+}
+
+function preloadTreeView() {
+  return preloadSecondaryComponents(TREE_COMPONENTS)
+}
+
+function preloadEditor() {
+  return preloadSecondaryComponents(EDITOR_COMPONENTS)
+}
+
+function graphLayoutOptions() {
+  return {
+    focusId: selectedPersonId.value,
+    mode: graphLayoutMode.value,
+    ancestorDepth: ancestorDepth.value,
+    descendantDepth: descendantDepth.value,
+    includeAllNetwork:
+      graphLayoutMode.value === 'network' && selectedGenealogy.value?.type === 'national',
+  }
+}
+
+function graphLayoutCacheKey(options) {
+  return [
+    selectedGenealogyId.value,
+    options.focusId,
+    options.mode,
+    options.ancestorDepth,
+    options.descendantDepth,
+    options.includeAllNetwork ? 'all' : 'focus',
+  ].join('|')
+}
+
+async function loadGraphModelBuilder() {
+  if (!graphModelModule) {
+    graphModelModule = import('./domain/graph.js')
+  }
+  return (await graphModelModule).buildGraphModel
+}
+
+async function refreshGraphModel() {
+  const requestId = ++graphLoadRequest
+  if (activeView.value !== 'tree') {
+    graphLoading.value = false
+    graph.value = EMPTY_GRAPH
+    return
+  }
+
+  const options = graphLayoutOptions()
+  const cacheKey = graphLayoutCacheKey(options)
+  const cachedGraph = graphLayoutCache.get(cacheKey)
+  if (cachedGraph) {
+    graph.value = cachedGraph
+    graphLoading.value = false
+    return
+  }
+
+  graphLoading.value = true
+  const buildGraphModel = await loadGraphModelBuilder()
+  if (requestId !== graphLoadRequest || activeView.value !== 'tree') return
+
+  const nextGraph = buildGraphModel(people.value, options)
+  graphLayoutCache.set(cacheKey, nextGraph)
+  graph.value = nextGraph
+  graphLoading.value = false
+  await nextTick()
+  scheduleGraphViewportRefresh()
 }
 
 function setGraphLayoutMode(mode) {
@@ -1188,7 +1320,9 @@ function resetZoom() {
   setGraphPanSmooth(next.x, next.y)
 }
 
-function beginPersonCreation() {
+async function beginPersonCreation() {
+  await ensureFullData()
+  await Promise.all([preloadTreeView(), preloadEditor()])
   // Si l’éditeur n’est pas visible (stats/upcoming) ou si on est sur l’accueil,
   // on bascule en vue arbre pour que le formulaire s’ouvre correctement.
   if (editorHidden.value || activeView.value === 'home') {
@@ -1204,6 +1338,8 @@ function beginPersonCreation() {
 }
 
 async function openTreeAndBeginPersonCreation() {
+  await ensureFullData()
+  await Promise.all([preloadTreeView(), preloadEditor()])
   activeView.value = 'tree'
   setGraphLayoutMode('network')
   await nextTick()
@@ -1272,6 +1408,7 @@ function startGraphPan(event) {
   const viewport = graphViewport.value
   if (!viewport) return
 
+  refreshGraphViewportSize()
   graphPan.value = {
     ...graphPan.value,
     active: true,
@@ -1341,6 +1478,7 @@ function clearGraphFocus() {
 
 function handleGraphWheel(event) {
   if (!graphIsPannable.value || event.ctrlKey) return
+  refreshGraphViewportSize()
   const deltaX = event.shiftKey ? event.deltaY : event.deltaX
   const deltaY = event.shiftKey ? 0 : event.deltaY
   const next = clampGraphPan(graphPan.value.x - deltaX, graphPan.value.y - deltaY)
@@ -1353,19 +1491,93 @@ function handleGraphWheel(event) {
 }
 
 function clampGraphPan(x, y) {
-  const viewport = graphViewport.value
-  if (!viewport) return { x, y }
+  const viewport = graphViewportBounds()
+  if (!viewport.width || !viewport.height) return { x, y }
   const content = graphContentSize.value
-  const horizontalMargin = Math.max(content.width, viewport.clientWidth * 2, 720)
-  const verticalMargin = Math.max(content.height, viewport.clientHeight * 5, 1800)
-  const minX = Math.min(horizontalMargin, viewport.clientWidth - content.width - horizontalMargin)
-  const maxX = horizontalMargin
-  const minY = Math.min(verticalMargin, viewport.clientHeight - content.height - verticalMargin)
-  const maxY = verticalMargin
-  return {
-    x: Math.min(maxX, Math.max(minX, x)),
-    y: Math.min(maxY, Math.max(minY, y)),
+  const contentWidth = Math.max(1, content.width)
+  const contentHeight = Math.max(1, content.height)
+  const margin = graphPanMargin(viewport)
+  const minX = Math.min(margin.x, viewport.width - contentWidth - margin.x)
+  const maxX = margin.x
+  const minY = Math.min(margin.y, viewport.height - contentHeight - margin.y)
+  const maxY = margin.y
+  const next = {
+    x: Math.min(maxX, Math.max(minX, Number.isFinite(x) ? x : 0)),
+    y: Math.min(maxY, Math.max(minY, Number.isFinite(y) ? y : 0)),
   }
+  warnIfGraphCanRenderEmpty('clamp', next, viewport, { width: contentWidth, height: contentHeight })
+  return next
+}
+
+function graphViewportBounds() {
+  const viewport = graphViewport.value
+  if (!viewport) return graphViewportSize.value
+  const rect = viewport.getBoundingClientRect()
+  return {
+    width: Math.max(0, viewport.clientWidth || rect.width || graphViewportSize.value.width),
+    height: Math.max(0, viewport.clientHeight || rect.height || graphViewportSize.value.height),
+  }
+}
+
+function graphPanMargin(viewport) {
+  const touchViewport = isTouchGraphViewport()
+  return {
+    x: Math.min(
+      Math.max(viewport.width * (touchViewport ? 0.52 : 0.34), touchViewport ? 96 : 72),
+      touchViewport ? 220 : 160,
+    ),
+    y: Math.min(
+      Math.max(viewport.height * (touchViewport ? 0.46 : 0.3), touchViewport ? 110 : 72),
+      touchViewport ? 240 : 180,
+    ),
+  }
+}
+
+function isTouchGraphViewport() {
+  if (typeof window === 'undefined') return false
+  return (
+    graphViewportSize.value.width <= 760 ||
+    window.matchMedia?.('(hover: none), (pointer: coarse)')?.matches
+  )
+}
+
+function refreshGraphViewportSize() {
+  const viewport = graphViewport.value
+  if (!viewport) return
+  const rect = viewport.getBoundingClientRect()
+  const width = Math.max(0, viewport.clientWidth || rect.width)
+  const height = Math.max(0, viewport.clientHeight || rect.height)
+  if (width === graphViewportSize.value.width && height === graphViewportSize.value.height) return
+  graphViewportSize.value = { width, height }
+}
+
+function scheduleGraphViewportRefresh() {
+  if (graphViewportMeasureFrame) return
+  graphViewportMeasureFrame = window.requestAnimationFrame(() => {
+    graphViewportMeasureFrame = 0
+    refreshGraphViewportSize()
+    const next = clampGraphPan(graphPan.value.x, graphPan.value.y)
+    graphPan.value = { ...graphPan.value, x: next.x, y: next.y }
+  })
+}
+
+function warnIfGraphCanRenderEmpty(reason, pan, viewport, content) {
+  if (!import.meta.env.DEV || !graph.value.nodes.length) return
+  const almostEmpty =
+    pan.x > viewport.width - 12 ||
+    pan.y > viewport.height - 12 ||
+    pan.x + content.width < 12 ||
+    pan.y + content.height < 12
+  if (!almostEmpty) return
+  console.warn('[GeneFaluche graph viewport]', {
+    reason,
+    totalNodes: graph.value.nodes.length,
+    zoom: graphZoom.value,
+    translateX: pan.x,
+    translateY: pan.y,
+    viewport,
+    graphBounds: content,
+  })
 }
 
 function isGraphSelectableTarget(target) {
@@ -1452,6 +1664,8 @@ function graphNodeCenter(nodeElement) {
 function resetGraphPan() {
   window.cancelAnimationFrame(graphPanFrame)
   graphPanFrame = 0
+  window.cancelAnimationFrame(graphViewportMeasureFrame)
+  graphViewportMeasureFrame = 0
   window.clearTimeout(graphRecenteringTimeout)
   graphRecentering.value = false
   graphPan.value = {
@@ -1504,6 +1718,41 @@ async function handleUpcomingCreateFromComposer(payload, done = () => {}) {
     if (ok) showUpcomingComposer.value = false
     done(ok)
   })
+}
+
+async function handlePersonCooptageCreate(payload, done = () => {}) {
+  const person = selectedPerson.value
+  const source = selectedPersonSourceGenealogy.value
+  if (!person?.id || !source) {
+    showFeedback("Impossible de relier ce cooptage à la fiche sélectionnée.", 'warning')
+    done(false)
+    return
+  }
+
+  const scope = source.type === 'family' ? 'family' : 'region'
+  const regionId = source.type === 'family' ? source.parentId || '' : source.id || ''
+  const familyId = source.type === 'family' ? source.id || '' : ''
+  if (!regionId) {
+    showFeedback("Impossible de déterminer la région de ce cooptage.", 'warning')
+    done(false)
+    return
+  }
+
+  await handleUpcomingCreate(
+    {
+      ...payload,
+      eventType: 'cooptage',
+      fillotIds: [person.id],
+      baptizedNames: [],
+      allowParticipation: false,
+      scope,
+      regionId,
+      familyId,
+      visibility: 'public',
+      recurrence: 'none',
+    },
+    done,
+  )
 }
 
 async function handleUpcomingDelete(eventId) {
@@ -1638,8 +1887,10 @@ async function undoRecentAction(action) {
   )
 }
 
-function selectSessionPerson(personId) {
+async function selectSessionPerson(personId) {
   if (!personId) return
+  await ensureFullData()
+  await preloadTreeView()
   selectPerson(personId)
   activeView.value = 'tree'
   setGraphLayoutMode('network')
@@ -1674,7 +1925,11 @@ async function exportSelectedPersonPdf({
   orientation: pdfOrientation = 'auto',
   exportMode: pdfExportMode = 'readable',
 }) {
-  const { downloadNetworkGraphPdf } = await import('./features/exports/pdfExport.js')
+  await ensureFullData()
+  const [{ downloadNetworkGraphPdf }, { buildGraphModel }] = await Promise.all([
+    import('./features/exports/pdfExport.js'),
+    import('./domain/graph.js'),
+  ])
   const exported = await downloadNetworkGraphPdf({
     person: selectedPerson.value,
     graph: buildGraphModel(people.value, {
@@ -1935,7 +2190,9 @@ function scheduleAutosave(delay = 1400) {
   }, delay)
 }
 
-function selectSearchResult(personId) {
+async function selectSearchResult(personId) {
+  await ensureFullData()
+  await preloadTreeView()
   selectPerson(personId)
   graphFocusPersonId.value = personId
   activeView.value = 'tree'
@@ -1946,6 +2203,44 @@ function selectSearchResult(personId) {
 watch(selectedGenealogyId, () => {
   graphFocusPersonId.value = ''
 })
+
+watch(activeView, (view) => {
+  if (['tree', 'overview', 'stats'].includes(view)) {
+    ensureFullData().catch(() => {})
+  }
+})
+
+watch(data, () => {
+  graphLayoutCache.clear()
+  if (activeView.value === 'tree') {
+    refreshGraphModel()
+  }
+})
+
+watch(
+  [activeView, selectedGenealogyId, selectedPersonId, graphLayoutMode, ancestorDepth, descendantDepth],
+  () => {
+    refreshGraphModel()
+  },
+  { immediate: true, flush: 'post' },
+)
+
+watch(
+  [activeView, genealogies],
+  async () => {
+    const requestId = ++statsLoadRequest
+    if (activeView.value !== 'stats') {
+      stats.value = null
+      return
+    }
+
+    const { computeStats } = await import('./domain/stats.js')
+    if (requestId === statsLoadRequest && activeView.value === 'stats') {
+      stats.value = computeStats(genealogies.value)
+    }
+  },
+  { immediate: true },
+)
 
 watch(adminSession, async (session) => {
   if (session && activeOverlay.value === 'doleances') {
@@ -1992,6 +2287,24 @@ function handleOverlayKeydown(event) {
 
 watch([selectedGenealogyId, activeView], () => {
   resetGraphPan()
+  nextTick(() => scheduleGraphViewportRefresh())
+})
+
+watch(
+  [graphContentSize, graphZoom, graphLayoutMode],
+  () => {
+    if (activeView.value !== 'tree') return
+    nextTick(() => scheduleGraphViewportRefresh())
+  },
+  { flush: 'post' },
+)
+
+onMounted(() => {
+  nextTick(() => scheduleGraphViewportRefresh())
+  window.addEventListener('resize', scheduleGraphViewportRefresh)
+  window.addEventListener('orientationchange', scheduleGraphViewportRefresh)
+  window.visualViewport?.addEventListener('resize', scheduleGraphViewportRefresh)
+  window.visualViewport?.addEventListener('scroll', scheduleGraphViewportRefresh)
 })
 
 watch(
@@ -2023,5 +2336,11 @@ onBeforeUnmount(() => {
   window.clearTimeout(autosaveTimeout)
   window.clearTimeout(editingTimeout)
   window.clearTimeout(graphRecenteringTimeout)
+  window.cancelAnimationFrame(graphPanFrame)
+  window.cancelAnimationFrame(graphViewportMeasureFrame)
+  window.removeEventListener('resize', scheduleGraphViewportRefresh)
+  window.removeEventListener('orientationchange', scheduleGraphViewportRefresh)
+  window.visualViewport?.removeEventListener('resize', scheduleGraphViewportRefresh)
+  window.visualViewport?.removeEventListener('scroll', scheduleGraphViewportRefresh)
 })
 </script>

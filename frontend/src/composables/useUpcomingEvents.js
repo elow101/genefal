@@ -29,7 +29,7 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
 
   async function createEvent(draft) {
     const event = createUpcomingEvent({
-      regionId: regionId.value,
+      regionId: draft.regionId || regionId.value,
       eventType: draft.eventType,
       title: draft.title || draft.customType || '',
       sponsorIds: draft.sponsorIds,
@@ -43,8 +43,10 @@ export function useUpcomingEvents({ data, csrfToken, selectedGenealogy }) {
       allowParticipation: draft.allowParticipation,
       scope: draft.scope,
       eventUrl: draft.eventUrl,
-      familyId: draft.familyId || selectedGenealogy.value?.id || '',
+      familyId: draft.familyId || (draft.scope === 'family' ? selectedGenealogy.value?.id || '' : ''),
       recurrence: draft.recurrence,
+      cooptageNickname: draft.cooptageNickname,
+      cooptageDateKnown: draft.cooptageDateKnown,
     })
 
     const result = await createUpcomingEventApi({

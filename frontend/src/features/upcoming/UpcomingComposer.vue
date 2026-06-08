@@ -30,7 +30,7 @@
               <option value="bapteme">Baptême</option>
               <option value="adoption">Adoption</option>
               <option value="confirmation">Confirmation</option>
-              <option value="cooptage">Cooptage</option>
+              <option value="cooptage">Cooptage / Intronisation</option>
               <option value="autre">Autre</option>
             </select>
           </label>
@@ -138,7 +138,7 @@
             v-model="draft.fillotIds"
             label="Faluchard(s) concerné(s)"
             :people="availableConcernedPeople"
-            placeholder="Rechercher un faluchard sans ce rôle"
+            placeholder="Rechercher un faluchard concerné"
           />
         </template>
       </section>
@@ -236,7 +236,7 @@ const dateWarning = computed(() => {
 })
 const typeWarning = computed(() =>
   draft.eventType === 'cooptage' && draft.allowParticipation
-    ? 'Les demandes de participation sont toujours fermées pour un cooptage.'
+    ? 'Les demandes de participation sont toujours fermées pour un cooptage / intronisation.'
     : '',
 )
 const scopeWarning = computed(() => {

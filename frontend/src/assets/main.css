@@ -912,7 +912,8 @@ textarea {
 }
 
 .graph-stage-wrap--pannable {
-  touch-action: auto;
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 
 .graph-stage-wrap--document-flow {
@@ -2166,7 +2167,15 @@ textarea {
 
 @media (hover: none), (pointer: coarse) {
   .graph-hover-card {
-    display: none;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 12px !important;
+    top: auto !important;
+    width: auto;
+    max-width: none;
+    max-height: min(48vh, 320px);
+    overflow-y: auto;
+    pointer-events: none;
   }
 }
 
@@ -2648,6 +2657,16 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.cooptage-info-line small {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.cooptage-info-line span {
+  line-height: 1.35;
 }
 
 .chip {
@@ -4752,6 +4771,7 @@ summary {
   width: 100%;
   max-width: 100%;
   height: clamp(620px, 70vh, 1100px);
+  height: clamp(620px, 70dvh, 1100px);
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -4870,10 +4890,12 @@ summary {
 .graph-pan-content {
   width: max-content;
   min-width: 100%;
-  will-change: transform;
+  will-change: auto;
   transform-origin: 0 0;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
+}
+
+.graph-viewport.is-touch-panning .graph-pan-content {
+  will-change: transform;
 }
 
 .graph-pan-content.is-recentering {
@@ -4977,7 +4999,8 @@ summary {
 
 @media (max-width: 980px) {
   .graph-viewport {
-    height: min(68vh, 620px);
+    height: clamp(360px, 68vh, 620px);
+    height: clamp(360px, 68dvh, 620px);
     min-height: 360px;
   }
 
@@ -5050,7 +5073,7 @@ summary {
   }
 
   .graph-viewport {
-    height: clamp(620px, calc(100vh - 250px), 1100px);
+    height: clamp(620px, calc(100dvh - 250px), 1100px);
   }
 
   .home-actions,
