@@ -501,6 +501,13 @@
                 </button>
               </section>
             </template>
+            <IdeaBoxView
+              v-else-if="activeView === 'idea-box'"
+              :admin-session="adminSession"
+              :csrf-token="csrfToken"
+              @feedback="({ message, kind }) => showFeedback(message, kind)"
+              @admin-logout="handleAdminLogout"
+            />
           </div>
         </section>
 
@@ -714,6 +721,7 @@ const secondaryComponentLoaders = {
   tutorialOverlay: () => import('./features/tutorial/TutorialOverlay.vue'),
   upcomingComposer: () => import('./features/upcoming/UpcomingComposer.vue'),
   upcomingView: () => import('./features/upcoming/UpcomingView.vue'),
+  ideaBoxView: () => import('./features/idea-box/IdeaBoxView.vue'),
 }
 const AdminPanel = defineAsyncComponent(secondaryComponentLoaders.adminPanel)
 const GenealogyAdmin = defineAsyncComponent(secondaryComponentLoaders.genealogyAdmin)
@@ -730,11 +738,13 @@ const TutorialCoachmark = defineAsyncComponent(secondaryComponentLoaders.tutoria
 const TutorialOverlay = defineAsyncComponent(secondaryComponentLoaders.tutorialOverlay)
 const UpcomingComposer = defineAsyncComponent(secondaryComponentLoaders.upcomingComposer)
 const UpcomingView = defineAsyncComponent(secondaryComponentLoaders.upcomingView)
+const IdeaBoxView = defineAsyncComponent(secondaryComponentLoaders.ideaBoxView)
 const EMPTY_GRAPH = Object.freeze({ nodes: [], edges: [], rows: [], legend: false })
 const TREE_COMPONENTS = ['genealogyGraph']
 const EDITOR_COMPONENTS = ['personForm', 'personDetails', 'peopleList']
 const STATS_COMPONENTS = ['statsDashboard']
 const UPCOMING_COMPONENTS = ['upcomingView']
+const IDEA_BOX_COMPONENTS = ['ideaBoxView']
 
 const views = [
   { id: 'home', label: 'Accueil', icon: 'home' },
@@ -742,6 +752,7 @@ const views = [
   { id: 'overview', label: "Vue d'ensemble", icon: 'person' },
   { id: 'stats', label: 'Statistiques', icon: 'chart' },
   { id: 'upcoming', label: 'Event à venir', icon: 'calendar' },
+  { id: 'idea-box', label: 'Boîte à idées', icon: 'idea' },
 ]
 const TUTORIAL_ENABLED_KEY = 'fetterama:tutorials-enabled'
 const GRAPH_LAYOUT_MODE_KEY = 'fetterama:graph-layout-mode'
@@ -926,7 +937,7 @@ const homeUpcomingCount = computed(() =>
     ? getUpcomingEventsForContext(data.value, selectedGenealogy.value).length
     : upcomingEvents.value.length,
 )
-const editorHidden = computed(() => ['stats', 'upcoming'].includes(activeView.value))
+const editorHidden = computed(() => ['stats', 'upcoming', 'idea-box'].includes(activeView.value))
 const editorVisible = computed(() => {
   if (editorHidden.value) return false
   // Sur l’accueil, le panneau d’ajout doit rester fermé par défaut.
@@ -1030,6 +1041,7 @@ const focusTitle = computed(() => {
   if (activeView.value === 'overview') return "Vue d'ensemble"
   if (activeView.value === 'stats') return 'Statistiques'
   if (activeView.value === 'upcoming') return 'Événements à venir'
+  if (activeView.value === 'idea-box') return 'Boîte à idées'
   if (isCreatingPerson.value) return 'Nouvelle personne'
   return selectedPerson.value?.name || 'Aucun faluchard sélectionné'
 })
@@ -1051,6 +1063,7 @@ const focusSubtitle = computed(() => {
     }
     return 'Ouvre une faluche de région ou une famille pour voir les annonces.'
   }
+  if (activeView.value === 'idea-box') return 'Vote pour les priorités et propose de nouvelles idées.'
   if (activeView.value === 'tree') {
     const layout = graphLayoutMode.value === 'network' ? 'Mode Réseau' : 'Mode Hiérarchie'
     if (isCreatingPerson.value) return `${layout} · Brouillon local non enregistré.`
@@ -1066,6 +1079,7 @@ const pageTitle = computed(() => `${focusTitle.value} | Faluche Nationale`)
 const pageDescription = computed(() => {
   if (activeView.value === 'stats') return 'Statistiques de la genealogie de faluche active.'
   if (activeView.value === 'upcoming') return 'Evenements a venir et demandes de presence.'
+  if (activeView.value === 'idea-box') return 'Boite a idees communautaire de GeneFaluche.'
   if (activeView.value === 'overview') return 'Vue lisible des faluchards groupes par filiere.'
   return 'Recherche, edition et visualisation mobile-first de genealogies de faluche.'
 })
@@ -1212,6 +1226,14 @@ async function openStatsView() {
 function openUpcomingView() {
   preloadSecondaryComponents(UPCOMING_COMPONENTS)
   activeView.value = 'upcoming'
+}
+
+function openIdeaBoxView(push = true) {
+  preloadSecondaryComponents(IDEA_BOX_COMPONENTS)
+  activeView.value = 'idea-box'
+  if (push && !window.location.pathname.startsWith('/boite-a-idees')) {
+    history.pushState({}, '', '/boite-a-idees')
+  }
 }
 
 async function openUpcomingComposer() {
@@ -2208,6 +2230,12 @@ watch(activeView, (view) => {
   if (['tree', 'overview', 'stats'].includes(view)) {
     ensureFullData().catch(() => {})
   }
+  if (view === 'idea-box') {
+    preloadSecondaryComponents(IDEA_BOX_COMPONENTS)
+    if (!window.location.pathname.startsWith('/boite-a-idees')) {
+      history.pushState({}, '', '/boite-a-idees')
+    }
+  }
 })
 
 watch(data, () => {
@@ -2300,6 +2328,10 @@ watch(
 )
 
 onMounted(() => {
+  if (window.location.pathname.startsWith('/boite-a-idees')) {
+    openIdeaBoxView(false)
+  }
+  window.addEventListener('popstate', handleAppPopState)
   nextTick(() => scheduleGraphViewportRefresh())
   window.addEventListener('resize', scheduleGraphViewportRefresh)
   window.addEventListener('orientationchange', scheduleGraphViewportRefresh)
@@ -2339,8 +2371,15 @@ onBeforeUnmount(() => {
   window.cancelAnimationFrame(graphPanFrame)
   window.cancelAnimationFrame(graphViewportMeasureFrame)
   window.removeEventListener('resize', scheduleGraphViewportRefresh)
+  window.removeEventListener('popstate', handleAppPopState)
   window.removeEventListener('orientationchange', scheduleGraphViewportRefresh)
   window.visualViewport?.removeEventListener('resize', scheduleGraphViewportRefresh)
   window.visualViewport?.removeEventListener('scroll', scheduleGraphViewportRefresh)
 })
+
+function handleAppPopState() {
+  if (window.location.pathname.startsWith('/boite-a-idees')) {
+    openIdeaBoxView(false)
+  }
+}
 </script>
