@@ -9,12 +9,46 @@ Application web de genealogie de faluche. Le projet combine un frontend Vue 3/Vi
 - Vue d'ensemble, statistiques, nouveaux venus integres aux statistiques, et evenements a venir.
 - Recherche de faluchards par nom, surnom ou paillarde.
 - Creation et edition de fiches, parrains, marraines, fillots, roles et ceremonies.
+- Cooptages / intronisations rattaches aux fiches, avec affichage automatique dans les roles et statuts.
 - Administration generale et regionale avec droits limites cote PHP.
 - Doleances publiques avec limite de session et resolution admin.
 - Evenements a venir: creation libre, abonnements region par mail, demandes de participation, gestion createur par mot de passe temporaire.
 - Notifications mail via PHPMailer + SMTP Gmail.
 - Export PDF centre sur une personne.
 - Interface mobile-first en cours de stabilisation.
+
+## Roadmap
+
+### Version actuelle: update 1.1.0
+
+Version 1.1.0 - Boite a idees communautaire
+
+La communaute peut desormais consulter les fonctionnalites envisagees, voter pour ses priorites et proposer ses propres idees. Les votes restent consultatifs et fonctionnent sans compte utilisateur, avec un identifiant anonyme local hache cote serveur.
+
+- Stabiliser l'affichage mobile et desktop des fiches.
+- Finaliser le flux Cooptage / Intronisation:
+  - creation depuis une fiche existante;
+  - titre choisi parmi les roles de la region;
+  - date, surnom et PM d'intro optionnels;
+  - affichage automatique dans "Roles et statuts";
+  - conservation de la valeur interne `cooptage`.
+- Garder les evenements passes calcules depuis les donnees d'evenements, sans duplication manuelle dans les fiches.
+- Renforcer la compatibilite JSON et SQL pour les hebergements mutualises.
+
+### Prochaines priorites
+
+- Ajouter une edition plus complete des cooptages / intronisations deja lies a une fiche.
+- Ameliorer la recherche et le filtrage par role, region, filiere et statut.
+- Ajouter une page d'aide courte pour les admins regionaux.
+- Clarifier les exports et proposer des exports plus ciblables.
+- Continuer les tests mobile sur les vues arbre, reseau, fiche et evenements.
+- Documenter les migrations SQL dans un fichier dedie.
+
+### Contributions
+
+Le depot public est disponible ici: <https://github.com/elow101/genefal>.
+
+Toute personne souhaitant aider peut consulter le code, ouvrir une issue, proposer une correction ou preparer une proposition de modification.
 
 ## Structure
 
@@ -180,6 +214,17 @@ Types d'evenements autorises:
 - Autre (`autre`)
 
 Les demandes de participation sont disponibles uniquement pour Baptême, Adoption et Confirmation.
+Le type Cooptage / Intronisation garde la valeur interne `cooptage` et ne permet pas les demandes de participation.
+
+Cooptage / Intronisation:
+
+- peut etre cree depuis les evenements a venir ou depuis une fiche existante;
+- depuis une fiche, l'ajout se fait dans "Roles et statuts";
+- le titre est choisi parmi les roles de la region de la fiche;
+- la date, le surnom et le PM d'intro sont optionnels;
+- la personne concernee est stockee dans `fillotIds`;
+- les PM d'intro sont stockes dans `sponsorIds`;
+- les intronisations passees s'affichent automatiquement sur les fiches concernees.
 
 Creation d'evenement:
 
@@ -287,6 +332,18 @@ Avant de remplacer une production existante:
 
 Apres upload, verifier que `/data/auth.json`, `/data/upcoming-secrets.json` et `/data/upcoming-subscriptions.json` sont interdits. Si un fichier devient accessible publiquement, remettre immediatement `data/.htaccess` et changer les secrets concernes.
 
+### Migration SQL Update 1.0.9
+
+Si le site utilise la table SQL `events`, ajouter les champs utilises par les cooptages / intronisations rattaches aux fiches:
+
+```sql
+ALTER TABLE events
+  ADD COLUMN cooptage_nickname VARCHAR(90) NULL AFTER recurrence,
+  ADD COLUMN cooptage_date_known TINYINT(1) NOT NULL DEFAULT 1 AFTER cooptage_nickname;
+```
+
+Si le site fonctionne uniquement en JSON, aucune migration SQL n'est necessaire.
+
 ## Contrats A Preserver
 
 - Onglets: Arbre, Reseau, Vue d'ensemble, Statistiques, Event a venir.
@@ -294,6 +351,16 @@ Apres upload, verifier que `/data/auth.json`, `/data/upcoming-secrets.json` et `
 - Les fiches restent fermees par sections sauf Identite a l'ouverture.
 - Hors admin, une ancienne fiche refusee par le serveur affiche une invitation a envoyer une doleance.
 - `schemaVersion` reste le contrat de persistance.
+
+### Migration SQL Update 1.1.0
+
+Executer `database/migration_1_1_0_idea_box.sql` apres le schema principal. Cette migration cree les tables `idea_box_proposals`, `idea_box_votes` et `idea_box_suggestions`, puis insere les idees initiales administrables de la Boite a idees.
+
+Configuration recommandee:
+
+- ajouter `IDEA_BOX_VOTE_SECRET` dans l'environnement serveur pour hacher les identifiants anonymes de vote avec un pepper HMAC;
+- conserver `SQL_ENABLED=1` et la configuration `DB_*` existante;
+- ne pas commiter la valeur de `IDEA_BOX_VOTE_SECRET`.
 - Toute migration doit etre faite dans `frontend/src/domain/schema.js` et `api/genealogy.php`.
 - Le national agrege les regions et familles sans dedupliquer de travers les statistiques.
 - La priorite de source reste famille, puis region, puis national.

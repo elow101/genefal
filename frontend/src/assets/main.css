@@ -7941,3 +7941,772 @@ textarea:focus {
     display: none;
   }
 }
+.idea-box {
+  color-scheme: dark;
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  color: var(--foreground);
+}
+
+.idea-box__hero,
+.idea-admin-bar,
+.idea-detail__panel,
+.idea-filters,
+.idea-empty,
+.idea-error,
+.admin-idea-box {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse at top right, color-mix(in oklab, var(--primary) 8%, transparent), transparent 48%),
+    color-mix(in oklab, var(--card-strong) 82%, transparent);
+  box-shadow: var(--shadow);
+}
+
+.idea-box__hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.idea-admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.idea-admin-bar strong {
+  color: var(--foreground);
+}
+
+.idea-admin-bar p {
+  margin: 0.2rem 0 0;
+  color: var(--muted-foreground);
+}
+
+.idea-admin-bar__actions,
+.idea-admin-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.idea-box__hero h2,
+.admin-idea-box h2 {
+  margin: 0 0 0.4rem;
+  color: var(--foreground);
+}
+
+.idea-box__hero p,
+.idea-detail p,
+.idea-card p,
+.admin-idea-box p {
+  margin: 0.35rem 0;
+  color: var(--muted-foreground);
+  line-height: 1.55;
+}
+
+.idea-box button,
+.idea-modal button,
+.admin-idea-box button,
+.idea-box input,
+.idea-box textarea,
+.idea-box select,
+.idea-modal input,
+.idea-modal textarea,
+.idea-modal select,
+.admin-idea-box input,
+.admin-idea-box textarea,
+.admin-idea-box select {
+  font: inherit;
+}
+
+.idea-box button,
+.idea-modal button,
+.admin-idea-box button,
+.idea-box input,
+.idea-box textarea,
+.idea-modal input,
+.idea-modal textarea,
+.admin-idea-box input,
+.admin-idea-box textarea {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.idea-tabs,
+.idea-filter-row,
+.idea-card__votes,
+.idea-vote__actions,
+.admin-idea-actions,
+.admin-idea-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.idea-filters {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.idea-tabs button,
+.idea-vote__actions button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--card) 62%, transparent);
+  color: var(--muted-foreground);
+  padding: 0.55rem 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    background-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+.idea-tabs button:hover,
+.idea-vote__actions button:hover {
+  border-color: color-mix(in oklab, var(--primary) 38%, transparent);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  color: var(--foreground);
+}
+
+.idea-tabs button:focus-visible,
+.idea-vote__actions button:focus-visible,
+.idea-box .app-button:focus-visible,
+.idea-modal .app-button:focus-visible,
+.admin-idea-box .app-button:focus-visible,
+.idea-box .text-button:focus-visible,
+.idea-modal .text-button:focus-visible,
+.admin-idea-box .text-button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary) 70%, transparent);
+  outline-offset: 3px;
+}
+
+.idea-tabs button:active,
+.idea-vote__actions button:active {
+  transform: translateY(1px);
+}
+
+.idea-tabs button:disabled,
+.idea-vote__actions button:disabled,
+.idea-box .app-button:disabled,
+.idea-modal .app-button:disabled,
+.admin-idea-box .app-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.idea-tabs button.is-active,
+.idea-vote__actions button.is-active {
+  border-color: color-mix(in oklab, var(--primary) 56%, transparent);
+  background: color-mix(in oklab, var(--primary) 16%, var(--card));
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 14%, transparent);
+}
+
+.idea-filter-row label,
+.idea-modal label,
+.admin-idea-form label,
+.idea-vote__reason label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.idea-filter-row input,
+.idea-filter-row select,
+.idea-modal input,
+.idea-modal textarea,
+.idea-modal select,
+.admin-idea-form input,
+.admin-idea-form textarea,
+.admin-idea-form select,
+.idea-vote__reason textarea,
+.idea-vote__reason select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--input) 82%, transparent);
+  color: var(--foreground);
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+.idea-filter-row input::placeholder,
+.idea-modal input::placeholder,
+.idea-modal textarea::placeholder,
+.admin-idea-form input::placeholder,
+.admin-idea-form textarea::placeholder,
+.idea-vote__reason textarea::placeholder {
+  color: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+  opacity: 1;
+}
+
+.idea-box select,
+.idea-box select option,
+.idea-modal select,
+.idea-modal select option,
+.admin-idea-box select,
+.admin-idea-box select option {
+  color: var(--foreground);
+  background-color: var(--popover);
+}
+
+.idea-box input:focus,
+.idea-box select:focus,
+.idea-box textarea:focus,
+.idea-modal input:focus,
+.idea-modal select:focus,
+.idea-modal textarea:focus,
+.admin-idea-box input:focus,
+.admin-idea-box select:focus,
+.admin-idea-box textarea:focus {
+  border-color: color-mix(in oklab, var(--primary) 56%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 24%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--primary) 10%, transparent);
+  outline: none;
+}
+
+.idea-box input:-webkit-autofill,
+.idea-box input:-webkit-autofill:hover,
+.idea-box input:-webkit-autofill:focus,
+.idea-modal input:-webkit-autofill,
+.idea-modal input:-webkit-autofill:hover,
+.idea-modal input:-webkit-autofill:focus,
+.admin-idea-box input:-webkit-autofill,
+.admin-idea-box input:-webkit-autofill:hover,
+.admin-idea-box input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  box-shadow: 0 0 0 1000px var(--popover) inset;
+  transition: background-color 9999s ease-out;
+}
+
+.idea-box input:autofill,
+.idea-modal input:autofill,
+.admin-idea-box input:autofill {
+  color: var(--foreground);
+  background: var(--popover);
+}
+
+.idea-filter-row label {
+  flex: 1 1 180px;
+}
+
+.idea-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.idea-card {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 0.8rem;
+  align-content: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--card-strong) 82%, transparent), color-mix(in oklab, var(--primary) 5%, transparent)),
+    var(--card);
+  padding: 1rem;
+  box-shadow: 0 14px 36px -22px var(--background);
+  min-height: 100%;
+  transition:
+    border-color var(--t-base) var(--ease-out),
+    background var(--t-base) var(--ease-out),
+    box-shadow var(--t-base) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+.idea-card:hover,
+.idea-card:focus-within {
+  border-color: color-mix(in oklab, var(--primary) 34%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--card-strong) 88%, transparent), color-mix(in oklab, var(--primary) 9%, transparent)),
+    var(--card);
+  box-shadow:
+    var(--shadow),
+    inset 0 0 0 1px color-mix(in oklab, var(--primary) 10%, transparent);
+  transform: translateY(-1px);
+}
+
+.idea-card h3,
+.idea-detail h3 {
+  margin: 0.45rem 0;
+  color: var(--foreground);
+}
+
+.idea-card > header {
+  position: relative;
+}
+
+.idea-card-admin-menu {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 20;
+}
+
+.idea-card-admin-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--card) 76%, transparent);
+  color: var(--foreground);
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+  padding: 0.35rem 0.7rem;
+}
+
+.idea-card-admin-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.idea-card-admin-menu[open] summary {
+  border-color: color-mix(in oklab, var(--primary) 42%, transparent);
+  background: color-mix(in oklab, var(--primary) 13%, var(--card));
+  color: var(--primary);
+}
+
+.idea-card-admin-menu > div {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  display: grid;
+  gap: 0.25rem;
+  min-width: min(220px, calc(100vw - 2rem));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  box-shadow: var(--shadow);
+  padding: 0.4rem;
+}
+
+.idea-card-admin-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: calc(var(--radius) * 0.75);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+}
+
+.idea-card-admin-menu button:hover,
+.idea-card-admin-menu button:focus-visible {
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  outline: none;
+}
+
+.idea-card__summary {
+  color: color-mix(in oklab, var(--foreground) 82%, var(--muted-foreground));
+  font-size: 0.98rem;
+}
+
+.idea-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  color: var(--muted-foreground);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.idea-badge--planned,
+.idea-badge--in_development {
+  border-color: color-mix(in oklab, var(--primary) 36%, transparent);
+  background: color-mix(in oklab, var(--primary) 13%, transparent);
+  color: var(--primary);
+}
+
+.idea-badge--published {
+  border-color: color-mix(in oklab, var(--success) 38%, transparent);
+  background: color-mix(in oklab, var(--success) 13%, transparent);
+  color: var(--success);
+}
+
+.idea-badge--rejected,
+.idea-badge--archived {
+  border-color: color-mix(in oklab, var(--destructive) 42%, transparent);
+  background: color-mix(in oklab, var(--destructive) 13%, transparent);
+  color: color-mix(in oklab, var(--destructive) 72%, var(--foreground));
+}
+
+.idea-badge--featured {
+  border-color: color-mix(in oklab, var(--warning) 42%, transparent);
+  background: color-mix(in oklab, var(--warning) 13%, transparent);
+  color: var(--warning);
+}
+
+.idea-card__meta,
+.idea-meta {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0;
+}
+
+.idea-card__meta div,
+.idea-meta div {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.idea-card__meta dt,
+.idea-meta dt {
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.idea-card__meta dd,
+.idea-meta dd {
+  margin: 0;
+  color: color-mix(in oklab, var(--foreground) 84%, var(--muted-foreground));
+  font-size: 0.92rem;
+}
+
+.idea-card__votes {
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.idea-card__actions {
+  align-self: end;
+  display: grid;
+  gap: 0.65rem;
+  grid-row: 5;
+  margin-top: 0.25rem;
+}
+
+.idea-card__detail {
+  justify-content: center;
+  width: 100%;
+}
+
+.idea-detail {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.idea-detail__panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.idea-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.idea-detail__grid h4 {
+  margin: 0 0 0.35rem;
+}
+
+.idea-vote {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem;
+}
+
+.idea-vote--compact {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.idea-vote--compact .idea-vote__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.idea-vote--compact .idea-vote__actions button {
+  justify-content: center;
+  min-width: 0;
+  padding-inline: 0.65rem;
+}
+
+.idea-vote__reason {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.idea-suggestion-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.idea-suggestion-card {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--card-strong) 82%, transparent), color-mix(in oklab, var(--warning) 6%, transparent)),
+    var(--card);
+  box-shadow: 0 14px 36px -22px var(--background);
+  padding: 1rem;
+}
+
+.idea-suggestion-card header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.idea-suggestion-card strong {
+  color: var(--foreground);
+}
+
+.idea-suggestion-card span,
+.idea-suggestion-card p {
+  color: var(--muted-foreground);
+}
+
+.idea-suggestion-filters {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  padding: 0.85rem;
+}
+
+.idea-empty {
+  padding: 1rem;
+  text-align: center;
+}
+
+.idea-error {
+  display: grid;
+  gap: 0.6rem;
+  border-color: color-mix(in oklab, var(--destructive) 42%, transparent);
+  background:
+    radial-gradient(ellipse at top left, color-mix(in oklab, var(--destructive) 10%, transparent), transparent 46%),
+    color-mix(in oklab, var(--card-strong) 86%, transparent);
+  padding: 1rem;
+}
+
+.idea-error strong {
+  color: var(--foreground);
+}
+
+.idea-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  padding: 1rem;
+}
+
+.idea-modal__panel {
+  display: grid;
+  gap: 0.85rem;
+  width: min(680px, 100%);
+  max-height: min(90vh, 840px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.idea-modal__panel header,
+.admin-idea-box__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.idea-editor-form {
+  width: min(980px, 100%);
+}
+
+.idea-editor-form__grid,
+.idea-admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.idea-admin-stats article {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  padding: 0.85rem;
+}
+
+.idea-admin-stats strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 1.35rem;
+}
+
+.idea-admin-stats span,
+.idea-admin-stat-lists p {
+  color: var(--muted-foreground);
+}
+
+.idea-admin-stat-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.idea-check {
+  display: flex !important;
+  grid-template-columns: auto 1fr;
+  flex-direction: row;
+  align-items: center;
+}
+
+.idea-honeypot {
+  position: absolute;
+  left: -9999px;
+}
+
+.idea-privacy {
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-idea-box {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.admin-idea-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-idea-stats article,
+.admin-idea-row,
+.admin-suggestion-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  padding: 0.85rem;
+}
+
+.admin-idea-stats strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 1.5rem;
+}
+
+.admin-idea-section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-idea-section summary {
+  cursor: pointer;
+  color: var(--foreground);
+  font-weight: 900;
+}
+
+.admin-idea-form,
+.admin-idea-list,
+.admin-suggestion-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-idea-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-idea-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-idea-row span,
+.admin-suggestion-row span {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+}
+
+@media (max-width: 720px) {
+  .idea-box__hero,
+  .idea-admin-bar,
+  .idea-modal__panel header,
+  .admin-idea-box__head,
+  .admin-idea-row {
+    display: grid;
+  }
+
+  .idea-admin-bar__actions,
+  .idea-admin-inline-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .idea-card-admin-menu > div {
+    right: auto;
+    left: 0;
+  }
+
+  .idea-filter-row {
+    display: grid;
+  }
+
+  .idea-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.2rem;
+  }
+}
+
+@media (min-width: 1120px) {
+  .idea-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
